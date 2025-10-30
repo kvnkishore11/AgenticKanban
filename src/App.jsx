@@ -48,7 +48,7 @@ function App() {
       <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="app-header">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="px-2 sm:px-4">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
               <div
@@ -113,7 +113,7 @@ function App() {
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border-l-4 border-red-400 p-4 mx-4 mt-4">
+        <div className="bg-red-50 border-l-4 border-red-400 p-4 mx-2 sm:mx-4 mt-4">
           <div className="flex">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
@@ -144,7 +144,7 @@ function App() {
       )}
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="px-2 sm:px-4 py-8">
         {!selectedProject ? (
           <ProjectSelector />
         ) : (
@@ -169,7 +169,7 @@ function App() {
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="px-2 sm:px-4 py-4">
           <div className="text-center text-sm text-gray-500">
             AgenticKanban - AI-Driven Development Workflow Management
           </div>
