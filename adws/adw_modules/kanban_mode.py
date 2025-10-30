@@ -6,7 +6,8 @@ and handle conditional operations based on the data source.
 
 import os
 import logging
-from typing import Optional, Dict, Any, Union
+import base64
+from typing import Optional, Dict, Any, Union, List
 from adw_modules.state import ADWState
 
 
@@ -161,6 +162,134 @@ def log_mode_status(state: ADWState, logger: Optional[logging.Logger] = None) ->
         logger.info(f"  - GitHub operations: enabled")
 
 
+def format_image_to_markdown(image: Dict[str, Any]) -> str:
+    """Convert an image object to markdown format compatible with Claude Code.
+
+    Args:
+        image: Image object with data and optional annotations
+
+    Returns:
+        Markdown formatted string for the image
+    """
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Check if image has base64 data
+        if "data" in image:
+            # Extract mime type and data
+            data = image["data"]
+            mime_type = image.get("type", "image/png")
+
+            # Handle data URLs
+            if data.startswith("data:"):
+                # Data is already in data URL format
+                image_url = data
+            else:
+                # Assume it's raw base64 and construct data URL
+                image_url = f"data:{mime_type};base64,{data}"
+
+            # Generate markdown with alt text
+            alt_text = image.get("name", "Image")
+            markdown = f"![{alt_text}]({image_url})"
+
+        elif "url" in image:
+            # Image has a URL reference
+            alt_text = image.get("name", "Image")
+            markdown = f"![{alt_text}]({image['url']})"
+
+        else:
+            logger.warning("Image has no data or url field, skipping")
+            return ""
+
+        # Add annotation as a comment if present
+        if "annotations" in image and image["annotations"]:
+            annotations_text = "\n".join([
+                f"<!-- Annotation: {ann} -->"
+                for ann in image["annotations"]
+                if ann.strip()
+            ])
+            if annotations_text:
+                markdown = f"{markdown}\n{annotations_text}"
+
+        return markdown
+
+    except Exception as e:
+        logger.error(f"Failed to format image to markdown: {e}")
+        return ""
+
+
+def format_body_with_images(body: str, images: List[Dict[str, Any]]) -> str:
+    """Format the issue body with embedded images in markdown format.
+
+    Args:
+        body: Original issue body text
+        images: List of image objects with data and annotations
+
+    Returns:
+        Body text with images embedded as markdown
+    """
+    logger = logging.getLogger(__name__)
+
+    if not images:
+        return body
+
+    try:
+        # Start with the original body
+        formatted_body = body
+
+        # Add a section for images
+        formatted_body += "\n\n## Attached Images\n\n"
+
+        # Convert each image to markdown
+        for i, image in enumerate(images):
+            markdown_image = format_image_to_markdown(image)
+            if markdown_image:
+                formatted_body += f"{markdown_image}\n\n"
+
+        logger.info(f"Successfully formatted {len(images)} images in body")
+        return formatted_body
+
+    except Exception as e:
+        logger.error(f"Failed to format body with images: {e}")
+        return body  # Return original body on error
+
+
+def extract_images_from_kanban_data(kanban_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Extract and validate images from kanban data.
+
+    Args:
+        kanban_data: Raw kanban data that may contain images
+
+    Returns:
+        List of validated image objects
+    """
+    logger = logging.getLogger(__name__)
+
+    if not kanban_data or "images" not in kanban_data:
+        return []
+
+    images = kanban_data.get("images", [])
+    if not isinstance(images, list):
+        logger.warning("Images field is not a list, skipping")
+        return []
+
+    validated_images = []
+    for image in images:
+        if not isinstance(image, dict):
+            logger.warning("Image is not a dictionary, skipping")
+            continue
+
+        # Ensure image has required fields
+        if "data" not in image and "url" not in image:
+            logger.warning("Image has no data or url field, skipping")
+            continue
+
+        validated_images.append(image)
+
+    logger.info(f"Extracted {len(validated_images)} valid images from kanban data")
+    return validated_images
+
+
 def create_kanban_issue_from_data(issue_json: Dict[str, Any], issue_number: str) -> Dict[str, Any]:
     """Create a standardized issue object from kanban data.
 
@@ -190,6 +319,16 @@ def create_kanban_issue_from_data(issue_json: Dict[str, Any], issue_number: str)
         "url": f"#kanban-issue-{issue_number}",  # Required field, was "html_url"
         "kanban_source": True  # Flag to identify kanban-sourced issues
     }
+
+    # Extract and format images if present
+    if "images" in issue_json and issue_json["images"]:
+        body_with_images = format_body_with_images(
+            standardized["body"],
+            issue_json["images"]
+        )
+        standardized["body"] = body_with_images
+        # Store original images data for reference
+        standardized["images"] = issue_json["images"]
 
     # Map additional fields if available
     if "labels" in issue_json:
