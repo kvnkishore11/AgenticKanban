@@ -48,14 +48,14 @@ describe('TaskInput Component', () => {
     it('should display Full SDLC button', () => {
       render(<TaskInput />);
 
-      const fullSdlcButton = screen.getByText('Select Full SDLC');
+      const fullSdlcButton = screen.getByText('SDLC');
       expect(fullSdlcButton).toBeInTheDocument();
     });
 
     it('should select all SDLC stages when Full SDLC is clicked', async () => {
       render(<TaskInput />);
 
-      const fullSdlcButton = screen.getByText('Select Full SDLC');
+      const fullSdlcButton = screen.getByText('SDLC');
       fireEvent.click(fullSdlcButton);
 
       // Check that all SDLC stage checkboxes are checked
@@ -72,31 +72,31 @@ describe('TaskInput Component', () => {
     it('should show Full SDLC Selected when all stages are selected', async () => {
       render(<TaskInput />);
 
-      const fullSdlcButton = screen.getByText('Select Full SDLC');
+      const fullSdlcButton = screen.getByText('SDLC');
       fireEvent.click(fullSdlcButton);
 
       await waitFor(() => {
-        expect(screen.getByText('✓ Full SDLC Selected')).toBeInTheDocument();
+        expect(screen.getByText('✓ SDLC Selected')).toBeInTheDocument();
       });
     });
 
     it('should deselect all SDLC stages when Full SDLC is clicked again', async () => {
       render(<TaskInput />);
 
-      const fullSdlcButton = screen.getByText('Select Full SDLC');
+      const fullSdlcButton = screen.getByText('SDLC');
 
       // First click - select all
       fireEvent.click(fullSdlcButton);
 
       await waitFor(() => {
-        expect(screen.getByText('✓ Full SDLC Selected')).toBeInTheDocument();
+        expect(screen.getByText('✓ SDLC Selected')).toBeInTheDocument();
       });
 
       // Second click - deselect all
-      fireEvent.click(screen.getByText('✓ Full SDLC Selected'));
+      fireEvent.click(screen.getByText('✓ SDLC Selected'));
 
       await waitFor(() => {
-        expect(screen.getByText('Select Full SDLC')).toBeInTheDocument();
+        expect(screen.getByText('SDLC')).toBeInTheDocument();
       });
     });
 
@@ -108,7 +108,7 @@ describe('TaskInput Component', () => {
       fireEvent.click(prStage);
 
       // Then click Full SDLC
-      const fullSdlcButton = screen.getByText('Select Full SDLC');
+      const fullSdlcButton = screen.getByText('SDLC');
       fireEvent.click(fullSdlcButton);
 
       // PR should still be selected along with SDLC stages
@@ -120,11 +120,11 @@ describe('TaskInput Component', () => {
       render(<TaskInput />);
 
       // Select Full SDLC
-      const fullSdlcButton = screen.getByText('Select Full SDLC');
+      const fullSdlcButton = screen.getByText('SDLC');
       fireEvent.click(fullSdlcButton);
 
       await waitFor(() => {
-        expect(screen.getByText('✓ Full SDLC Selected')).toBeInTheDocument();
+        expect(screen.getByText('✓ SDLC Selected')).toBeInTheDocument();
       });
 
       // Deselect one SDLC stage
@@ -132,7 +132,7 @@ describe('TaskInput Component', () => {
       fireEvent.click(documentStage);
 
       await waitFor(() => {
-        expect(screen.getByText('Select Full SDLC')).toBeInTheDocument();
+        expect(screen.getByText('SDLC')).toBeInTheDocument();
       });
     });
   });
@@ -144,7 +144,7 @@ describe('TaskInput Component', () => {
       render(<TaskInput />);
 
       // Click Full SDLC
-      const fullSdlcButton = screen.getByText('Select Full SDLC');
+      const fullSdlcButton = screen.getByText('SDLC');
       fireEvent.click(fullSdlcButton);
 
       // Enter description

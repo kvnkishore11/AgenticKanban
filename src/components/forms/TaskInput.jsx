@@ -331,7 +331,7 @@ const TaskInput = () => {
                     : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
                 }`}
               >
-                {isFullSdlcSelected ? '✓ Full SDLC Selected' : 'Select Full SDLC'}
+                {isFullSdlcSelected ? '✓ SDLC Selected' : 'SDLC'}
               </button>
               <p className="text-xs text-gray-500 mt-1">
                 Quickly select all SDLC stages: Plan, Implement, Test, Review, Document
