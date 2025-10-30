@@ -62,10 +62,15 @@ def create_github_issue_from_kanban_data(issue_json: dict, issue_number: str) ->
     """
     from datetime import datetime
     from adw_modules.data_types import GitHubUser, GitHubLabel
+    from adw_modules.kanban_mode import format_body_with_images
 
     # Extract basic fields with fallbacks
     title = issue_json.get("title") or issue_json.get("summary") or f"Issue {issue_number}"
     body = issue_json.get("body") or issue_json.get("description") or ""
+
+    # Format body with images if present
+    if "images" in issue_json and issue_json["images"]:
+        body = format_body_with_images(body, issue_json["images"])
 
     # Create default GitHubUser for author
     default_author = GitHubUser(

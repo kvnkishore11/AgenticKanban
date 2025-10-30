@@ -294,7 +294,8 @@ class WebSocketService {
       issue_json: {
         title: task.title || `Task ${task.id}`,
         body: task.description || '',
-        number: task.id
+        number: task.id,
+        images: task.images || [] // Include images with their annotations
       },
       model_set: options.model_set || 'base',
       trigger_reason: `Kanban task: ${task.title || task.description.substring(0, 50)}`
