@@ -11,12 +11,14 @@ import {
   ArrowRight,
   ChevronRight,
   Circle,
-  CheckCircle2
+  CheckCircle2,
+  Edit
 } from 'lucide-react';
 import {
   getSubstages,
   getSubstage
 } from '../../utils/substages';
+import TaskEditModal from '../forms/TaskEditModal';
 
 const KanbanCard = ({ task }) => {
   const {
@@ -38,6 +40,7 @@ const KanbanCard = ({ task }) => {
   } = useKanbanStore();
 
   const [showMenu, setShowMenu] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const pipeline = getPipelineById(task.pipelineId);
   const isSelected = selectedTaskId === task.id;
@@ -136,6 +139,20 @@ const KanbanCard = ({ task }) => {
     }
   };
 
+  const handleEditClick = () => {
+    setShowEditModal(true);
+    setShowMenu(false);
+  };
+
+  const handleEditModalClose = () => {
+    setShowEditModal(false);
+  };
+
+  const handleTaskUpdate = () => {
+    // Task update is handled by the updateTask function in the modal
+    // This callback can be used for additional actions if needed
+  };
+
   return (
     <div
       className={`kanban-card ${
@@ -184,6 +201,16 @@ const KanbanCard = ({ task }) => {
                       Move to {getNextStage().name}
                     </button>
                   )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditClick();
+                    }}
+                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -540,6 +567,15 @@ const KanbanCard = ({ task }) => {
         <div
           className="fixed inset-0 z-0"
           onClick={() => setShowMenu(false)}
+        />
+      )}
+
+      {/* Task Edit Modal */}
+      {showEditModal && (
+        <TaskEditModal
+          task={task}
+          onClose={handleEditModalClose}
+          onSave={handleTaskUpdate}
         />
       )}
     </div>
