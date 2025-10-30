@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
-import { WORK_ITEM_TYPES, QUEUEABLE_STAGES } from '../../constants/workItems';
+import { WORK_ITEM_TYPES, QUEUEABLE_STAGES, SDLC_STAGES } from '../../constants/workItems';
 import { X, Plus, Image as ImageIcon, Clipboard } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useClipboard } from '../../hooks/useClipboard';
@@ -138,6 +138,9 @@ const TaskInput = () => {
   };
 
 
+  // Check if all SDLC stages are selected
+  const isFullSdlcSelected = SDLC_STAGES.every(stage => queuedStages.includes(stage));
+
   const handleStageToggle = (stageId) => {
     setQueuedStages(prev => {
       if (prev.includes(stageId)) {
@@ -146,6 +149,19 @@ const TaskInput = () => {
         return [...prev, stageId];
       }
     });
+  };
+
+  const handleFullSdlcToggle = () => {
+    if (isFullSdlcSelected) {
+      // If already selected, deselect all SDLC stages
+      setQueuedStages(prev => prev.filter(stage => !SDLC_STAGES.includes(stage)));
+    } else {
+      // Select all SDLC stages (preserve any additional non-SDLC stages)
+      setQueuedStages(prev => {
+        const nonSdlcStages = prev.filter(stage => !SDLC_STAGES.includes(stage));
+        return [...SDLC_STAGES, ...nonSdlcStages];
+      });
+    }
   };
 
   const handleSubmit = (e) => {
@@ -303,6 +319,25 @@ const TaskInput = () => {
             <p className="text-sm text-gray-500 mb-3">
               Select the stages this task should progress through
             </p>
+
+            {/* Full SDLC Quick Selection */}
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={handleFullSdlcToggle}
+                className={`px-4 py-2 rounded-lg border-2 font-medium transition-all ${
+                  isFullSdlcSelected
+                    ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                {isFullSdlcSelected ? '✓ Full SDLC Selected' : 'Select Full SDLC'}
+              </button>
+              <p className="text-xs text-gray-500 mt-1">
+                Quickly select all SDLC stages: Plan, Implement, Test, Review, Document
+              </p>
+            </div>
+
             <div className="flex flex-wrap gap-3">
               {QUEUEABLE_STAGES.map((stage) => (
                 <label
