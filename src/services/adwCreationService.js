@@ -1,0 +1,399 @@
+/**
+ * TAC-7 Compatible ADW Creation Service
+ * Handles dynamic ADW creation without requiring specific project structures
+ * Implements worktree architecture and state.json management patterns
+ */
+
+class ADWCreationService {
+  constructor() {
+    this.adwConfigurations = new Map();
+    this.workspaceId = 'agentic-kanban';
+  }
+
+  /**
+   * Generate a unique ADW ID for a task
+   */
+  generateAdwId(taskData) {
+    const timestamp = Date.now();
+    const workItemPrefix = taskData.workItemType ? taskData.workItemType.substring(0, 3) : 'tsk';
+    const stagePrefix = taskData.queuedStages?.length > 0 ?
+      taskData.queuedStages.map(s => s.substring(0, 1)).join('') : 'gen';
+
+    return `${workItemPrefix}_${stagePrefix}_${timestamp}`;
+  }
+
+  /**
+   * Create dynamic ADW configuration based on task requirements
+   */
+  createAdwConfiguration(taskData, projectContext = {}) {
+    const adwId = this.generateAdwId(taskData);
+
+    // Generate workflow name based on queued stages
+    const workflowName = this.generateWorkflowName(taskData.queuedStages || []);
+
+    // Create state.json structure following TAC-7 patterns
+    const stateConfig = this.createStateConfiguration(taskData, projectContext);
+
+    // Generate ADW configuration
+    const adwConfig = {
+      adw_id: adwId,
+      workflow_name: workflowName,
+      workspace_id: this.workspaceId,
+      task_metadata: {
+        title: taskData.title || this.generateTitleFromDescription(taskData.description),
+        description: taskData.description,
+        work_item_type: taskData.workItemType,
+        queued_stages: taskData.queuedStages || [],
+        images: taskData.images || [],
+        created_at: new Date().toISOString(),
+      },
+      state: stateConfig,
+      worktree: {
+        enabled: true,
+        base_branch: 'main',
+        branch_name: `feature/${adwId}`,
+        isolation_level: 'full',
+      },
+      execution_context: {
+        model_set: this.getModelSetForWorkItem(taskData.workItemType),
+        timeout_minutes: this.getTimeoutForWorkflow(taskData.queuedStages),
+        retry_attempts: 3,
+        parallel_execution: false,
+      },
+      outputs: {
+        logs_path: `logs/${adwId}`,
+        artifacts_path: `artifacts/${adwId}`,
+        state_file: `state/${adwId}.json`,
+      },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Store configuration for future reference
+    this.adwConfigurations.set(adwId, adwConfig);
+
+    return adwConfig;
+  }
+
+  /**
+   * Generate workflow name from queued stages
+   */
+  generateWorkflowName(queuedStages) {
+    if (!queuedStages || queuedStages.length === 0) {
+      return 'adw_general_iso';
+    }
+
+    // Map stage names to ADW workflow conventions
+    const stageMapping = {
+      'plan': 'plan',
+      'implement': 'build',
+      'build': 'build',
+      'test': 'test',
+      'review': 'review',
+      'document': 'document',
+      'pr': 'ship'
+    };
+
+    const mappedStages = queuedStages
+      .map(stage => stageMapping[stage] || stage)
+      .filter((stage, index, self) => self.indexOf(stage) === index); // Remove duplicates
+
+    return `adw_${mappedStages.join('_')}_iso`;
+  }
+
+  /**
+   * Create state.json configuration following TAC-7 patterns
+   */
+  createStateConfiguration(taskData, projectContext) {
+    return {
+      version: '1.0.0',
+      workspace: {
+        id: this.workspaceId,
+        type: 'kanban_task',
+        project_path: projectContext.path || '/default/project/path',
+        project_name: projectContext.name || 'Unknown Project',
+      },
+      task: {
+        id: taskData.id || null,
+        title: taskData.title || this.generateTitleFromDescription(taskData.description),
+        description: taskData.description,
+        work_item_type: taskData.workItemType,
+        priority: taskData.priority || 'medium',
+        labels: taskData.labels || [],
+        assignee: taskData.assignee || 'ai-agent',
+      },
+      workflow: {
+        stages: taskData.queuedStages || [],
+        current_stage: 'backlog',
+        current_substage: 'initializing',
+        progress_percent: 0,
+        execution_plan: this.generateExecutionPlan(taskData.queuedStages),
+      },
+      context: {
+        images: taskData.images || [],
+        attachments: taskData.attachments || [],
+        environment: 'development',
+        dependencies: [],
+        constraints: [],
+      },
+      tracking: {
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        started_at: null,
+        completed_at: null,
+        status: 'pending',
+        error_count: 0,
+        retry_count: 0,
+      },
+      outputs: {
+        artifacts: [],
+        logs: [],
+        metrics: {},
+        results: {},
+      }
+    };
+  }
+
+  /**
+   * Generate execution plan for workflow stages
+   */
+  generateExecutionPlan(queuedStages) {
+    const stageDefinitions = {
+      plan: {
+        name: 'Planning',
+        description: 'Analyze requirements and create implementation plan',
+        substages: ['analyze', 'design', 'breakdown'],
+        estimated_duration: '30-60 minutes',
+      },
+      implement: {
+        name: 'Implementation',
+        description: 'Build and implement the solution',
+        substages: ['setup', 'code', 'integrate'],
+        estimated_duration: '1-4 hours',
+      },
+      build: {
+        name: 'Build',
+        description: 'Build and compile the solution',
+        substages: ['setup', 'build', 'verify'],
+        estimated_duration: '10-30 minutes',
+      },
+      test: {
+        name: 'Testing',
+        description: 'Test the implementation',
+        substages: ['unit', 'integration', 'validation'],
+        estimated_duration: '30-90 minutes',
+      },
+      review: {
+        name: 'Review',
+        description: 'Code review and quality assurance',
+        substages: ['code_review', 'security_check', 'performance'],
+        estimated_duration: '20-60 minutes',
+      },
+      document: {
+        name: 'Documentation',
+        description: 'Create documentation and guides',
+        substages: ['api_docs', 'user_guide', 'changelog'],
+        estimated_duration: '20-45 minutes',
+      },
+      pr: {
+        name: 'Pull Request',
+        description: 'Create and manage pull request',
+        substages: ['create', 'review', 'merge'],
+        estimated_duration: '15-30 minutes',
+      },
+    };
+
+    return queuedStages.map((stage, index) => ({
+      order: index + 1,
+      stage: stage,
+      ...stageDefinitions[stage] || {
+        name: stage.charAt(0).toUpperCase() + stage.slice(1),
+        description: `Execute ${stage} stage`,
+        substages: ['initializing', 'executing', 'completed'],
+        estimated_duration: '30-60 minutes',
+      },
+      dependencies: index > 0 ? [queuedStages[index - 1]] : [],
+      parallel: false,
+    }));
+  }
+
+  /**
+   * Get model set based on work item type
+   */
+  getModelSetForWorkItem(workItemType) {
+    const modelSetMap = {
+      'feature': 'heavy',  // Complex features need heavy models
+      'bug': 'base',       // Bug fixes are usually straightforward
+      'chore': 'base',     // Chores are typically simple
+      'patch': 'base'      // Patches are quick fixes
+    };
+
+    return modelSetMap[workItemType] || 'base';
+  }
+
+  /**
+   * Get timeout based on workflow complexity
+   */
+  getTimeoutForWorkflow(queuedStages) {
+    const baseTimeout = 30; // 30 minutes base
+    const stageTimeouts = {
+      'plan': 30,
+      'implement': 120,
+      'build': 15,
+      'test': 45,
+      'review': 30,
+      'document': 30,
+      'pr': 15,
+    };
+
+    const totalTimeout = queuedStages.reduce((total, stage) => {
+      return total + (stageTimeouts[stage] || 30);
+    }, baseTimeout);
+
+    return Math.min(totalTimeout, 480); // Cap at 8 hours
+  }
+
+  /**
+   * Generate title from description if not provided
+   */
+  generateTitleFromDescription(description) {
+    if (!description) return 'Untitled Task';
+
+    // Take first sentence or 50 characters, whichever is shorter
+    const firstSentence = description.split('.')[0];
+    const maxLength = 50;
+
+    if (firstSentence.length <= maxLength) {
+      return firstSentence.trim();
+    }
+
+    return description.substring(0, maxLength).trim() + '...';
+  }
+
+  /**
+   * Update ADW configuration
+   */
+  updateAdwConfiguration(adwId, updates) {
+    const config = this.adwConfigurations.get(adwId);
+    if (!config) {
+      throw new Error(`ADW configuration not found: ${adwId}`);
+    }
+
+    const updatedConfig = {
+      ...config,
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+
+    this.adwConfigurations.set(adwId, updatedConfig);
+    return updatedConfig;
+  }
+
+  /**
+   * Get ADW configuration by ID
+   */
+  getAdwConfiguration(adwId) {
+    return this.adwConfigurations.get(adwId);
+  }
+
+  /**
+   * List all ADW configurations
+   */
+  getAllAdwConfigurations() {
+    return Array.from(this.adwConfigurations.values());
+  }
+
+  /**
+   * Delete ADW configuration
+   */
+  deleteAdwConfiguration(adwId) {
+    return this.adwConfigurations.delete(adwId);
+  }
+
+  /**
+   * Create ADW trigger payload for WebSocket
+   */
+  createTriggerPayload(adwConfig, options = {}) {
+    return {
+      adw_id: adwConfig.adw_id,
+      workflow_name: adwConfig.workflow_name,
+      workspace_id: adwConfig.workspace_id,
+      model_set: options.model_set || adwConfig.execution_context.model_set,
+      issue_number: options.issue_number || null,
+      issue_type: options.issue_type || adwConfig.task_metadata.work_item_type || null,
+      trigger_reason: options.trigger_reason || 'Kanban task execution',
+      state: adwConfig.state,
+      execution_context: {
+        ...adwConfig.execution_context,
+        ...options.execution_context,
+      },
+      metadata: {
+        task_id: adwConfig.task_metadata.id,
+        created_from: 'agentic_kanban',
+        trigger_timestamp: new Date().toISOString(),
+        ...options.metadata,
+      },
+    };
+  }
+
+  /**
+   * Validate ADW configuration
+   */
+  validateAdwConfiguration(config) {
+    const errors = [];
+
+    if (!config.adw_id) {
+      errors.push('ADW ID is required');
+    }
+
+    if (!config.workflow_name) {
+      errors.push('Workflow name is required');
+    }
+
+    if (!config.task_metadata?.description) {
+      errors.push('Task description is required');
+    }
+
+    if (!config.state) {
+      errors.push('State configuration is required');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+    };
+  }
+
+  /**
+   * Export ADW configuration for persistence
+   */
+  exportConfiguration(adwId) {
+    const config = this.getAdwConfiguration(adwId);
+    if (!config) {
+      throw new Error(`ADW configuration not found: ${adwId}`);
+    }
+
+    return {
+      ...config,
+      exported_at: new Date().toISOString(),
+      version: '1.0.0',
+    };
+  }
+
+  /**
+   * Import ADW configuration
+   */
+  importConfiguration(configData) {
+    const validation = this.validateAdwConfiguration(configData);
+    if (!validation.isValid) {
+      throw new Error(`Invalid ADW configuration: ${validation.errors.join(', ')}`);
+    }
+
+    this.adwConfigurations.set(configData.adw_id, configData);
+    return configData;
+  }
+}
+
+// Create and export singleton instance
+const adwCreationService = new ADWCreationService();
+export default adwCreationService;
