@@ -21,6 +21,9 @@ export const QUEUEABLE_STAGES = [
   { id: 'pr', name: 'PR', color: 'pink' }
 ];
 
+// SDLC stages definition (for full SDLC workflow mapping)
+export const SDLC_STAGES = ['plan', 'implement', 'test', 'review', 'document'];
+
 // Stage progression order
 export const STAGE_ORDER = ['plan', 'implement', 'test', 'review', 'pr'];
 

@@ -4,6 +4,8 @@
  * Implements worktree architecture and state.json management patterns
  */
 
+import { SDLC_STAGES } from '../constants/workItems.js';
+
 class ADWCreationService {
   constructor() {
     this.adwConfigurations = new Map();
@@ -77,10 +79,22 @@ class ADWCreationService {
 
   /**
    * Generate workflow name from queued stages
+   * Special behavior: When all SDLC stages (plan, implement, test, review, document) are selected,
+   * the system automatically maps to the adw_sdlc_iso workflow for comprehensive SDLC automation
    */
   generateWorkflowName(queuedStages) {
     if (!queuedStages || queuedStages.length === 0) {
       return 'adw_general_iso';
+    }
+
+    // Check if all SDLC stages are present (regardless of order or additional stages)
+    // This enables automatic mapping to the comprehensive adw_sdlc_iso workflow
+    const hasAllSdlcStages = SDLC_STAGES.every(stage => queuedStages.includes(stage));
+
+    // If all SDLC stages are present, map to adw_sdlc_iso
+    // Additional stages (like 'pr') are allowed and won't prevent the mapping
+    if (hasAllSdlcStages) {
+      return 'adw_sdlc_iso';
     }
 
     // Map stage names to ADW workflow conventions
