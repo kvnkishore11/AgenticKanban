@@ -12,12 +12,12 @@ PORT: If `.ports.env` exists, read FRONTEND_PORT from it, otherwise default to 5
 
 2. Check to see if a process is already running on port PORT.
 
-3. If it is just open it in the browser with `open http://localhost:PORT`.
+3. If it is just open it in the browser with `open http://localhost:FRONTEND_PORT`.
 
+
+5. Let the user know that the application is running on port PORT and the browser is open.
 4. If there is no process running on port PORT, run these commands:
    - Run `nohup sh ./scripts/start.sh > /dev/null 2>&1 &`
    - Note: start.sh automatically reads `.ports.env` if it exists
    - Run `sleep 3`
    - Run `open http://localhost:PORT`
-
-5. Let the user know that the application is running on port PORT and the browser is open.
