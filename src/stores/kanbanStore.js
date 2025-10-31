@@ -535,6 +535,17 @@ export const useKanbanStore = create()(
             }
           }
 
+          // Custom ADW ID validation (optional field)
+          if (task.customAdwId && task.customAdwId.trim()) {
+            const adwId = task.customAdwId.trim();
+
+            // Check format: alphanumeric, hyphens, underscores only, 1-100 characters
+            const validAdwIdPattern = /^[a-zA-Z0-9_-]{1,100}$/;
+            if (!validAdwIdPattern.test(adwId)) {
+              errors.push('ADW ID must contain only alphanumeric characters, hyphens, and underscores (1-100 characters)');
+            }
+          }
+
           return {
             isValid: errors.length === 0,
             errors,

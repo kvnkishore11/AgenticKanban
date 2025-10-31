@@ -13,9 +13,21 @@ class ADWCreationService {
   }
 
   /**
-   * Generate a unique ADW ID for a task
+   * Generate a unique ADW ID for a task or return custom ADW ID if provided
    */
-  generateAdwId(taskData) {
+  generateAdwId(taskData, customAdwId = null) {
+    // If custom ADW ID is provided and valid, use it
+    if (customAdwId && customAdwId.trim()) {
+      const trimmedId = customAdwId.trim();
+      // Validate custom ADW ID format
+      if (this.validateAdwIdFormat(trimmedId)) {
+        return trimmedId;
+      } else {
+        throw new Error(`Invalid ADW ID format: ${trimmedId}. Must contain only alphanumeric characters, hyphens, and underscores.`);
+      }
+    }
+
+    // Generate automatic ADW ID if no custom ID provided
     const timestamp = Date.now();
     const workItemPrefix = taskData.workItemType ? taskData.workItemType.substring(0, 3) : 'tsk';
     const stagePrefix = taskData.queuedStages?.length > 0 ?
@@ -25,10 +37,24 @@ class ADWCreationService {
   }
 
   /**
+   * Validate ADW ID format - alphanumeric characters, hyphens, and underscores only
+   */
+  validateAdwIdFormat(adwId) {
+    if (!adwId || typeof adwId !== 'string') {
+      return false;
+    }
+
+    // Allow alphanumeric characters, hyphens, and underscores
+    // Must be between 1 and 100 characters
+    const validPattern = /^[a-zA-Z0-9_-]{1,100}$/;
+    return validPattern.test(adwId);
+  }
+
+  /**
    * Create dynamic ADW configuration based on task requirements
    */
   createAdwConfiguration(taskData, projectContext = {}) {
-    const adwId = this.generateAdwId(taskData);
+    const adwId = this.generateAdwId(taskData, taskData.customAdwId);
 
     // Generate workflow name based on queued stages
     const workflowName = this.generateWorkflowName(taskData.queuedStages || []);
