@@ -28,23 +28,24 @@ html {
 /* Kanban board grid enhancements */
 .kanban-board-grid {
   display: grid;
-  grid-template-columns: repeat(8, minmax(280px, 1fr));
+  grid-template-columns: repeat(5, minmax(280px, 1fr)) 32px repeat(3, minmax(280px, 1fr));
   gap: 0.75rem;
   overflow-x: auto;
   padding: 0.5rem;
   width: 100%;
+  align-items: stretch;
 }
 
 @media (min-width: 1920px) {
   .kanban-board-grid {
-    grid-template-columns: repeat(8, minmax(280px, 1fr));
+    grid-template-columns: repeat(5, minmax(280px, 1fr)) 32px repeat(3, minmax(280px, 1fr));
     gap: 1rem;
   }
 }
 
 @media (max-width: 1536px) {
   .kanban-board-grid {
-    grid-template-columns: repeat(8, minmax(280px, 1fr));
+    grid-template-columns: repeat(5, minmax(280px, 1fr)) 32px repeat(3, minmax(280px, 1fr));
     gap: 0.5rem;
   }
 }
@@ -54,12 +55,20 @@ html {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.5rem;
   }
+
+  .kanban-separator {
+    display: none;
+  }
 }
 
 @media (max-width: 768px) {
   .kanban-board-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
+  }
+
+  .kanban-separator {
+    display: none;
   }
 }
 
@@ -68,6 +77,47 @@ html {
     grid-template-columns: 1fr;
     gap: 0.5rem;
   }
+
+  .kanban-separator {
+    display: none;
+  }
+}
+
+/* Visual Separator for SDLC stages */
+.kanban-separator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5rem;
+  position: relative;
+  min-height: 75vh;
+  max-height: 90vh;
+}
+
+.kanban-separator-line {
+  width: 2px;
+  height: 100%;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    #e5e7eb 10%,
+    #e5e7eb 90%,
+    transparent 100%
+  );
+  position: relative;
+}
+
+.kanban-separator-line::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* Stage column styling */

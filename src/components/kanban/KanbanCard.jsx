@@ -18,9 +18,7 @@ import {
   getSubstages,
   getSubstage
 } from '../../utils/substages';
-import TaskEditModal from '../forms/TaskEditModal';
-
-const KanbanCard = ({ task }) => {
+const KanbanCard = ({ task, onEdit }) => {
   const {
     selectTask,
     selectedTaskId,
@@ -40,7 +38,6 @@ const KanbanCard = ({ task }) => {
   } = useKanbanStore();
 
   const [showMenu, setShowMenu] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
 
   const pipeline = getPipelineById(task.pipelineId);
   const isSelected = selectedTaskId === task.id;
@@ -140,17 +137,10 @@ const KanbanCard = ({ task }) => {
   };
 
   const handleEditClick = () => {
-    setShowEditModal(true);
+    if (onEdit) {
+      onEdit(task);
+    }
     setShowMenu(false);
-  };
-
-  const handleEditModalClose = () => {
-    setShowEditModal(false);
-  };
-
-  const handleTaskUpdate = () => {
-    // Task update is handled by the updateTask function in the modal
-    // This callback can be used for additional actions if needed
   };
 
   return (
@@ -567,15 +557,6 @@ const KanbanCard = ({ task }) => {
         <div
           className="fixed inset-0 z-0"
           onClick={() => setShowMenu(false)}
-        />
-      )}
-
-      {/* Task Edit Modal */}
-      {showEditModal && (
-        <TaskEditModal
-          task={task}
-          onClose={handleEditModalClose}
-          onSave={handleTaskUpdate}
         />
       )}
     </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import KanbanCard from './KanbanCard';
+import TaskEditModal from '../forms/TaskEditModal';
 import {
   ClipboardList,
   Hammer,
@@ -56,6 +57,27 @@ const getStageIconColorClasses = (color) => {
 const KanbanBoard = () => {
   const { stages, tasks, getTasksByStage, toggleTaskInput } = useKanbanStore();
   const [showPipelineSummary, setShowPipelineSummary] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+
+  // Edit modal handlers
+  const handleEditTask = (task) => {
+    setEditingTask(task);
+  };
+
+  const handleEditModalClose = () => {
+    setEditingTask(null);
+  };
+
+  const handleTaskUpdate = () => {
+    // Task update is handled by the updateTask function in the modal
+    // Just close the modal here
+    setEditingTask(null);
+  };
+
+  // Group stages into SDLC and non-SDLC
+  const sdlcStageIds = ['plan', 'build', 'test', 'review', 'document'];
+  const sdlcStages = stages.filter(stage => sdlcStageIds.includes(stage.id));
+  const otherStages = stages.filter(stage => !sdlcStageIds.includes(stage.id));
 
   return (
     <div className="w-full">
@@ -65,7 +87,8 @@ const KanbanBoard = () => {
       </div>
 
       <div className="kanban-board-grid kanban-scroll">
-        {stages.map((stage) => {
+        {/* SDLC Stages */}
+        {sdlcStages.map((stage) => {
           const stageTasks = getTasksByStage(stage.id);
           const StageIcon = stageIcons[stage.id] || ClipboardList;
 
@@ -108,7 +131,76 @@ const KanbanBoard = () => {
 
                 {stageTasks.length > 0 ? (
                   stageTasks.map((task) => (
-                    <KanbanCard key={task.id} task={task} />
+                    <KanbanCard key={task.id} task={task} onEdit={handleEditTask} />
+                  ))
+                ) : (
+                  stage.id !== 'backlog' && (
+                    <div className="text-center text-gray-400 mt-8">
+                      <StageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No tasks in {stage.name.toLowerCase()}</p>
+                    </div>
+                  )
+                )}
+
+                {/* Drop Zone Indicator */}
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-400 opacity-0 transition-opacity duration-200 hover:opacity-100">
+                  <p className="text-sm">Drop tasks here</p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Visual Separator */}
+        <div className="kanban-separator">
+          <div className="kanban-separator-line"></div>
+        </div>
+
+        {/* Other Stages */}
+        {otherStages.map((stage) => {
+          const stageTasks = getTasksByStage(stage.id);
+          const StageIcon = stageIcons[stage.id] || ClipboardList;
+
+          return (
+            <div
+              key={stage.id}
+              className={`kanban-column stage-${stage.id} ${
+                getStageColorClasses(stage.color)
+              }`}
+            >
+              {/* Stage Header */}
+              <div className="kanban-column-header">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <StageIcon className={`h-5 w-5 ${getStageIconColorClasses(stage.color)}`} />
+                    <h3 className="font-medium text-gray-900">{stage.name}</h3>
+                  </div>
+                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    stageTasks.length > 0
+                      ? 'bg-primary-100 text-primary-800'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {stageTasks.length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Stage Content */}
+              <div className="kanban-column-body space-y-4">
+                {/* New Task Button for Backlog Stage */}
+                {stage.id === 'backlog' && (
+                  <button
+                    onClick={toggleTaskInput}
+                    className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors duration-200 flex items-center justify-center space-x-2"
+                  >
+                    <Plus className="h-5 w-5" />
+                    <span>New Task</span>
+                  </button>
+                )}
+
+                {stageTasks.length > 0 ? (
+                  stageTasks.map((task) => (
+                    <KanbanCard key={task.id} task={task} onEdit={handleEditTask} />
                   ))
                 ) : (
                   stage.id !== 'backlog' && (
@@ -171,6 +263,15 @@ const KanbanBoard = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Task Edit Modal - Rendered at board level for proper overlay */}
+      {editingTask && (
+        <TaskEditModal
+          task={editingTask}
+          onClose={handleEditModalClose}
+          onSave={handleTaskUpdate}
+        />
       )}
     </div>
   );
