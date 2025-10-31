@@ -9,8 +9,13 @@ import logging
 from typing import Optional, Tuple
 
 # Import GitHub functions from existing module
-from adw_modules.github import get_repo_url, extract_repo_path, make_issue_comment, make_issue_comment_safe
+from adw_modules.github import get_repo_url, extract_repo_path, make_issue_comment_safe
 from adw_modules.kanban_mode import is_kanban_mode, git_operation_safe, github_operation_safe
+
+# Import TYPE_CHECKING for forward references
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from adw_modules.state import ADWState
 
 
 def get_current_branch(cwd: Optional[str] = None) -> str:
@@ -45,7 +50,7 @@ def check_pr_exists(branch_name: str) -> Optional[str]:
     try:
         repo_url = get_repo_url()
         repo_path = extract_repo_path(repo_url)
-    except Exception as e:
+    except Exception:
         return None
 
     result = subprocess.run(
@@ -141,7 +146,7 @@ def get_pr_number(branch_name: str) -> Optional[str]:
     try:
         repo_url = get_repo_url()
         repo_path = extract_repo_path(repo_url)
-    except Exception as e:
+    except Exception:
         return None
 
     result = subprocess.run(
@@ -325,7 +330,7 @@ def finalize_git_operations(
             if issue_number:
                 try:
                     repo_url = get_repo_url()
-                    repo_path = extract_repo_path(repo_url)
+                    extract_repo_path(repo_url)
                     from adw_modules.github import fetch_issue_safe
 
                     issue = fetch_issue_safe(issue_number, state)

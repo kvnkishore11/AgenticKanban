@@ -26,17 +26,13 @@ parallel execution without interference.
 
 import sys
 import os
-import logging
 import json
-from typing import Optional
 from dotenv import load_dotenv
 
 from adw_modules.state import ADWState
 from adw_modules.git_ops import commit_changes, finalize_git_operations
 from adw_modules.github import (
-    fetch_issue,
     fetch_issue_safe,
-    make_issue_comment,
     make_issue_comment_safe,
     get_repo_url,
     extract_repo_path,
@@ -56,7 +52,7 @@ from adw_modules.workflow_ops import (
     AGENT_PLANNER,
 )
 from adw_modules.utils import setup_logger, check_env_vars
-from adw_modules.data_types import GitHubIssue, IssueClassSlashCommand, AgentTemplateRequest
+from adw_modules.data_types import AgentTemplateRequest
 from adw_modules.agent import execute_template
 from adw_modules.worktree_ops import (
     create_worktree,
@@ -112,14 +108,13 @@ def main():
 
     # Get repo information (gracefully handle kanban mode)
     github_repo_url = get_repo_url()
-    repo_path = extract_repo_path(github_repo_url)
+    extract_repo_path(github_repo_url)
 
     if github_repo_url is None and not is_kanban_mode(state):
         logger.error("No git repository available and not in kanban mode")
         sys.exit(1)
     elif github_repo_url is None:
         logger.info("No git repository available - continuing in kanban mode")
-        repo_path = None
 
     # Check if worktree operations should be skipped (kanban mode)
     skip_worktree = should_skip_worktree_operations(state)

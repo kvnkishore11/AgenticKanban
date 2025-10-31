@@ -8,6 +8,7 @@ import os
 import subprocess
 import logging
 import socket
+import shutil
 from typing import Tuple, Optional
 from adw_modules.state import ADWState
 

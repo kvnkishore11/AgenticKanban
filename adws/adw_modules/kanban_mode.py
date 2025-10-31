@@ -6,8 +6,7 @@ and handle conditional operations based on the data source.
 
 import os
 import logging
-import base64
-from typing import Optional, Dict, Any, Union, List
+from typing import Optional, Dict, Any, List
 from adw_modules.state import ADWState
 
 
@@ -156,10 +155,10 @@ def log_mode_status(state: ADWState, logger: Optional[logging.Logger] = None) ->
     if data_source == "kanban":
         logger.info(f"  - Issue data from kanban: {'✓' if has_issue_json else '✗'}")
         logger.info(f"  - Git operations: {'disabled' if data_source == 'kanban' else 'enabled'}")
-        logger.info(f"  - GitHub operations: disabled")
+        logger.info("  - GitHub operations: disabled")
     else:
         logger.info(f"  - Git available: {'✓' if git_available else '✗'}")
-        logger.info(f"  - GitHub operations: enabled")
+        logger.info("  - GitHub operations: enabled")
 
 
 def format_image_to_markdown(image: Dict[str, Any]) -> str:

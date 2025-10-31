@@ -34,11 +34,10 @@ import sys
 import os
 import logging
 import json
-import subprocess
-from typing import Optional
 from dotenv import load_dotenv
 
 from adw_modules.state import ADWState
+from adw_modules.data_types import GitHubIssue
 from adw_modules.git_ops import commit_changes, finalize_git_operations
 from adw_modules.github import (
     fetch_issue_safe,
@@ -51,25 +50,16 @@ from adw_modules.workflow_ops import (
     create_commit,
     format_issue_message,
     ensure_adw_id,
-    implement_plan,
     create_and_implement_patch,
-    AGENT_IMPLEMENTOR,
 )
 from adw_modules.worktree_ops import (
     create_worktree,
-    validate_worktree,
     get_ports_for_adw,
     is_port_available,
     find_next_available_ports,
     setup_worktree_environment,
 )
 from adw_modules.utils import setup_logger, check_env_vars
-from adw_modules.data_types import (
-    GitHubIssue,
-    AgentTemplateRequest,
-    AgentPromptResponse,
-)
-from adw_modules.agent import execute_template
 
 # Agent name constants
 AGENT_PATCH_PLANNER = "patch_planner"
@@ -175,13 +165,13 @@ def main():
     # Get repo information
     try:
         github_repo_url = get_repo_url()
-        repo_path = extract_repo_path(github_repo_url)
+        extract_repo_path(github_repo_url)
     except ValueError as e:
         logger.error(f"Error getting repository URL: {e}")
         sys.exit(1)
 
     # Fetch issue details
-    issue: Optional[GitHubIssue] = fetch_issue_safe(issue_number, state)
+    issue = fetch_issue_safe(issue_number, state)
     if issue is None:
         logger.warning(f"Could not fetch issue #{issue_number} - continuing with fallback")
         # Create a fallback issue object for patch generation

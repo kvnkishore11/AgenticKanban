@@ -10,7 +10,6 @@ Launches the ADW WebSocket trigger server from adws/adw_triggers/trigger_websock
 
 import subprocess
 import sys
-import os
 from pathlib import Path
 
 def main():
@@ -24,7 +23,7 @@ def main():
         print(f"Error: trigger_websocket.py not found at {trigger_script}")
         sys.exit(1)
 
-    print(f"Starting ADW WebSocket server...")
+    print("Starting ADW WebSocket server...")
     print(f"Script: {trigger_script}")
 
     try:

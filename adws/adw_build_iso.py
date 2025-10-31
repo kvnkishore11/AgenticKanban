@@ -21,15 +21,12 @@ to create the worktree. It cannot create worktrees itself.
 """
 
 import sys
-import os
-import logging
 import json
 import subprocess
-from typing import Optional
 from dotenv import load_dotenv
 
 from adw_modules.state import ADWState
-from adw_modules.git_ops import commit_changes, finalize_git_operations, get_current_branch
+from adw_modules.git_ops import commit_changes, finalize_git_operations
 from adw_modules.github import fetch_issue_safe, make_issue_comment, get_repo_url, extract_repo_path
 from adw_modules.workflow_ops import (
     implement_plan,
@@ -38,7 +35,6 @@ from adw_modules.workflow_ops import (
     AGENT_IMPLEMENTOR,
 )
 from adw_modules.utils import setup_logger, check_env_vars
-from adw_modules.data_types import GitHubIssue
 from adw_modules.worktree_ops import validate_worktree
 
 
@@ -108,7 +104,7 @@ def main():
     # Get repo information
     try:
         github_repo_url = get_repo_url()
-        repo_path = extract_repo_path(github_repo_url)
+        extract_repo_path(github_repo_url)
     except ValueError as e:
         logger.error(f"Error getting repository URL: {e}")
         sys.exit(1)

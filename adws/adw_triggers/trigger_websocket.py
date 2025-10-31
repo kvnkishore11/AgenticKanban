@@ -18,7 +18,6 @@ Environment Requirements:
 """
 
 import argparse
-import asyncio
 import json
 import os
 import signal
@@ -26,7 +25,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime
-from typing import Dict, Set, Optional
+from typing import Set, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -36,7 +35,7 @@ import uvicorn
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from adw_modules.utils import make_adw_id, setup_logger, get_safe_subprocess_env
-from adw_modules.workflow_ops import extract_adw_info, AVAILABLE_ADW_WORKFLOWS
+from adw_modules.workflow_ops import AVAILABLE_ADW_WORKFLOWS
 from adw_modules.state import ADWState
 from adw_triggers.websocket_models import (
     WorkflowTriggerRequest,
@@ -308,7 +307,7 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
 
     # Launch in background using Popen with filtered environment
     try:
-        process = subprocess.Popen(
+        subprocess.Popen(
             cmd,
             cwd=repo_root,  # Run from repository root where .claude/commands/ is located
             env=get_safe_subprocess_env(env_file_path),  # Pass .env file path for explicit loading

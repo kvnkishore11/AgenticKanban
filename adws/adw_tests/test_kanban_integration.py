@@ -1,7 +1,6 @@
 #!/usr/bin/env -S uv run
 """Test Kanban integration functionality for ADW workflow system."""
 
-import json
 import unittest
 from unittest.mock import patch, MagicMock
 import sys
@@ -460,26 +459,26 @@ def run_tests():
     result = runner.run(suite)
 
     # Print summary
-    print(f"\n📊 Test Results:")
+    print("\n📊 Test Results:")
     print(f"   Tests run: {result.testsRun}")
     print(f"   Failures: {len(result.failures)}")
     print(f"   Errors: {len(result.errors)}")
 
     if result.failures:
-        print(f"\n❌ Failures:")
+        print("\n❌ Failures:")
         for test, traceback in result.failures:
             print(f"   - {test}: {traceback}")
 
     if result.errors:
-        print(f"\n💥 Errors:")
+        print("\n💥 Errors:")
         for test, traceback in result.errors:
             print(f"   - {test}: {traceback}")
 
     if result.wasSuccessful():
-        print(f"\n✅ All tests passed! Kanban integration is working correctly.")
+        print("\n✅ All tests passed! Kanban integration is working correctly.")
         return True
     else:
-        print(f"\n❌ Some tests failed. Please review the implementation.")
+        print("\n❌ Some tests failed. Please review the implementation.")
         return False
 
 

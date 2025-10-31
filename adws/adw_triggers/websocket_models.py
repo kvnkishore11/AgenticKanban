@@ -1,6 +1,6 @@
 """WebSocket message models for ADW trigger system."""
 
-from typing import Optional, Literal, Union
+from typing import Optional, Literal
 from pydantic import BaseModel, Field, validator, AliasChoices
 from adw_modules.data_types import ModelSet, ADWWorkflow
 

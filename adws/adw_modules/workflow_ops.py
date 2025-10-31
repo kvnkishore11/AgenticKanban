@@ -15,7 +15,7 @@ from adw_modules.data_types import (
     ADWExtractionResult,
 )
 from adw_modules.agent import execute_template
-from adw_modules.github import get_repo_url, extract_repo_path, ADW_BOT_IDENTIFIER
+from adw_modules.github import ADW_BOT_IDENTIFIER
 from adw_modules.state import ADWState
 from adw_modules.utils import parse_json
 from adw_modules.kanban_mode import is_kanban_mode, get_kanban_output_path

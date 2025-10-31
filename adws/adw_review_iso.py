@@ -296,7 +296,7 @@ def build_review_summary(review_result: ReviewResult) -> str:
     
     # Add screenshots section
     if review_result.screenshot_urls:
-        summary_parts.append(f"\n## 📸 Screenshots")
+        summary_parts.append("\n## 📸 Screenshots")
         summary_parts.append(f"Captured {len(review_result.screenshot_urls)} screenshots\n")
         
         # Use uploaded URLs to display as inline images
@@ -472,7 +472,7 @@ def main():
     # Get repo information
     try:
         github_repo_url = get_repo_url()
-        repo_path = extract_repo_path(github_repo_url)
+        extract_repo_path(github_repo_url)
     except ValueError as e:
         logger.error(f"Error getting repository URL: {e}")
         sys.exit(1)
