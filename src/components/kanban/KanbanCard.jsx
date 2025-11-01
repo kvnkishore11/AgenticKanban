@@ -18,6 +18,8 @@ import {
   getSubstages,
   getSubstage
 } from '../../utils/substages';
+import WorkflowTriggerModal from '../forms/WorkflowTriggerModal';
+
 const KanbanCard = ({ task, onEdit }) => {
   const {
     selectTask,
@@ -32,12 +34,12 @@ const KanbanCard = ({ task, onEdit }) => {
     resumeTaskProgression,
     getTaskProgressionStatus,
     recoverTaskFromError,
-    triggerWorkflowForTask,
     getWorkflowStatusForTask,
     getWebSocketStatus
   } = useKanbanStore();
 
   const [showMenu, setShowMenu] = useState(false);
+  const [showWorkflowModal, setShowWorkflowModal] = useState(false);
 
   const pipeline = getPipelineById(task.pipelineId);
   const isSelected = selectedTaskId === task.id;
@@ -127,13 +129,8 @@ const KanbanCard = ({ task, onEdit }) => {
     selectTask(isSelected ? null : task.id);
   };
 
-  const handleTriggerWorkflow = async () => {
-    try {
-      // issue_number is required for ADW proper workflow identification
-      await triggerWorkflowForTask(task.id, { issue_number: String(task.id) });
-    } catch (error) {
-      console.error('Failed to trigger workflow:', error);
-    }
+  const handleTriggerWorkflow = () => {
+    setShowWorkflowModal(true);
   };
 
   const handleEditClick = () => {
@@ -141,6 +138,10 @@ const KanbanCard = ({ task, onEdit }) => {
       onEdit(task);
     }
     setShowMenu(false);
+  };
+
+  const handleWorkflowModalClose = () => {
+    setShowWorkflowModal(false);
   };
 
   return (
@@ -485,7 +486,7 @@ const KanbanCard = ({ task, onEdit }) => {
                     }`}
                   >
                     <Play className="h-3 w-3" />
-                    <span>Trigger Workflow</span>
+                    <span>Configure Workflow</span>
                   </button>
                 </div>
 
@@ -557,6 +558,14 @@ const KanbanCard = ({ task, onEdit }) => {
         <div
           className="fixed inset-0 z-0"
           onClick={() => setShowMenu(false)}
+        />
+      )}
+
+      {/* Workflow Trigger Modal */}
+      {showWorkflowModal && (
+        <WorkflowTriggerModal
+          task={task}
+          onClose={handleWorkflowModalClose}
         />
       )}
     </div>
