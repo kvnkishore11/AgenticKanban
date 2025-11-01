@@ -48,8 +48,9 @@ from adw_triggers.websocket_models import (
     TicketNotificationResponse,
 )
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from current working directory
+# This ensures we load from the worktree's .env when running in worktree mode
+load_dotenv(dotenv_path=os.path.join(os.getcwd(), '.env'), override=False)
 
 # Configuration
 DEFAULT_PORT = 8002

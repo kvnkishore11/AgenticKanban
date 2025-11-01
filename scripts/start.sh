@@ -109,7 +109,8 @@ trap cleanup EXIT INT TERM
 # Start websocket trigger
 echo -e "${GREEN}Starting websocket trigger on port $WEBSOCKET_PORT...${NC}"
 cd "$PROJECT_ROOT"
-BACKEND_PORT=$WEBSOCKET_PORT uv run adws/adw_triggers/trigger_websocket.py &
+export BACKEND_PORT=$WEBSOCKET_PORT
+uv run adws/adw_triggers/trigger_websocket.py &
 WEBSOCKET_PID=$!
 
 # Wait for websocket trigger to start
@@ -125,7 +126,8 @@ fi
 # Start frontend
 echo -e "${GREEN}Starting frontend server on port $CLIENT_PORT...${NC}"
 cd "$PROJECT_ROOT"
-FRONTEND_PORT=$CLIENT_PORT npm run dev &
+export FRONTEND_PORT=$CLIENT_PORT
+npm run dev &
 FRONTEND_PID=$!
 
 # Wait for frontend to start
