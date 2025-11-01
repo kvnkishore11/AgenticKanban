@@ -22,6 +22,7 @@ import logging
 from pathlib import Path
 import requests
 from datetime import datetime
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -64,11 +65,11 @@ def test_r2_upload():
 
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     if missing_vars:
-        print("\n❌ Missing required environment variables:")
+        print("\n⚠️  Missing required environment variables:")
         for var in missing_vars:
             print(f"   - {var}")
-        print("\nPlease set these variables and try again.")
-        return False
+        print("\nSkipping test - R2 credentials not configured.")
+        pytest.skip("R2 environment variables not configured")
 
     # Initialize R2 uploader
     print("\n1️⃣ Initializing R2 Uploader...")
