@@ -33,7 +33,7 @@ TEST_PROMPT = """You are a helpful assistant. Please respond to this test with:
 Keep your response brief."""
 
 
-def test_model(model: str, adw_id: str) -> tuple[bool, str]:
+def run_model_test(model: str, adw_id: str) -> tuple[bool, str]:
     """Test a specific model and return success status and message."""
     print(f"\n{'='*50}")
     print(f"Testing model: {model}")
@@ -74,7 +74,7 @@ def test_model(model: str, adw_id: str) -> tuple[bool, str]:
         return False, f"{model}: {error_msg}"
 
 
-def test_retry_functionality(adw_id: str) -> tuple[bool, str]:
+def run_retry_test(adw_id: str) -> tuple[bool, str]:
     """Test the retry functionality with a simple prompt."""
     print(f"\n{'='*50}")
     print("Testing retry functionality")
@@ -139,7 +139,7 @@ def main():
     with ThreadPoolExecutor(max_workers=len(MODELS)) as executor:
         # Submit all test tasks
         future_to_model = {
-            executor.submit(test_model, model, adw_id): model for model in MODELS
+            executor.submit(run_model_test, model, adw_id): model for model in MODELS
         }
 
         # Process results as they complete
@@ -156,7 +156,7 @@ def main():
                 print(f"❌ {model} - Exception during parallel execution: {str(e)}")
 
     # Run retry functionality test
-    retry_success, retry_message = test_retry_functionality(adw_id)
+    retry_success, retry_message = run_retry_test(adw_id)
     results["retry_test"] = (retry_success, retry_message)
     if not retry_success:
         all_success = False

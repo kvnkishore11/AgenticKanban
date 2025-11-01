@@ -229,17 +229,24 @@ class TestKanbanIntegration(unittest.TestCase):
         self.assertTrue(is_kanban_mode(kanban_state))
         self.assertFalse(is_kanban_mode(github_state))
 
-    def test_should_skip_worktree_operations(self):
-        """Test worktree operation skipping in kanban mode."""
+    @patch('adw_modules.kanban_mode.is_git_available')
+    def test_should_skip_worktree_operations(self, mock_git_available):
+        """Test worktree operation skipping based on git availability."""
         kanban_state = ADWState("test-adw-kanban")
         kanban_state.update(data_source="kanban")
 
         github_state = ADWState("test-adw-github")
         github_state.update(data_source="github")
 
+        # Test when git is not available - should skip worktree operations
+        mock_git_available.return_value = False
         self.assertTrue(should_skip_worktree_operations(kanban_state))
-        # Note: should_skip_worktree_operations also checks git availability
-        # In test environment, git might not be available, so we can't assume False
+        self.assertTrue(should_skip_worktree_operations(github_state))
+
+        # Test when git is available - should not skip worktree operations
+        mock_git_available.return_value = True
+        self.assertFalse(should_skip_worktree_operations(kanban_state))
+        self.assertFalse(should_skip_worktree_operations(github_state))
 
     def test_get_issue_data_safe_with_kanban_data(self):
         """Test safe issue data retrieval with kanban data."""
@@ -279,7 +286,7 @@ class TestKanbanIntegration(unittest.TestCase):
         """Test creating standardized issue from kanban data."""
         issue_data = create_kanban_issue_from_data(self.sample_kanban_issue_json, "123")
 
-        self.assertEqual(issue_data["number"], "123")
+        self.assertEqual(issue_data["number"], 123)  # Function returns int, not string
         self.assertEqual(issue_data["title"], "Implement user authentication")
         self.assertEqual(issue_data["body"], "Add JWT-based authentication to the API")
         self.assertTrue(issue_data["kanban_source"])
@@ -438,13 +445,16 @@ class TestKanbanIntegration(unittest.TestCase):
         mock_create_issue.assert_called_once()
 
     def test_fetch_issue_safe_returns_none_for_kanban_without_data(self):
-        """Test that fetch_issue_safe returns None in kanban mode without data."""
+        """Test that fetch_issue_safe creates fallback in kanban mode without data."""
         kanban_state = ADWState("test-adw-kanban")
         kanban_state.update(data_source="kanban")  # No issue_json
 
         result = fetch_issue_safe("123", kanban_state)
 
-        self.assertIsNone(result)
+        # Function now creates a fallback issue instead of returning None
+        self.assertIsNotNone(result)
+        self.assertEqual(result.number, 123)
+        self.assertTrue(result.title.startswith("Kanban Issue"))
 
 
 def run_tests():
