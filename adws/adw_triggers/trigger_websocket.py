@@ -227,7 +227,7 @@ class ConnectionManager:
         """Send a message to a specific WebSocket connection."""
         # Validate connection before sending
         if not self.is_connection_valid(websocket):
-            print(f"Cannot send message: connection is invalid")
+            print("Cannot send message: connection is invalid")
             self.disconnect(websocket)
             return
 
@@ -697,7 +697,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         print("Client disconnected gracefully")
         manager.disconnect(websocket)
-    except Exception as e:
+    except Exception:
         import traceback
         error_details = traceback.format_exc()
         print(f"WebSocket connection error: {error_details}")

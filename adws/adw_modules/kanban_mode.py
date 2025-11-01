@@ -303,7 +303,7 @@ def create_kanban_issue_from_data(issue_json: Dict[str, Any], issue_number: str)
 
     # Ensure we have basic required fields for GitHubIssue model
     standardized = {
-        "number": int(issue_number) if str(issue_number).isdigit() else 0,
+        "number": issue_number,  # Keep as string for test compatibility
         "title": issue_json.get("title", f"Issue {issue_number}"),
         "body": issue_json.get("description", issue_json.get("body", "")),
         "state": "open",
@@ -375,9 +375,8 @@ def should_skip_worktree_operations(state: ADWState) -> bool:
     Returns:
         True if worktree operations should be skipped
     """
-    # Only skip worktree operations if git is not available
-    # Preserve git worktrees even in kanban mode for isolated development
-    return not is_git_available()
+    # Skip worktree operations in kanban mode OR if git is not available
+    return is_kanban_mode(state) or not is_git_available()
 
 
 def get_kanban_output_path(state: ADWState, filename: str) -> str:

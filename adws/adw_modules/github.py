@@ -152,18 +152,9 @@ def fetch_issue_safe(issue_number: str, state=None) -> Optional[GitHubIssue]:
             logger.error(f"Failed to create issue from kanban data: {e}")
             return None
 
-    # If we're in kanban mode but don't have issue data, try fallback creation
+    # If we're in kanban mode but don't have issue data, return None
     if state and is_kanban_mode(state):
-        logger.info("Kanban mode - attempting fallback issue creation")
-        try:
-            from .kanban_mode import get_or_create_fallback_issue
-            fallback_data = get_or_create_fallback_issue(issue_number, state)
-            if fallback_data:
-                return GitHubIssue(**fallback_data)
-        except Exception as e:
-            logger.error(f"Failed to create fallback issue: {e}")
-
-        logger.warning("All kanban issue creation methods failed")
+        logger.warning("Kanban mode enabled but no issue_json provided")
         return None
 
     # Fall back to GitHub API if not in kanban mode

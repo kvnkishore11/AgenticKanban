@@ -38,7 +38,7 @@ def test_model_mapping_structure():
     else:
         print("✅ All commands have 'heavy' mapping")
     
-    return len(missing_base) == 0 and len(missing_heavy) == 0
+    assert len(missing_base) == 0 and len(missing_heavy) == 0
 
 
 def test_model_mapping_lookups():
@@ -65,7 +65,7 @@ def test_model_mapping_lookups():
             print(f"❌ {command} with {model_set} → {result} (expected {expected})")
             all_passed = False
     
-    return all_passed
+    assert all_passed
 
 
 def test_model_differences():
@@ -154,8 +154,6 @@ def test_get_model_for_slash_command():
             os.rmdir(os.path.dirname(os.path.dirname(state_file)))
         except Exception:
             pass
-    
-    return True
 
 
 def main():
