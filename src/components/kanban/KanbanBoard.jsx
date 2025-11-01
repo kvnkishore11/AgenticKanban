@@ -74,10 +74,11 @@ const KanbanBoard = () => {
     setEditingTask(null);
   };
 
-  // Group stages into SDLC and non-SDLC
+  // Group stages: Backlog first, then SDLC, then others
   const sdlcStageIds = ['plan', 'build', 'test', 'review', 'document'];
+  const backlogStage = stages.find(stage => stage.id === 'backlog');
   const sdlcStages = stages.filter(stage => sdlcStageIds.includes(stage.id));
-  const otherStages = stages.filter(stage => !sdlcStageIds.includes(stage.id));
+  const otherStages = stages.filter(stage => !sdlcStageIds.includes(stage.id) && stage.id !== 'backlog');
 
   return (
     <div className="w-full">
@@ -87,6 +88,61 @@ const KanbanBoard = () => {
       </div>
 
       <div className="kanban-board-grid kanban-scroll">
+        {/* Backlog Stage */}
+        {backlogStage && (() => {
+          const stageTasks = getTasksByStage(backlogStage.id);
+          const StageIcon = stageIcons[backlogStage.id] || ClipboardList;
+
+          return (
+            <div
+              key={backlogStage.id}
+              className={`kanban-column stage-${backlogStage.id} ${
+                getStageColorClasses(backlogStage.color)
+              }`}
+            >
+              {/* Stage Header */}
+              <div className="kanban-column-header">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <StageIcon className={`h-5 w-5 ${getStageIconColorClasses(backlogStage.color)}`} />
+                    <h3 className="font-medium text-gray-900">{backlogStage.name}</h3>
+                  </div>
+                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    stageTasks.length > 0
+                      ? 'bg-primary-100 text-primary-800'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {stageTasks.length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Stage Content */}
+              <div className="kanban-column-body space-y-4">
+                {/* New Task Button for Backlog Stage */}
+                <button
+                  onClick={toggleTaskInput}
+                  className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors duration-200 flex items-center justify-center space-x-2"
+                >
+                  <Plus className="h-5 w-5" />
+                  <span>New Task</span>
+                </button>
+
+                {stageTasks.length > 0 ? (
+                  stageTasks.map((task) => (
+                    <KanbanCard key={task.id} task={task} onEdit={handleEditTask} />
+                  ))
+                ) : null}
+
+                {/* Drop Zone Indicator */}
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-400 opacity-0 transition-opacity duration-200 hover:opacity-100">
+                  <p className="text-sm">Drop tasks here</p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* SDLC Stages */}
         {sdlcStages.map((stage) => {
           const stageTasks = getTasksByStage(stage.id);
@@ -118,28 +174,15 @@ const KanbanBoard = () => {
 
               {/* Stage Content */}
               <div className="kanban-column-body space-y-4">
-                {/* New Task Button for Backlog Stage */}
-                {stage.id === 'backlog' && (
-                  <button
-                    onClick={toggleTaskInput}
-                    className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors duration-200 flex items-center justify-center space-x-2"
-                  >
-                    <Plus className="h-5 w-5" />
-                    <span>New Task</span>
-                  </button>
-                )}
-
                 {stageTasks.length > 0 ? (
                   stageTasks.map((task) => (
                     <KanbanCard key={task.id} task={task} onEdit={handleEditTask} />
                   ))
                 ) : (
-                  stage.id !== 'backlog' && (
-                    <div className="text-center text-gray-400 mt-8">
-                      <StageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No tasks in {stage.name.toLowerCase()}</p>
-                    </div>
-                  )
+                  <div className="text-center text-gray-400 mt-8">
+                    <StageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No tasks in {stage.name.toLowerCase()}</p>
+                  </div>
                 )}
 
                 {/* Drop Zone Indicator */}
@@ -187,28 +230,15 @@ const KanbanBoard = () => {
 
               {/* Stage Content */}
               <div className="kanban-column-body space-y-4">
-                {/* New Task Button for Backlog Stage */}
-                {stage.id === 'backlog' && (
-                  <button
-                    onClick={toggleTaskInput}
-                    className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors duration-200 flex items-center justify-center space-x-2"
-                  >
-                    <Plus className="h-5 w-5" />
-                    <span>New Task</span>
-                  </button>
-                )}
-
                 {stageTasks.length > 0 ? (
                   stageTasks.map((task) => (
                     <KanbanCard key={task.id} task={task} onEdit={handleEditTask} />
                   ))
                 ) : (
-                  stage.id !== 'backlog' && (
-                    <div className="text-center text-gray-400 mt-8">
-                      <StageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No tasks in {stage.name.toLowerCase()}</p>
-                    </div>
-                  )
+                  <div className="text-center text-gray-400 mt-8">
+                    <StageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No tasks in {stage.name.toLowerCase()}</p>
+                  </div>
                 )}
 
                 {/* Drop Zone Indicator */}
