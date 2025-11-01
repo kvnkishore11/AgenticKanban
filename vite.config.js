@@ -9,7 +9,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
-      port: parseInt(env.FRONTEND_PORT) || 5173,
+      // Prefer environment variable (from start.sh), fallback to .env file, then default
+      port: parseInt(process.env.FRONTEND_PORT || env.FRONTEND_PORT) || 5173,
     },
     envPrefix: 'VITE_',
   }
