@@ -9,11 +9,23 @@ class WebSocketService {
     this.isConnecting = false;
     this.isConnected = false;
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
+    this.maxReconnectAttempts = 20; // Increased from 5 to 20 for better production resilience
     this.reconnectDelay = 1000; // Start with 1 second
     this.maxReconnectDelay = 30000; // Max 30 seconds
     this.heartbeatInterval = null;
-    this.heartbeatIntervalTime = 30000; // 30 seconds
+    this.heartbeatIntervalTime = 15000; // Reduced from 30s to 15s for faster detection
+    this.connectionId = null; // Track connection ID for server restart detection
+    this.messageQueue = []; // Client-side message queue for disconnection handling
+    this.pendingPromises = new Map(); // Track pending workflow trigger promises
+    this.visibilityChangeHandler = null;
+    this.onlineHandler = null;
+    this.offlineHandler = null;
+    this.connectionMetrics = {
+      messageSuccessCount: 0,
+      messageFailureCount: 0,
+      lastLatency: null,
+      connectionStartTime: null
+    };
 
     // Event listeners
     this.eventListeners = {
@@ -22,7 +34,8 @@ class WebSocketService {
       trigger_response: [],
       status_update: [],
       error: [],
-      pong: []
+      pong: [],
+      reconnecting: []
     };
 
     // Configuration
@@ -31,11 +44,19 @@ class WebSocketService {
       port: 8002,
       protocol: 'ws',
       autoReconnect: true,
-      maxReconnectAttempts: 5,
-      heartbeat: true
+      maxReconnectAttempts: 20, // Updated to match instance variable
+      heartbeat: true,
+      messageQueueEnabled: true,
+      maxQueueSize: 100
     };
 
-    console.log('WebSocketService initialized');
+    // Set up browser visibility API integration
+    this.setupVisibilityHandling();
+
+    // Set up online/offline event listeners
+    this.setupNetworkStatusHandling();
+
+    console.log('WebSocketService initialized with enhanced reliability features');
   }
 
   /**
@@ -44,6 +65,59 @@ class WebSocketService {
   configure(options = {}) {
     this.config = { ...this.config, ...options };
     console.log('WebSocket configuration updated:', this.config);
+  }
+
+  /**
+   * Set up browser visibility API to pause/resume heartbeats
+   */
+  setupVisibilityHandling() {
+    if (typeof document === 'undefined') return; // Not in browser environment
+
+    this.visibilityChangeHandler = () => {
+      if (document.hidden) {
+        console.log('WebSocket: Page hidden, pausing heartbeat');
+        this.stopHeartbeat();
+      } else {
+        console.log('WebSocket: Page visible, resuming heartbeat');
+        if (this.isConnected && this.config.heartbeat) {
+          this.startHeartbeat();
+        }
+        // Check connection health when page becomes visible
+        if (!this.isConnected && this.config.autoReconnect) {
+          console.log('WebSocket: Page visible and disconnected, attempting reconnection');
+          this.connect().catch(err => console.error('Reconnection failed:', err));
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+  }
+
+  /**
+   * Set up online/offline event listeners
+   */
+  setupNetworkStatusHandling() {
+    if (typeof window === 'undefined') return; // Not in browser environment
+
+    this.onlineHandler = () => {
+      console.log('WebSocket: Network online, attempting reconnection');
+      if (!this.isConnected && this.config.autoReconnect) {
+        // Reset reconnection attempts when network comes back
+        this.reconnectAttempts = 0;
+        this.connect().catch(err => console.error('Reconnection after online event failed:', err));
+      }
+    };
+
+    this.offlineHandler = () => {
+      console.log('WebSocket: Network offline detected');
+      this.emit('error', {
+        type: 'network_offline',
+        message: 'Network connection lost'
+      });
+    };
+
+    window.addEventListener('online', this.onlineHandler);
+    window.addEventListener('offline', this.offlineHandler);
   }
 
   /**
@@ -77,11 +151,18 @@ class WebSocketService {
           this.isConnecting = false;
           this.reconnectAttempts = 0;
           this.reconnectDelay = 1000;
+          this.connectionMetrics.connectionStartTime = Date.now();
 
-          // Start heartbeat if enabled
-          if (this.config.heartbeat) {
+          // Generate new connection ID
+          this.connectionId = `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+          // Start heartbeat if enabled (only if page is visible)
+          if (this.config.heartbeat && (!document || !document.hidden)) {
             this.startHeartbeat();
           }
+
+          // Process queued messages after reconnection
+          this.processMessageQueue();
 
           this.emit('connect');
           resolve();
@@ -101,7 +182,12 @@ class WebSocketService {
           console.log('WebSocket connection closed:', event.code, event.reason);
           this.isConnected = false;
           this.isConnecting = false;
+          this.connectionId = null;
           this.stopHeartbeat();
+
+          // Clean up pending promises on disconnection
+          this.cleanupPendingPromises();
+
           this.emit('disconnect', { code: event.code, reason: event.reason });
 
           // Auto-reconnect if enabled and not a clean close
@@ -128,20 +214,25 @@ class WebSocketService {
   /**
    * Disconnect from WebSocket server
    */
-  disconnect() {
+  async disconnect() {
     if (this.ws) {
-      console.log('Disconnecting WebSocket');
+      console.log('Disconnecting WebSocket - draining message queue first');
       this.config.autoReconnect = false; // Disable auto-reconnect for manual disconnect
+
+      // Drain message queue before disconnecting
+      await this.drainMessageQueue();
+
       this.stopHeartbeat();
       this.ws.close(1000, 'Client disconnect');
       this.ws = null;
     }
     this.isConnected = false;
     this.isConnecting = false;
+    this.connectionId = null;
   }
 
   /**
-   * Schedule reconnection attempt
+   * Schedule reconnection attempt with exponential backoff and jitter
    */
   scheduleReconnect() {
     if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
@@ -154,9 +245,23 @@ class WebSocketService {
     }
 
     this.reconnectAttempts++;
-    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), this.maxReconnectDelay);
 
-    console.log(`Scheduling reconnect attempt ${this.reconnectAttempts} in ${delay}ms`);
+    // Calculate exponential backoff with jitter to prevent thundering herd
+    const baseDelay = Math.min(
+      this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
+      this.maxReconnectDelay
+    );
+    // Add jitter: delay * (0.5 + random * 0.5) gives us 50-100% of the base delay
+    const jitter = 0.5 + Math.random() * 0.5;
+    const delay = Math.floor(baseDelay * jitter);
+
+    console.log(`Scheduling reconnect attempt ${this.reconnectAttempts}/${this.config.maxReconnectAttempts} in ${delay}ms (with jitter)`);
+
+    this.emit('reconnecting', {
+      attempt: this.reconnectAttempts,
+      maxAttempts: this.config.maxReconnectAttempts,
+      delay
+    });
 
     setTimeout(() => {
       if (!this.isConnected && this.config.autoReconnect) {
@@ -222,15 +327,28 @@ class WebSocketService {
    */
   sendMessage(message) {
     if (!this.isConnected || !this.ws) {
+      // If message queue is enabled, queue the message instead of throwing
+      if (this.config.messageQueueEnabled) {
+        console.log('WebSocket not connected, queueing message:', message.type);
+        this.queueMessage(message);
+        return;
+      }
       throw new Error('WebSocket is not connected');
     }
 
     try {
       const messageStr = JSON.stringify(message);
       this.ws.send(messageStr);
+      this.connectionMetrics.messageSuccessCount++;
       console.log('Sent WebSocket message:', message.type);
     } catch (error) {
       console.error('Error sending WebSocket message:', error);
+      this.connectionMetrics.messageFailureCount++;
+
+      // Queue message for retry if queue is enabled
+      if (this.config.messageQueueEnabled) {
+        this.queueMessage(message);
+      }
       throw error;
     }
   }
@@ -238,19 +356,48 @@ class WebSocketService {
   /**
    * Trigger an ADW workflow
    */
-  async triggerWorkflow(request) {
+  async triggerWorkflow(request, timeout = 30000) {
     console.log('Triggering workflow via WebSocket:', request);
 
     if (!this.isConnected) {
       // Try to connect if not connected
-      await this.connect();
+      try {
+        await this.connect();
+      } catch (error) {
+        // If connection fails, queue the workflow for later if queue is enabled
+        if (this.config.messageQueueEnabled) {
+          console.log('Connection failed, queueing workflow trigger');
+          return new Promise((resolve, reject) => {
+            this.queueMessage({
+              type: 'trigger_workflow',
+              data: request
+            });
+            // Store promise in pending promises map for later resolution
+            const promiseId = `workflow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            this.pendingPromises.set(promiseId, { resolve, reject, request, timeout: Date.now() + timeout });
+          });
+        }
+        throw error;
+      }
     }
 
     return new Promise((resolve, reject) => {
-      // Set up one-time listeners for this request
-      const onResponse = (data) => {
+      const promiseId = `workflow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Set up timeout for this workflow trigger
+      const timeoutId = setTimeout(() => {
         this.off('trigger_response', onResponse);
         this.off('error', onError);
+        this.pendingPromises.delete(promiseId);
+        reject(new Error(`Workflow trigger timed out after ${timeout}ms`));
+      }, timeout);
+
+      // Set up one-time listeners for this request
+      const onResponse = (data) => {
+        clearTimeout(timeoutId);
+        this.off('trigger_response', onResponse);
+        this.off('error', onError);
+        this.pendingPromises.delete(promiseId);
 
         if (data.status === 'accepted') {
           resolve(data);
@@ -260,13 +407,18 @@ class WebSocketService {
       };
 
       const onError = (error) => {
+        clearTimeout(timeoutId);
         this.off('trigger_response', onResponse);
         this.off('error', onError);
+        this.pendingPromises.delete(promiseId);
         reject(new Error(error.message || 'WebSocket error during workflow trigger'));
       };
 
       this.on('trigger_response', onResponse);
       this.on('error', onError);
+
+      // Store in pending promises for cleanup on disconnect
+      this.pendingPromises.set(promiseId, { resolve, reject, request, timeoutId });
 
       // Send the trigger request
       try {
@@ -275,9 +427,15 @@ class WebSocketService {
           data: request
         });
       } catch (error) {
+        clearTimeout(timeoutId);
         this.off('trigger_response', onResponse);
         this.off('error', onError);
-        reject(error);
+        this.pendingPromises.delete(promiseId);
+
+        // If queue is enabled, this will have been queued already
+        if (!this.config.messageQueueEnabled) {
+          reject(error);
+        }
       }
     });
   }
@@ -331,6 +489,115 @@ class WebSocketService {
   }
 
   /**
+   * Queue a message for sending when connection is restored
+   */
+  queueMessage(message) {
+    if (this.messageQueue.length >= this.config.maxQueueSize) {
+      console.warn('Message queue full, dropping oldest message');
+      this.messageQueue.shift();
+    }
+
+    this.messageQueue.push({
+      message,
+      timestamp: Date.now(),
+      retries: 0
+    });
+
+    console.log(`Message queued. Queue size: ${this.messageQueue.length}`);
+  }
+
+  /**
+   * Process queued messages after reconnection
+   */
+  async processMessageQueue() {
+    if (this.messageQueue.length === 0) {
+      return;
+    }
+
+    console.log(`Processing ${this.messageQueue.length} queued messages`);
+
+    // Process all queued messages
+    const messages = [...this.messageQueue];
+    this.messageQueue = [];
+
+    for (const item of messages) {
+      try {
+        await this.sendMessage(item.message);
+        console.log('Queued message sent successfully:', item.message.type);
+      } catch (error) {
+        console.error('Failed to send queued message:', error);
+
+        // Re-queue if retries are available
+        if (item.retries < 3) {
+          item.retries++;
+          this.messageQueue.push(item);
+        } else {
+          console.error('Max retries reached for queued message, dropping');
+        }
+      }
+    }
+  }
+
+  /**
+   * Drain message queue before disconnect
+   */
+  async drainMessageQueue() {
+    if (!this.isConnected || this.messageQueue.length === 0) {
+      return;
+    }
+
+    console.log('Draining message queue before disconnect');
+    await this.processMessageQueue();
+
+    // Wait a bit for messages to be sent
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  /**
+   * Clean up pending promises on disconnection
+   */
+  cleanupPendingPromises() {
+    console.log(`Cleaning up ${this.pendingPromises.size} pending promises`);
+
+    for (const [promiseId, promiseData] of this.pendingPromises) {
+      if (promiseData.timeoutId) {
+        clearTimeout(promiseData.timeoutId);
+      }
+
+      // If queue is enabled, re-queue the workflow trigger
+      if (this.config.messageQueueEnabled && promiseData.request) {
+        this.queueMessage({
+          type: 'trigger_workflow',
+          data: promiseData.request
+        });
+      }
+    }
+
+    this.pendingPromises.clear();
+  }
+
+  /**
+   * Get connection quality metrics
+   */
+  getConnectionQuality() {
+    const total = this.connectionMetrics.messageSuccessCount + this.connectionMetrics.messageFailureCount;
+    const successRate = total > 0 ? this.connectionMetrics.messageSuccessCount / total : 1.0;
+
+    let uptime = 0;
+    if (this.connectionMetrics.connectionStartTime) {
+      uptime = Date.now() - this.connectionMetrics.connectionStartTime;
+    }
+
+    return {
+      successRate,
+      totalMessages: total,
+      lastLatency: this.connectionMetrics.lastLatency,
+      uptime,
+      queueSize: this.messageQueue.length
+    };
+  }
+
+  /**
    * Get connection status
    */
   getStatus() {
@@ -338,7 +605,10 @@ class WebSocketService {
       isConnected: this.isConnected,
       isConnecting: this.isConnecting,
       reconnectAttempts: this.reconnectAttempts,
-      config: this.config
+      config: this.config,
+      connectionId: this.connectionId,
+      queueSize: this.messageQueue.length,
+      quality: this.getConnectionQuality()
     };
   }
 
@@ -423,6 +693,41 @@ class WebSocketService {
     };
 
     return modelSetMap[workItemType] || 'base';
+  }
+
+  /**
+   * Cleanup resources and event listeners
+   */
+  cleanup() {
+    console.log('WebSocketService: Cleaning up resources');
+
+    // Disconnect WebSocket
+    if (this.isConnected) {
+      this.disconnect();
+    }
+
+    // Remove browser event listeners
+    if (typeof document !== 'undefined' && this.visibilityChangeHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+    }
+
+    if (typeof window !== 'undefined') {
+      if (this.onlineHandler) {
+        window.removeEventListener('online', this.onlineHandler);
+      }
+      if (this.offlineHandler) {
+        window.removeEventListener('offline', this.offlineHandler);
+      }
+    }
+
+    // Clear all event listeners
+    Object.keys(this.eventListeners).forEach(event => {
+      this.eventListeners[event] = [];
+    });
+
+    // Clear message queue and pending promises
+    this.messageQueue = [];
+    this.cleanupPendingPromises();
   }
 }
 
