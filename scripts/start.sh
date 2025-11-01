@@ -109,7 +109,7 @@ trap cleanup EXIT INT TERM
 # Start websocket trigger
 echo -e "${GREEN}Starting websocket trigger on port $WEBSOCKET_PORT...${NC}"
 cd "$PROJECT_ROOT"
-PORT=$WEBSOCKET_PORT uv run adws/adw_triggers/trigger_webhook.py &
+BACKEND_PORT=$WEBSOCKET_PORT uv run adws/adw_triggers/trigger_websocket.py &
 WEBSOCKET_PID=$!
 
 # Wait for websocket trigger to start

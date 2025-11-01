@@ -13,7 +13,7 @@ and maintains connection state for multiple concurrent clients.
 Usage: uv run trigger_websocket.py [--port PORT] [--help]
 
 Environment Requirements:
-- WEBSOCKET_PORT: Server port (default: 8002)
+- BACKEND_PORT: Server port (default: 8002)
 - All workflow requirements (GITHUB_PAT, CLAUDE_CODE_PATH, etc.)
 """
 
@@ -53,7 +53,7 @@ load_dotenv()
 
 # Configuration
 DEFAULT_PORT = 8002
-WEBSOCKET_PORT = int(os.getenv("WEBSOCKET_PORT", str(DEFAULT_PORT)))
+WEBSOCKET_PORT = int(os.getenv("BACKEND_PORT", str(DEFAULT_PORT)))
 
 # Dependent workflows that require existing worktrees
 # These cannot be triggered directly without an ADW ID
