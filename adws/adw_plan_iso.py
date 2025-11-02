@@ -123,9 +123,11 @@ def main():
         logger.info("Skipping worktree operations - kanban mode enabled")
         # Still allocate ports for consistency
         backend_port, frontend_port = get_ports_for_adw(adw_id)
-        state.update(backend_port=backend_port, frontend_port=frontend_port)
+        # Use current directory as worktree path in kanban mode
+        worktree_path = os.getcwd()
+        state.update(backend_port=backend_port, frontend_port=frontend_port, worktree_path=worktree_path)
         state.save("adw_plan_iso")
-        worktree_path = None
+        valid = True  # Skip worktree creation since we're in kanban mode
     else:
         # Check if worktree already exists
         valid, error = validate_worktree(adw_id, state)
