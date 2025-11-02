@@ -5,8 +5,11 @@
 
 class ADWDiscoveryService {
   constructor() {
-    // Use VITE_BACKEND_URL from environment, fallback to default port
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:9104';
+    // Use VITE_BACKEND_URL from environment (required)
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    if (!backendUrl) {
+      throw new Error('VITE_BACKEND_URL environment variable is required');
+    }
     this.config = {
       baseUrl: backendUrl
     };

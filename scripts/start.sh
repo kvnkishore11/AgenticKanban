@@ -106,10 +106,28 @@ cleanup() {
 # Trap EXIT, INT, and TERM signals
 trap cleanup EXIT INT TERM
 
-# Start websocket trigger
-echo -e "${GREEN}Starting websocket trigger on port $WEBSOCKET_PORT...${NC}"
-cd "$PROJECT_ROOT"
+# Start REST API server
+echo -e "${GREEN}Starting REST API server on port $WEBSOCKET_PORT...${NC}"
+cd "$PROJECT_ROOT/app/server"
 export BACKEND_PORT=$WEBSOCKET_PORT
+export FRONTEND_PORT=$CLIENT_PORT
+/Users/kvnkishore/anaconda3/bin/python server.py &
+API_SERVER_PID=$!
+
+# Wait for API server to start
+echo "Waiting for REST API server to start..."
+sleep 3
+
+# Check if API server is running
+if ! kill -0 $API_SERVER_PID 2>/dev/null; then
+    echo -e "${RED}REST API server failed to start!${NC}"
+    exit 1
+fi
+
+# Start websocket trigger
+echo -e "${GREEN}Starting websocket trigger on port $((WEBSOCKET_PORT + 1))...${NC}"
+cd "$PROJECT_ROOT"
+export BACKEND_PORT=$((WEBSOCKET_PORT + 1))
 uv run adws/adw_triggers/trigger_websocket.py &
 WEBSOCKET_PID=$!
 
@@ -143,10 +161,13 @@ echo -e "${GREEN}✓ Services started successfully!${NC}"
 if [ -n "$ADWID" ]; then
     echo -e "${BLUE}Worktree Project: $ADWID${NC}"
 fi
-echo -e "${BLUE}Frontend:         http://localhost:$CLIENT_PORT${NC}"
-echo -e "${BLUE}Websocket Trigger: http://localhost:$WEBSOCKET_PORT${NC}"
-echo -e "${BLUE}Health Check:     http://localhost:$WEBSOCKET_PORT/health${NC}"
-echo -e "${BLUE}Webhook Endpoint: http://localhost:$WEBSOCKET_PORT/gh-webhook${NC}"
+echo -e "${BLUE}Frontend:          http://localhost:$CLIENT_PORT${NC}"
+echo -e "${BLUE}REST API:          http://localhost:$WEBSOCKET_PORT${NC}"
+echo -e "${BLUE}API Health Check:  http://localhost:$WEBSOCKET_PORT/health${NC}"
+echo -e "${BLUE}ADWs List:         http://localhost:$WEBSOCKET_PORT/api/adws/list${NC}"
+echo -e "${BLUE}Websocket Trigger: http://localhost:$((WEBSOCKET_PORT + 1))${NC}"
+echo -e "${BLUE}Websocket Health:  http://localhost:$((WEBSOCKET_PORT + 1))/health${NC}"
+echo -e "${BLUE}Webhook Endpoint:  http://localhost:$((WEBSOCKET_PORT + 1))/gh-webhook${NC}"
 echo ""
 echo "Press Ctrl+C to stop all services..."
 

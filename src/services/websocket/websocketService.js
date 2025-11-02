@@ -40,12 +40,17 @@ class WebSocketService {
       reconnecting: []
     };
 
-    // Configuration - extract from VITE_BACKEND_URL
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:9104';
+    // Configuration - extract from VITE_BACKEND_URL (required)
+    // WebSocket server runs on BACKEND_PORT + 1 (convention from start.sh)
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    if (!backendUrl) {
+      throw new Error('VITE_BACKEND_URL environment variable is required');
+    }
     const url = new URL(backendUrl);
+    const backendPort = parseInt(url.port);
     this.config = {
       host: url.hostname,
-      port: parseInt(url.port) || 9104,
+      port: backendPort + 1, // WebSocket server is on backend port + 1
       protocol: 'ws',
       autoReconnect: true,
       maxReconnectAttempts: 20, // Updated to match instance variable
