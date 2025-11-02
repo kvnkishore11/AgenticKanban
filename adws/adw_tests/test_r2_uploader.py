@@ -77,7 +77,7 @@ def test_r2_upload():
 
     if not uploader.enabled:
         print("❌ R2 Uploader failed to initialize. Check your credentials.")
-        return False
+        assert False, "R2 Uploader failed to initialize"
 
     print("✅ R2 Uploader initialized successfully")
     print(f"   Bucket: {uploader.bucket_name}")
@@ -93,7 +93,7 @@ def test_r2_upload():
 
     if not full_path.exists():
         print(f"❌ Test file not found at: {full_path}")
-        return False
+        assert False, f"Test file not found at: {full_path}"
 
     print(f"✅ Found test file: {full_path}")
     print(f"   Size: {full_path.stat().st_size:,} bytes")
@@ -109,7 +109,7 @@ def test_r2_upload():
 
     if not public_url:
         print("❌ Upload failed! Check the logs above for details.")
-        return False
+        assert False, "Upload failed"
 
     print("✅ Upload successful!")
     print(f"   URL: {public_url}")
@@ -165,7 +165,7 @@ def test_r2_upload():
     print("2. Check your R2 bucket in the Cloudflare dashboard")
     print("3. Run ADW reviews - screenshots will be automatically uploaded")
 
-    return True
+    assert True
 
 
 def main():

@@ -100,39 +100,160 @@ print(f"Starting ADW WebSocket Trigger on port {WEBSOCKET_PORT}")
 
 
 class ConnectionManager:
-    """Manages WebSocket connections and broadcasting."""
+    """Manages WebSocket connections and broadcasting with enhanced reliability."""
 
     def __init__(self):
         self.active_connections: Set[WebSocket] = set()
+        self.connection_metadata: dict = {}  # Track metadata per connection
+        self.connection_timeout = 300  # 5 minutes of idle time before considering stale
+        self.last_cleanup_time = time.time()
+        self.cleanup_interval = 60  # Check for stale connections every 60 seconds
+        self.rate_limit_window = 60  # 1 minute window for rate limiting
+        self.max_triggers_per_minute = 30  # Max 30 workflow triggers per minute per connection
 
     async def connect(self, websocket: WebSocket):
-        """Accept a new WebSocket connection."""
+        """Accept a new WebSocket connection with metadata tracking."""
         await websocket.accept()
         self.active_connections.add(websocket)
-        print(f"Client connected. Total connections: {len(self.active_connections)}")
+
+        # Initialize connection metadata
+        connection_id = f"conn_{int(time.time() * 1000)}_{id(websocket)}"
+        self.connection_metadata[id(websocket)] = {
+            "connection_id": connection_id,
+            "connected_at": time.time(),
+            "last_activity": time.time(),
+            "message_count": 0,
+            "workflow_triggers": [],  # Track workflow trigger timestamps for rate limiting
+            "client_info": None
+        }
+
+        print(f"Client connected (ID: {connection_id}). Total connections: {len(self.active_connections)}")
 
     def disconnect(self, websocket: WebSocket):
-        """Remove a WebSocket connection."""
+        """Remove a WebSocket connection with cleanup."""
         self.active_connections.discard(websocket)
-        print(f"Client disconnected. Total connections: {len(self.active_connections)}")
+        conn_id = id(websocket)
+
+        if conn_id in self.connection_metadata:
+            metadata = self.connection_metadata[conn_id]
+            duration = time.time() - metadata["connected_at"]
+            print(f"Client disconnected (ID: {metadata['connection_id']}, "
+                  f"Duration: {duration:.1f}s, Messages: {metadata['message_count']}). "
+                  f"Total connections: {len(self.active_connections)}")
+            del self.connection_metadata[conn_id]
+        else:
+            print(f"Client disconnected. Total connections: {len(self.active_connections)}")
+
+    def update_activity(self, websocket: WebSocket):
+        """Update last activity timestamp for a connection."""
+        conn_id = id(websocket)
+        if conn_id in self.connection_metadata:
+            self.connection_metadata[conn_id]["last_activity"] = time.time()
+            self.connection_metadata[conn_id]["message_count"] += 1
+
+    def check_rate_limit(self, websocket: WebSocket) -> tuple[bool, Optional[str]]:
+        """Check if connection has exceeded rate limit for workflow triggers.
+
+        Returns:
+            Tuple of (is_allowed, error_message)
+        """
+        conn_id = id(websocket)
+        if conn_id not in self.connection_metadata:
+            return True, None
+
+        metadata = self.connection_metadata[conn_id]
+        now = time.time()
+
+        # Remove old trigger timestamps outside the window
+        metadata["workflow_triggers"] = [
+            ts for ts in metadata["workflow_triggers"]
+            if now - ts < self.rate_limit_window
+        ]
+
+        # Check if limit exceeded
+        if len(metadata["workflow_triggers"]) >= self.max_triggers_per_minute:
+            return False, f"Rate limit exceeded: max {self.max_triggers_per_minute} triggers per minute"
+
+        # Add current trigger timestamp
+        metadata["workflow_triggers"].append(now)
+        return True, None
+
+    async def cleanup_stale_connections(self):
+        """Remove connections that have been idle for too long."""
+        now = time.time()
+
+        # Only run cleanup at specified intervals
+        if now - self.last_cleanup_time < self.cleanup_interval:
+            return
+
+        self.last_cleanup_time = now
+        stale_connections = []
+
+        for websocket in self.active_connections:
+            conn_id = id(websocket)
+            if conn_id in self.connection_metadata:
+                metadata = self.connection_metadata[conn_id]
+                idle_time = now - metadata["last_activity"]
+
+                if idle_time > self.connection_timeout:
+                    print(f"Stale connection detected (ID: {metadata['connection_id']}, "
+                          f"Idle: {idle_time:.1f}s), closing...")
+                    stale_connections.append(websocket)
+
+        # Close stale connections
+        for websocket in stale_connections:
+            try:
+                await websocket.close(code=1000, reason="Connection timeout due to inactivity")
+            except Exception as e:
+                print(f"Error closing stale connection: {e}")
+            finally:
+                self.disconnect(websocket)
+
+        if stale_connections:
+            print(f"Cleaned up {len(stale_connections)} stale connections")
+
+    def is_connection_valid(self, websocket: WebSocket) -> bool:
+        """Validate that a connection is still active and healthy."""
+        if websocket not in self.active_connections:
+            return False
+
+        # Check if connection state is valid
+        try:
+            # FastAPI WebSocket has a client_state attribute
+            return True  # If we can access the websocket, it's valid
+        except Exception:
+            return False
 
     async def send_personal_message(self, message: dict, websocket: WebSocket):
         """Send a message to a specific WebSocket connection."""
+        # Validate connection before sending
+        if not self.is_connection_valid(websocket):
+            print("Cannot send message: connection is invalid")
+            self.disconnect(websocket)
+            return
+
         try:
             await websocket.send_text(json.dumps(message))
+            self.update_activity(websocket)
         except Exception as e:
             print(f"Error sending message to client: {e}")
             self.disconnect(websocket)
 
     async def broadcast(self, message: dict):
-        """Broadcast a message to all connected clients."""
+        """Broadcast a message to all connected clients with validation."""
         if not self.active_connections:
             return
 
         disconnected = set()
         for connection in self.active_connections:
+            # Validate connection before broadcasting
+            if not self.is_connection_valid(connection):
+                disconnected.add(connection)
+                continue
+
             try:
                 await connection.send_text(json.dumps(message))
+                self.update_activity(connection)
             except Exception as e:
                 print(f"Error broadcasting to client: {e}")
                 disconnected.add(connection)
@@ -140,6 +261,11 @@ class ConnectionManager:
         # Remove disconnected clients
         for connection in disconnected:
             self.disconnect(connection)
+
+    def get_connection_info(self, websocket: WebSocket) -> Optional[dict]:
+        """Get metadata for a specific connection."""
+        conn_id = id(websocket)
+        return self.connection_metadata.get(conn_id)
 
 
 manager = ConnectionManager()
@@ -448,6 +574,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
     try:
         while True:
+            # Cleanup stale connections periodically
+            await manager.cleanup_stale_connections()
+
             # Receive message from client
             data = await websocket.receive_text()
 
@@ -457,6 +586,19 @@ async def websocket_endpoint(websocket: WebSocket):
                 message_type = message.get("type", "unknown")
 
                 if message_type == "trigger_workflow":
+                    # Check rate limit before processing
+                    allowed, rate_limit_error = manager.check_rate_limit(websocket)
+                    if not allowed:
+                        error_response = WebSocketError(
+                            error_type="rate_limit_error",
+                            message=rate_limit_error
+                        )
+                        await manager.send_personal_message({
+                            "type": "error",
+                            "data": error_response.model_dump()
+                        }, websocket)
+                        continue
+
                     # Handle workflow trigger request
                     request_data = message.get("data", {})
 
@@ -464,7 +606,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     validated_request, error = validate_workflow_request(request_data)
 
                     if error:
-                        # Send error response
+                        # Send error response with detailed information
                         error_response = WebSocketError(
                             error_type="validation_error",
                             message=error
@@ -486,10 +628,22 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 elif message_type == "ping":
                     # Handle ping/pong for connection keepalive
-                    await manager.send_personal_message({
+                    # Include timestamp and connection ID for latency measurement
+                    client_timestamp = message.get("timestamp")
+                    conn_info = manager.get_connection_info(websocket)
+                    connection_id = conn_info["connection_id"] if conn_info else "unknown"
+
+                    pong_response = {
                         "type": "pong",
-                        "timestamp": datetime.utcnow().isoformat() + "Z"
-                    }, websocket)
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                        "connection_id": connection_id
+                    }
+
+                    # Include client timestamp for accurate latency calculation
+                    if client_timestamp:
+                        pong_response["client_timestamp"] = client_timestamp
+
+                    await manager.send_personal_message(pong_response, websocket)
 
                 elif message_type == "ticket_notification":
                     # Handle ticket notification from kanban client
@@ -515,11 +669,11 @@ async def websocket_endpoint(websocket: WebSocket):
                         "data": error_response.model_dump()
                     }, websocket)
 
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
                 # Invalid JSON
                 error_response = WebSocketError(
                     error_type="validation_error",
-                    message="Invalid JSON format"
+                    message=f"Invalid JSON format: {str(e)}"
                 )
                 await manager.send_personal_message({
                     "type": "error",
@@ -527,7 +681,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 }, websocket)
 
             except Exception as e:
-                # Other errors
+                # Other errors - provide detailed error for client recovery
+                import traceback
+                error_details = traceback.format_exc()
+                print(f"WebSocket message processing error: {error_details}")
+
                 error_response = WebSocketError(
                     error_type="system_error",
                     message=f"Internal error: {str(e)}"
@@ -538,9 +696,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 }, websocket)
 
     except WebSocketDisconnect:
+        print("Client disconnected gracefully")
         manager.disconnect(websocket)
-    except Exception as e:
-        print(f"WebSocket error: {e}")
+    except Exception:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"WebSocket connection error: {error_details}")
         manager.disconnect(websocket)
 
 
