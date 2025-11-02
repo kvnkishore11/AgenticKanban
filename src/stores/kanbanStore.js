@@ -1083,7 +1083,7 @@ export const useKanbanStore = create()(
         // Helper function to check and record message for deduplication
         isDuplicateMessage: (messageType, data) => {
           const fingerprint = get().getMessageFingerprint(messageType, data);
-          const { processedMessages, messageDeduplicationMaxSize, messageDeduplicationTTL } = get();
+          const { processedMessages, messageDeduplicationMaxSize, messageDeduplicationTTL, tasks } = get();
 
           // Check if message was already processed
           if (processedMessages.has(fingerprint)) {
@@ -1092,6 +1092,28 @@ export const useKanbanStore = create()(
 
             // Check if the fingerprint is still within TTL
             if (now - processedTime < messageDeduplicationTTL) {
+              // For status_update messages, check if task state indicates message hasn't been applied
+              // This handles the reconnection scenario where cache is cleared but state wasn't updated
+              if (messageType === 'status_update' && data.current_step && data.adw_id) {
+                const task = tasks.find(t => t.metadata?.adw_id === data.adw_id);
+                if (task && data.current_step) {
+                  const stageMatch = data.current_step.match(/^Stage:\s*(\w+)/i);
+                  if (stageMatch) {
+                    const targetStage = stageMatch[1].toLowerCase();
+                    // If task is not in the target stage, allow reprocessing
+                    // This handles page refresh where state was lost and needs to be restored
+                    if (task.stage !== targetStage) {
+                      console.log(`[Deduplication] Allowing reprocessing: task stage (${task.stage}) doesn't match target (${targetStage})`);
+                      // Don't return true - allow processing to continue
+                      // But still record it with new timestamp to prevent actual duplicates
+                      processedMessages.set(fingerprint, now);
+                      set({ processedMessages }, false, 'updateMessageDeduplicationCache');
+                      return false; // Not considered a duplicate in this case
+                    }
+                  }
+                }
+              }
+
               console.warn(`[Deduplication] Ignoring duplicate ${messageType}:`, {
                 fingerprint: fingerprint.substring(0, 100),
                 cacheSize: processedMessages.size
@@ -1194,6 +1216,8 @@ export const useKanbanStore = create()(
 
                   // Only move forward, never backward (or if not in workflow stages, allow transition)
                   if (targetIndex === -1 || currentIndex === -1 || targetIndex > currentIndex) {
+                    // Defensive check: only move if task is not already in target stage
+                    // This prevents unnecessary updates and allows safe message reprocessing after refresh
                     if (task.stage !== targetStage) {
                       console.log(`[Workflow] Auto-transitioning task from ${task.stage} to ${targetStage} (detected from current_step: "${current_step}")`);
                       get().moveTaskToStage(task.id, targetStage);
@@ -2074,6 +2098,10 @@ export const useKanbanStore = create()(
           projectNotificationEnabled: state.projectNotificationEnabled,
           projectNotificationConfigs: state.projectNotificationConfigs,
           notificationHistory: state.notificationHistory,
+          // Persist workflow state to survive page refreshes (fixes bug #6)
+          taskWorkflowProgress: state.taskWorkflowProgress,
+          taskWorkflowMetadata: state.taskWorkflowMetadata,
+          taskWorkflowLogs: state.taskWorkflowLogs,
         }),
       }
     ),
