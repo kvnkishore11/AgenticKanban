@@ -49,7 +49,7 @@ def test_model_mapping_lookups():
     test_cases = [
         # (command, model_set, expected)
         ("/implement", "base", "sonnet"),
-        ("/implement", "heavy", "opus"),
+        ("/implement", "heavy", "sonnet"),  # Changed from opus - only sonnet/haiku are valid
         ("/classify_issue", "base", "sonnet"),
         ("/classify_issue", "heavy", "sonnet"),  # Both use sonnet
         ("/review", "base", "sonnet"),
@@ -122,7 +122,7 @@ def test_get_model_for_slash_command():
 
     # Force reload the state by creating a new request
     model = get_model_for_slash_command(request)
-    expected_heavy = "opus"
+    expected_heavy = "sonnet"  # Changed from opus - only sonnet/haiku are valid models
     if model == expected_heavy:
         print(f"✅ With model_set='heavy': /implement → {model}")
     else:

@@ -803,6 +803,93 @@ async def health():
         return JSONResponse(content=response.model_dump())
 
 
+@app.post("/api/workflow-updates")
+async def receive_workflow_update(request_data: dict):
+    """
+    HTTP endpoint for receiving workflow updates from ADW workflow processes.
+
+    Workflows run as separate processes and cannot directly access WebSocket connections.
+    They POST status updates and logs to this endpoint, which broadcasts them to
+    all connected WebSocket clients.
+
+    Expected message format:
+    {
+        "type": "status_update" | "workflow_log",
+        "data": {
+            // For status_update:
+            "adw_id": "...",
+            "workflow_name": "...",
+            "status": "started" | "in_progress" | "completed" | "failed",
+            "message": "...",
+            "timestamp": "...",
+            "progress_percent": 0-100,  // optional
+            "current_step": "..."  // optional
+
+            // For workflow_log:
+            "adw_id": "...",
+            "workflow_name": "...",
+            "message": "...",
+            "level": "INFO" | "SUCCESS" | "ERROR" | "WARNING",
+            "timestamp": "..."
+        }
+    }
+    """
+    try:
+        message_type = request_data.get("type")
+        data = request_data.get("data", {})
+
+        if not message_type or not data:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Missing 'type' or 'data' in request"}
+            )
+
+        # Validate required fields based on message type
+        if message_type == "status_update":
+            required_fields = ["adw_id", "workflow_name", "status", "message", "timestamp"]
+        elif message_type == "workflow_log":
+            required_fields = ["adw_id", "workflow_name", "message", "level", "timestamp"]
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Unknown message type: {message_type}"}
+            )
+
+        # Check for required fields
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Missing required fields: {', '.join(missing_fields)}"}
+            )
+
+        # Broadcast message to all connected WebSocket clients
+        await manager.broadcast({
+            "type": message_type,
+            "data": data
+        })
+
+        print(f"Broadcasted {message_type} for ADW {data.get('adw_id')} - {data.get('workflow_name')}")
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "message": "Update broadcasted to all clients",
+                "clients_count": len(manager.active_connections)
+            }
+        )
+
+    except Exception as e:
+        print(f"Error processing workflow update: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to process update: {str(e)}"}
+        )
+
+
 @app.get("/api/adws/list")
 async def list_adws():
     """List all available ADW IDs with their metadata.
