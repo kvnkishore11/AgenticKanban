@@ -24,10 +24,10 @@ from adw_modules.utils import make_adw_id
 load_dotenv()
 
 # Test configuration
-MODELS = ["opus", "sonnet"]
+MODELS = ["sonnet", "haiku"]
 TEST_PROMPT = """You are a helpful assistant. Please respond to this test with:
 1. Confirm you received this message
-2. State which model you are (opus or sonnet)
+2. State which model you are (sonnet or haiku)
 3. Say "Test successful!"
 
 Keep your response brief."""

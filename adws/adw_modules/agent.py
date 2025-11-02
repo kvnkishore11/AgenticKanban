@@ -28,19 +28,19 @@ SLASH_COMMAND_MODEL_MAP: Final[Dict[SlashCommand, Dict[ModelSet, str]]] = {
     "/classify_issue": {"base": "sonnet", "heavy": "sonnet"},
     "/classify_adw": {"base": "sonnet", "heavy": "sonnet"},
     "/generate_branch_name": {"base": "sonnet", "heavy": "sonnet"},
-    "/implement": {"base": "sonnet", "heavy": "opus"},
+    "/implement": {"base": "sonnet", "heavy": "sonnet"},
     "/test": {"base": "sonnet", "heavy": "sonnet"},
-    "/resolve_failed_test": {"base": "sonnet", "heavy": "opus"},
+    "/resolve_failed_test": {"base": "sonnet", "heavy": "sonnet"},
     "/test_e2e": {"base": "sonnet", "heavy": "sonnet"},
-    "/resolve_failed_e2e_test": {"base": "sonnet", "heavy": "opus"},
+    "/resolve_failed_e2e_test": {"base": "sonnet", "heavy": "sonnet"},
     "/review": {"base": "sonnet", "heavy": "sonnet"},
-    "/document": {"base": "sonnet", "heavy": "opus"},
+    "/document": {"base": "sonnet", "heavy": "sonnet"},
     "/commit": {"base": "sonnet", "heavy": "sonnet"},
     "/pull_request": {"base": "sonnet", "heavy": "sonnet"},
-    "/chore": {"base": "sonnet", "heavy": "opus"},
-    "/bug": {"base": "sonnet", "heavy": "opus"},
-    "/feature": {"base": "sonnet", "heavy": "opus"},
-    "/patch": {"base": "sonnet", "heavy": "opus"},
+    "/chore": {"base": "sonnet", "heavy": "sonnet"},
+    "/bug": {"base": "sonnet", "heavy": "sonnet"},
+    "/feature": {"base": "sonnet", "heavy": "sonnet"},
+    "/patch": {"base": "sonnet", "heavy": "sonnet"},
     "/install_worktree": {"base": "sonnet", "heavy": "sonnet"},
     "/track_agentic_kpis": {"base": "sonnet", "heavy": "sonnet"},
 }
@@ -59,7 +59,7 @@ def get_model_for_slash_command(
         default: Default model if not found in mapping
 
     Returns:
-        Model name to use (e.g., "sonnet" or "opus")
+        Model name to use (e.g., "sonnet" or "haiku")
     """
     # Import here to avoid circular imports
     from .state import ADWState
@@ -519,7 +519,7 @@ def execute_template(request: AgentTemplateRequest) -> AgentPromptResponse:
             args=["plan.md"],
             adw_id="abc12345"
         )
-        # If state has model_set="heavy", this will use "opus"
+        # If state has model_set="heavy", this will use "sonnet"
         # If state has model_set="base" or missing, this will use "sonnet"
         response = execute_template(request)
     """
