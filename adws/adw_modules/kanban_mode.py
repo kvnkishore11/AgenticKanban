@@ -375,8 +375,9 @@ def should_skip_worktree_operations(state: ADWState) -> bool:
     Returns:
         True if worktree operations should be skipped
     """
-    # Skip worktree operations in kanban mode OR if git is not available
-    return is_kanban_mode(state) or not is_git_available()
+    # Skip worktree operations only if git is not available
+    # Kanban mode can still use worktrees for isolated environments
+    return not is_git_available()
 
 
 def get_kanban_output_path(state: ADWState, filename: str) -> str:

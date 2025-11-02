@@ -116,18 +116,16 @@ def main():
     elif github_repo_url is None:
         logger.info("No git repository available - continuing in kanban mode")
 
-    # Check if worktree operations should be skipped (kanban mode)
+    # Check if worktree operations should be skipped (git not available)
     skip_worktree = should_skip_worktree_operations(state)
 
     if skip_worktree:
-        logger.info("Skipping worktree operations - kanban mode enabled")
+        logger.info("Skipping worktree operations - git not available")
         # Still allocate ports for consistency
         backend_port, frontend_port = get_ports_for_adw(adw_id)
-        # Use current directory as worktree path in kanban mode
-        worktree_path = os.getcwd()
-        state.update(backend_port=backend_port, frontend_port=frontend_port, worktree_path=worktree_path)
+        state.update(backend_port=backend_port, frontend_port=frontend_port)
         state.save("adw_plan_iso")
-        valid = True  # Skip worktree creation since we're in kanban mode
+        worktree_path = None
     else:
         # Check if worktree already exists
         valid, error = validate_worktree(adw_id, state)
