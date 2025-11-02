@@ -36,6 +36,7 @@ class WebSocketService {
       error: [],
       pong: [],
       workflow_log: [], // New event for real-time logs
+      stage_transition: [], // New event for stage transitions
       reconnecting: []
     };
 
@@ -309,6 +310,22 @@ class WebSocketService {
         this.emit('trigger_response', data);
         break;
       case 'status_update':
+        // Check for stage transition in current_step field
+        if (data && data.current_step && typeof data.current_step === 'string') {
+          const stageMatch = data.current_step.match(/^Stage:\s*(\w+)/i);
+          if (stageMatch) {
+            const toStage = stageMatch[1].toLowerCase();
+            // Emit dedicated stage transition event
+            this.emit('stage_transition', {
+              adw_id: data.adw_id,
+              to_stage: toStage,
+              from_stage: null, // We don't have from_stage in current_step format
+              workflow_name: data.workflow_name,
+              timestamp: data.timestamp || new Date().toISOString(),
+            });
+          }
+        }
+
         // Extract log information from status update messages
         this.emit('status_update', data);
 
