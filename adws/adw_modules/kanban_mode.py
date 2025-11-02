@@ -303,7 +303,7 @@ def create_kanban_issue_from_data(issue_json: Dict[str, Any], issue_number: str)
 
     # Ensure we have basic required fields for GitHubIssue model
     standardized = {
-        "number": issue_number,  # Keep as string for test compatibility
+        "number": int(issue_number) if str(issue_number).isdigit() else issue_number,  # Convert to int
         "title": issue_json.get("title", f"Issue {issue_number}"),
         "body": issue_json.get("description", issue_json.get("body", "")),
         "state": "open",
