@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from adw_modules.utils import make_adw_id, setup_logger, get_safe_subprocess_env
 from adw_modules.workflow_ops import AVAILABLE_ADW_WORKFLOWS
 from adw_modules.state import ADWState
+from adw_modules.discovery import discover_all_adws, get_adw_metadata
 from adw_triggers.websocket_models import (
     WorkflowTriggerRequest,
     WorkflowTriggerResponse,
@@ -639,6 +640,53 @@ async def health():
             error=f"Health check failed: {str(e)}"
         )
         return JSONResponse(content=response.model_dump())
+
+
+@app.get("/api/adws/list")
+async def list_adws():
+    """List all available ADW IDs with their metadata.
+
+    Returns:
+        JSON array of ADW objects with metadata including:
+        - adw_id, issue_number, issue_class, issue_title, branch_name, etc.
+    """
+    try:
+        adws = discover_all_adws()
+        return JSONResponse(content={"adws": adws, "count": len(adws)})
+    except Exception as e:
+        print(f"Error listing ADWs: {e}")
+        return JSONResponse(
+            content={"error": f"Failed to list ADWs: {str(e)}"},
+            status_code=500
+        )
+
+
+@app.get("/api/adws/{adw_id}")
+async def get_adw(adw_id: str):
+    """Get metadata for a specific ADW ID.
+
+    Args:
+        adw_id: The ADW ID to retrieve
+
+    Returns:
+        JSON object with ADW metadata, or 404 if not found
+    """
+    try:
+        metadata = get_adw_metadata(adw_id)
+
+        if metadata is None:
+            return JSONResponse(
+                content={"error": f"ADW ID '{adw_id}' not found"},
+                status_code=404
+            )
+
+        return JSONResponse(content=metadata)
+    except Exception as e:
+        print(f"Error retrieving ADW {adw_id}: {e}")
+        return JSONResponse(
+            content={"error": f"Failed to retrieve ADW: {str(e)}"},
+            status_code=500
+        )
 
 
 def signal_handler(signum, frame):
