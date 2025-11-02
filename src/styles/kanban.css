@@ -91,7 +91,7 @@ html {
   padding: 0 0.5rem;
   position: relative;
   min-height: 75vh;
-  max-height: 90vh;
+  align-self: stretch;
 }
 
 .kanban-separator-line {
@@ -128,7 +128,6 @@ html {
   border: 1px solid #e2e8f0;
   transition: all 0.2s ease;
   min-height: 75vh;
-  max-height: 90vh;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -429,7 +428,6 @@ html {
 
   .kanban-column {
     min-height: 70vh;
-    max-height: 85vh;
   }
 }
 
@@ -444,7 +442,6 @@ html {
 
   .kanban-column {
     min-height: 65vh;
-    max-height: 80vh;
   }
 }
 
