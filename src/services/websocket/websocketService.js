@@ -661,6 +661,11 @@ class WebSocketService {
     if (!this.eventListeners[event]) {
       this.eventListeners[event] = [];
     }
+    // Check if this exact listener is already registered
+    if (this.eventListeners[event].includes(listener)) {
+      console.warn(`[WebSocket] Duplicate listener detected for event '${event}', skipping registration`);
+      return;
+    }
     this.eventListeners[event].push(listener);
   }
 
