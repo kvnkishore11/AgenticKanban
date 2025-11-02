@@ -3,7 +3,7 @@
  * Manages top-level UI state and coordinates between major application sections
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useKanbanStore } from './stores/kanbanStore';
 import ProjectSelector from './components/ProjectSelector';
 import KanbanBoard from './components/kanban/KanbanBoard';
@@ -32,16 +32,20 @@ function App() {
 
   const [showCommandsPalette, setShowCommandsPalette] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const wsInitialized = useRef(false);
 
   useEffect(() => {
     // Initialize the application
     console.log('AgenticKanban initialized');
 
-    // Initialize WebSocket connection
-    initializeWebSocket().catch(error => {
-      console.error('Failed to initialize WebSocket:', error);
-    });
-  }, [initializeWebSocket]);
+    // Initialize WebSocket connection only once
+    if (!wsInitialized.current) {
+      wsInitialized.current = true;
+      initializeWebSocket().catch(error => {
+        console.error('Failed to initialize WebSocket:', error);
+      });
+    }
+  }, []);
 
   return (
     <ErrorBoundary>

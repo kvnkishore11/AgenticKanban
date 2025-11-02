@@ -841,42 +841,67 @@ export const useKanbanStore = create()(
         // WebSocket management
         initializeWebSocket: async () => {
           try {
+            // Guard: Prevent duplicate listener registration
+            if (websocketService._storeListenersRegistered) {
+              console.log('[WebSocket] Listeners already registered, skipping re-initialization');
+              // Still attempt to connect if not connected
+              if (!websocketService.socket?.connected) {
+                await websocketService.connect();
+              }
+              return;
+            }
+
+            console.log('[WebSocket] Initializing WebSocket with fresh listeners');
             set({ websocketConnecting: true, websocketError: null }, false, 'initializeWebSocket');
 
+            // Store listener references for cleanup
+            if (!websocketService._storeListeners) {
+              websocketService._storeListeners = {};
+            }
+
             // Set up event listeners
-            websocketService.on('connect', () => {
+            websocketService._storeListeners.onConnect = () => {
               set({
                 websocketConnected: true,
                 websocketConnecting: false,
                 websocketError: null
               }, false, 'websocketConnected');
-            });
+            };
+            websocketService.on('connect', websocketService._storeListeners.onConnect);
 
-            websocketService.on('disconnect', () => {
+            websocketService._storeListeners.onDisconnect = () => {
               set({
                 websocketConnected: false,
                 websocketConnecting: false
               }, false, 'websocketDisconnected');
-            });
+            };
+            websocketService.on('disconnect', websocketService._storeListeners.onDisconnect);
 
-            websocketService.on('error', (error) => {
+            websocketService._storeListeners.onError = (error) => {
               set({
                 websocketError: error.message || 'WebSocket error',
                 websocketConnecting: false
               }, false, 'websocketError');
-            });
+            };
+            websocketService.on('error', websocketService._storeListeners.onError);
 
-            websocketService.on('status_update', (statusUpdate) => {
+            websocketService._storeListeners.onStatusUpdate = (statusUpdate) => {
               get().handleWorkflowStatusUpdate(statusUpdate);
-            });
+            };
+            websocketService.on('status_update', websocketService._storeListeners.onStatusUpdate);
 
-            websocketService.on('workflow_log', (logEntry) => {
+            websocketService._storeListeners.onWorkflowLog = (logEntry) => {
               get().handleWorkflowLog(logEntry);
-            });
+            };
+            websocketService.on('workflow_log', websocketService._storeListeners.onWorkflowLog);
 
-            websocketService.on('trigger_response', (response) => {
+            websocketService._storeListeners.onTriggerResponse = (response) => {
               get().handleTriggerResponse(response);
-            });
+            };
+            websocketService.on('trigger_response', websocketService._storeListeners.onTriggerResponse);
+
+            // Mark listeners as registered
+            websocketService._storeListenersRegistered = true;
 
             // Connect to WebSocket server
             await websocketService.connect();
@@ -891,6 +916,24 @@ export const useKanbanStore = create()(
         },
 
         disconnectWebSocket: () => {
+          console.log('[WebSocket] Disconnecting and cleaning up listeners');
+
+          // Remove all registered event listeners
+          if (websocketService._storeListeners) {
+            websocketService.off('connect', websocketService._storeListeners.onConnect);
+            websocketService.off('disconnect', websocketService._storeListeners.onDisconnect);
+            websocketService.off('error', websocketService._storeListeners.onError);
+            websocketService.off('status_update', websocketService._storeListeners.onStatusUpdate);
+            websocketService.off('workflow_log', websocketService._storeListeners.onWorkflowLog);
+            websocketService.off('trigger_response', websocketService._storeListeners.onTriggerResponse);
+
+            // Clear listener references
+            websocketService._storeListeners = null;
+          }
+
+          // Reset the initialization flag
+          websocketService._storeListenersRegistered = false;
+
           websocketService.disconnect();
           set({
             websocketConnected: false,
