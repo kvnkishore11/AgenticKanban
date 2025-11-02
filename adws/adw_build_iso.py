@@ -36,6 +36,7 @@ from adw_modules.workflow_ops import (
 )
 from adw_modules.utils import setup_logger, check_env_vars
 from adw_modules.worktree_ops import validate_worktree
+from adw_modules.websocket_client import WebSocketNotifier
 
 
 
@@ -81,6 +82,10 @@ def main():
     # Set up logger with ADW ID from command line
     logger = setup_logger(adw_id, "adw_build_iso")
     logger.info(f"ADW Build Iso starting - ID: {adw_id}, Issue: {issue_number}")
+
+    # Initialize WebSocket notifier for real-time updates
+    notifier = WebSocketNotifier(adw_id)
+    notifier.notify_start("adw_build_iso", f"Starting build workflow for issue #{issue_number}")
     
     # Validate environment
     check_env_vars(logger)
@@ -157,22 +162,25 @@ def main():
     
     # Implement the plan (executing in worktree)
     logger.info("Implementing solution in worktree")
+    notifier.notify_progress("adw_build_iso", 50, "Implementing", "Building solution based on implementation plan")
     make_issue_comment(
         issue_number,
         format_issue_message(adw_id, AGENT_IMPLEMENTOR, "✅ Implementing solution in isolated environment")
     )
-    
+
     implement_response = implement_plan(plan_file, adw_id, logger, working_dir=worktree_path)
-    
+
     if not implement_response.success:
         logger.error(f"Error implementing solution: {implement_response.output}")
+        notifier.notify_error("adw_build_iso", f"Error implementing solution: {implement_response.output}", "Implementing")
         make_issue_comment(
             issue_number,
             format_issue_message(adw_id, AGENT_IMPLEMENTOR, f"❌ Error implementing solution: {implement_response.output}")
         )
         sys.exit(1)
-    
+
     logger.debug(f"Implementation response: {implement_response.output}")
+    notifier.notify_log("adw_build_iso", "Solution implemented successfully", "SUCCESS")
     make_issue_comment(
         issue_number,
         format_issue_message(adw_id, AGENT_IMPLEMENTOR, "✅ Solution implemented")
@@ -247,9 +255,11 @@ def main():
     
     # Finalize git operations (push and PR)
     # Note: This will work from the worktree context
+    notifier.notify_progress("adw_build_iso", 90, "Finalizing", "Pushing changes and updating PR")
     finalize_git_operations(state, logger, cwd=worktree_path)
-    
+
     logger.info("Isolated implementation phase completed successfully")
+    notifier.notify_complete("adw_build_iso", "Build workflow completed successfully", "Complete")
     make_issue_comment(
         issue_number, format_issue_message(adw_id, "ops", "✅ Isolated implementation phase completed")
     )

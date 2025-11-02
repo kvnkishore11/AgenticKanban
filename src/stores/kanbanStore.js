@@ -963,6 +963,8 @@ export const useKanbanStore = create()(
         handleWorkflowStatusUpdate: (statusUpdate) => {
           const { adw_id, status, message, progress_percent, current_step } = statusUpdate;
 
+          console.log('[WebSocket] Status Update:', { adw_id, status, progress_percent, current_step, message });
+
           // Update active workflow tracking
           set((state) => {
             const activeWorkflows = new Map(state.activeWorkflows);
@@ -1025,12 +1027,16 @@ export const useKanbanStore = create()(
         handleWorkflowLog: (logEntry) => {
           const { adw_id } = logEntry;
 
+          console.log('[WebSocket] Log Entry:', logEntry);
+
           // Find the task associated with this workflow
           const { tasks } = get();
           const task = tasks.find(t => t.metadata?.adw_id === adw_id);
 
           if (task) {
             get().appendWorkflowLog(task.id, logEntry);
+          } else {
+            console.warn('[WebSocket] No task found for log entry with adw_id:', adw_id);
           }
         },
 

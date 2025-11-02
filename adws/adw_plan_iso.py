@@ -62,6 +62,7 @@ from adw_modules.worktree_ops import (
     find_next_available_ports,
     setup_worktree_environment,
 )
+from adw_modules.websocket_client import WebSocketNotifier
 
 
 
@@ -96,6 +97,10 @@ def main():
     # Set up logger with ADW ID
     logger = setup_logger(adw_id, "adw_plan_iso")
     logger.info(f"ADW Plan Iso starting - ID: {adw_id}, Issue: {issue_number}")
+
+    # Initialize WebSocket notifier for real-time updates
+    notifier = WebSocketNotifier(adw_id)
+    notifier.notify_start("adw_plan_iso", f"Starting planning workflow for issue #{issue_number}")
 
     # Log the current operation mode
     log_mode_status(state, logger)
@@ -148,9 +153,11 @@ def main():
             state.save("adw_plan_iso")
 
     # Fetch issue details (kanban-aware)
+    notifier.notify_progress("adw_plan_iso", 10, "Fetching issue details", "Retrieving issue information from GitHub or kanban")
     issue = fetch_issue_safe(issue_number, state)
     if issue is None:
         logger.error("Could not fetch issue data from GitHub or kanban source")
+        notifier.notify_error("adw_plan_iso", "Failed to fetch issue data", "Fetching issue")
         sys.exit(1)
 
     logger.debug(f"Fetched issue: {issue.model_dump_json(indent=2, by_alias=True)}")
@@ -165,11 +172,13 @@ def main():
     )
 
     # Check if issue type is already provided from kanban (bypass GitHub classification)
+    notifier.notify_progress("adw_plan_iso", 20, "Classifying issue", "Determining issue type (feature/bug/chore)")
     existing_issue_class = state.get("issue_class")
     if existing_issue_class:
         # Issue type was provided by kanban via WebSocket trigger
         issue_command = existing_issue_class
         logger.info(f"Using kanban-provided issue type: {issue_command}")
+        notifier.notify_log("adw_plan_iso", f"Using kanban-provided issue type: {issue_command}", "INFO")
         make_issue_comment_safe(
             issue_number,
             format_issue_message(adw_id, "ops", f"✅ Using kanban-provided issue type: {issue_command}"),
@@ -178,10 +187,12 @@ def main():
     else:
         # Fallback to GitHub issue classification
         logger.info("No issue type provided by kanban, classifying GitHub issue")
+        notifier.notify_log("adw_plan_iso", "Classifying GitHub issue type", "INFO")
         issue_command, error = classify_issue(issue, adw_id, logger)
 
         if error:
             logger.error(f"Error classifying issue: {error}")
+            notifier.notify_error("adw_plan_iso", f"Error classifying issue: {error}", "Classifying issue")
             make_issue_comment_safe(
                 issue_number,
                 format_issue_message(adw_id, "ops", f"❌ Error classifying issue: {error}"),
@@ -192,6 +203,7 @@ def main():
         state.update(issue_class=issue_command)
         state.save("adw_plan_iso")
         logger.info(f"Issue classified as: {issue_command}")
+        notifier.notify_log("adw_plan_iso", f"Issue classified as: {issue_command}", "SUCCESS")
         make_issue_comment_safe(
             issue_number,
             format_issue_message(adw_id, "ops", f"✅ Issue classified as: {issue_command}"),
@@ -199,10 +211,12 @@ def main():
         )
 
     # Generate branch name
+    notifier.notify_progress("adw_plan_iso", 30, "Generating branch", "Creating branch name for isolated worktree")
     branch_name, error = generate_branch_name(issue, issue_command, adw_id, logger)
 
     if error:
         logger.error(f"Error generating branch name: {error}")
+        notifier.notify_error("adw_plan_iso", f"Error generating branch name: {error}", "Generating branch")
         make_issue_comment_safe(
             issue_number,
             format_issue_message(
@@ -216,29 +230,34 @@ def main():
     state.update(branch_name=branch_name)
     state.save("adw_plan_iso")
     logger.info(f"Will create branch in worktree: {branch_name}")
+    notifier.notify_log("adw_plan_iso", f"Branch: {branch_name}", "INFO")
 
     # Create worktree if it doesn't exist
     if not valid:
+        notifier.notify_progress("adw_plan_iso", 40, "Setting up worktree", "Creating isolated worktree environment")
         logger.info(f"Creating worktree for {adw_id}")
         worktree_path, error = create_worktree(adw_id, branch_name, logger)
-        
+
         if error:
             logger.error(f"Error creating worktree: {error}")
+            notifier.notify_error("adw_plan_iso", f"Error creating worktree: {error}", "Setting up worktree")
             make_issue_comment_safe(
                 issue_number,
                 format_issue_message(adw_id, "ops", f"❌ Error creating worktree: {error}"),
             )
             sys.exit(1)
-        
+
         state.update(worktree_path=worktree_path)
         state.save("adw_plan_iso")
         logger.info(f"Created worktree at {worktree_path}")
-        
+        notifier.notify_log("adw_plan_iso", f"Worktree created at {worktree_path}", "SUCCESS")
+
         # Setup worktree environment (create .ports.env)
         setup_worktree_environment(worktree_path, backend_port, frontend_port, logger)
-        
+
         # Run install_worktree command to set up the isolated environment
         logger.info("Setting up isolated environment with custom ports")
+        notifier.notify_log("adw_plan_iso", f"Setting up environment (ports: {backend_port}/{frontend_port})", "INFO")
         install_request = AgentTemplateRequest(
             agent_name="ops",
             slash_command="/install_worktree",
@@ -246,17 +265,19 @@ def main():
             adw_id=adw_id,
             working_dir=worktree_path,  # Execute in worktree
         )
-        
+
         install_response = execute_template(install_request)
         if not install_response.success:
             logger.error(f"Error setting up worktree: {install_response.output}")
+            notifier.notify_error("adw_plan_iso", f"Error setting up worktree: {install_response.output}", "Setting up worktree")
             make_issue_comment_safe(
                 issue_number,
                 format_issue_message(adw_id, "ops", f"❌ Error setting up worktree: {install_response.output}"),
             )
             sys.exit(1)
-        
+
         logger.info("Worktree environment setup complete")
+        notifier.notify_log("adw_plan_iso", "Worktree environment ready", "SUCCESS")
 
     make_issue_comment_safe(
         issue_number,
@@ -265,6 +286,7 @@ def main():
     )
 
     # Build the implementation plan (now executing in worktree)
+    notifier.notify_progress("adw_plan_iso", 60, "Creating plan", "Building implementation plan using AI agent")
     logger.info("Building implementation plan in worktree")
     make_issue_comment_safe(
         issue_number,
@@ -275,6 +297,7 @@ def main():
 
     if not plan_response.success:
         logger.error(f"Error building plan: {plan_response.output}")
+        notifier.notify_error("adw_plan_iso", f"Error building plan: {plan_response.output}", "Creating plan")
         make_issue_comment_safe(
             issue_number,
             format_issue_message(
@@ -284,6 +307,7 @@ def main():
         sys.exit(1)
 
     logger.debug(f"Plan response: {plan_response.output}")
+    notifier.notify_log("adw_plan_iso", "Implementation plan created successfully", "SUCCESS")
     make_issue_comment_safe(
         issue_number,
         format_issue_message(adw_id, AGENT_PLANNER, "✅ Implementation plan created"),
@@ -323,6 +347,7 @@ def main():
     )
 
     # Create commit message
+    notifier.notify_progress("adw_plan_iso", 80, "Committing plan", "Creating git commit for implementation plan")
     logger.info("Creating plan commit")
     commit_msg, error = create_commit(
         AGENT_PLANNER, issue, issue_command, adw_id, logger, worktree_path
@@ -330,6 +355,7 @@ def main():
 
     if error:
         logger.error(f"Error creating commit message: {error}")
+        notifier.notify_error("adw_plan_iso", f"Error creating commit message: {error}", "Committing plan")
         make_issue_comment_safe(
             issue_number,
             format_issue_message(
@@ -343,6 +369,7 @@ def main():
 
     if not success:
         logger.error(f"Error committing plan: {error}")
+        notifier.notify_error("adw_plan_iso", f"Error committing plan: {error}", "Committing plan")
         make_issue_comment_safe(
             issue_number,
             format_issue_message(
@@ -352,15 +379,18 @@ def main():
         sys.exit(1)
 
     logger.info(f"Committed plan: {commit_msg}")
+    notifier.notify_log("adw_plan_iso", "Plan committed to git", "SUCCESS")
     make_issue_comment_safe(
         issue_number, format_issue_message(adw_id, AGENT_PLANNER, "✅ Plan committed")
     )
 
     # Finalize git operations (push and PR)
     # Note: This will work from the worktree context
+    notifier.notify_progress("adw_plan_iso", 90, "Finalizing", "Pushing changes and creating/updating PR")
     finalize_git_operations(state, logger, cwd=worktree_path)
 
     logger.info("Isolated planning phase completed successfully")
+    notifier.notify_complete("adw_plan_iso", "Planning workflow completed successfully", "Complete")
     make_issue_comment_safe(
         issue_number, format_issue_message(adw_id, "ops", "✅ Isolated planning phase completed")
     )
