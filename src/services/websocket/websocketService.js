@@ -22,7 +22,8 @@ class WebSocketService {
       trigger_response: [],
       status_update: [],
       error: [],
-      pong: []
+      pong: [],
+      workflow_log: [] // New event for real-time logs
     };
 
     // Configuration
@@ -203,10 +204,38 @@ class WebSocketService {
         this.emit('trigger_response', data);
         break;
       case 'status_update':
+        // Extract log information from status update messages
         this.emit('status_update', data);
+
+        // If status update contains a message, treat it as a log entry
+        if (data && data.message) {
+          const logEntry = {
+            adw_id: data.adw_id,
+            timestamp: data.timestamp || new Date().toISOString(),
+            level: this.getLogLevelFromStatus(data.status),
+            message: data.message,
+            current_step: data.current_step,
+            progress_percent: data.progress_percent,
+            workflow_name: data.workflow_name,
+          };
+          this.emit('workflow_log', logEntry);
+        }
         break;
       case 'error':
         this.emit('error', data);
+
+        // Emit error as a log entry too
+        if (data && data.message) {
+          const errorLog = {
+            timestamp: new Date().toISOString(),
+            level: 'ERROR',
+            message: data.message,
+            details: data.details,
+            adw_id: data.adw_id,
+            error_type: data.error_type,
+          };
+          this.emit('workflow_log', errorLog);
+        }
         break;
       case 'pong':
         // Handle heartbeat response
@@ -215,6 +244,19 @@ class WebSocketService {
       default:
         console.warn('Unknown message type:', type);
     }
+  }
+
+  /**
+   * Get log level from workflow status
+   */
+  getLogLevelFromStatus(status) {
+    const statusLevelMap = {
+      'started': 'INFO',
+      'in_progress': 'INFO',
+      'completed': 'SUCCESS',
+      'failed': 'ERROR',
+    };
+    return statusLevelMap[status] || 'INFO';
   }
 
   /**

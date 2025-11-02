@@ -56,6 +56,9 @@ const initialState = {
   websocketError: null,
   activeWorkflows: new Map(), // Map of adw_id -> workflow info
   workflowStatusUpdates: [], // Array of recent status updates
+  taskWorkflowLogs: {}, // Map of taskId -> Array<logEntry> for real-time logs
+  taskWorkflowProgress: {}, // Map of taskId -> progressData for progress tracking
+  taskWorkflowMetadata: {}, // Map of taskId -> metadata for ADW metadata
 
   // Project notification state
   projectNotificationEnabled: true,
@@ -867,6 +870,14 @@ export const useKanbanStore = create()(
               get().handleWorkflowStatusUpdate(statusUpdate);
             });
 
+            websocketService.on('workflow_log', (logEntry) => {
+              get().handleWorkflowLog(logEntry);
+            });
+
+            websocketService.on('trigger_response', (response) => {
+              get().handleTriggerResponse(response);
+            });
+
             // Connect to WebSocket server
             await websocketService.connect();
 
@@ -982,6 +993,15 @@ export const useKanbanStore = create()(
           const task = tasks.find(t => t.metadata?.adw_id === adw_id);
 
           if (task) {
+            // Update task workflow progress
+            get().updateWorkflowProgress(task.id, {
+              status,
+              progress: progress_percent,
+              currentStep: current_step,
+              message,
+              timestamp: statusUpdate.timestamp || new Date().toISOString(),
+            });
+
             get().updateTask(task.id, {
               metadata: {
                 ...task.metadata,
@@ -999,6 +1019,116 @@ export const useKanbanStore = create()(
               get().moveTaskToStage(task.id, 'errored');
             }
           }
+        },
+
+        // Handle workflow log entries from WebSocket
+        handleWorkflowLog: (logEntry) => {
+          const { adw_id } = logEntry;
+
+          // Find the task associated with this workflow
+          const { tasks } = get();
+          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+
+          if (task) {
+            get().appendWorkflowLog(task.id, logEntry);
+          }
+        },
+
+        // Handle trigger response from WebSocket
+        handleTriggerResponse: (response) => {
+          const { adw_id, status, workflow_name, message } = response;
+
+          // Find task by ADW ID (may have just been created)
+          const { tasks } = get();
+          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+
+          if (task && status === 'accepted') {
+            get().updateWorkflowMetadata(task.id, {
+              adw_id,
+              workflow_name,
+              status: 'accepted',
+              message,
+              logs_path: response.logs_path,
+              triggeredAt: new Date().toISOString(),
+            });
+          }
+        },
+
+        // Append log entry to task
+        appendWorkflowLog: (taskId, logEntry) => {
+          set((state) => {
+            const currentLogs = state.taskWorkflowLogs[taskId] || [];
+            const newLogs = [...currentLogs, {
+              ...logEntry,
+              id: `${taskId}-${Date.now()}-${Math.random()}`,
+              timestamp: logEntry.timestamp || new Date().toISOString(),
+            }];
+
+            // Keep last 500 logs per task to prevent memory issues
+            const limitedLogs = newLogs.slice(-500);
+
+            return {
+              taskWorkflowLogs: {
+                ...state.taskWorkflowLogs,
+                [taskId]: limitedLogs,
+              }
+            };
+          }, false, 'appendWorkflowLog');
+        },
+
+        // Update workflow progress for task
+        updateWorkflowProgress: (taskId, progressData) => {
+          set((state) => ({
+            taskWorkflowProgress: {
+              ...state.taskWorkflowProgress,
+              [taskId]: {
+                ...state.taskWorkflowProgress[taskId],
+                ...progressData,
+                updatedAt: new Date().toISOString(),
+              }
+            }
+          }), false, 'updateWorkflowProgress');
+        },
+
+        // Update workflow metadata for task
+        updateWorkflowMetadata: (taskId, metadata) => {
+          set((state) => ({
+            taskWorkflowMetadata: {
+              ...state.taskWorkflowMetadata,
+              [taskId]: {
+                ...state.taskWorkflowMetadata[taskId],
+                ...metadata,
+                updatedAt: new Date().toISOString(),
+              }
+            }
+          }), false, 'updateWorkflowMetadata');
+        },
+
+        // Get workflow logs for task
+        getWorkflowLogsForTask: (taskId) => {
+          const { taskWorkflowLogs } = get();
+          return taskWorkflowLogs[taskId] || [];
+        },
+
+        // Get workflow progress for task
+        getWorkflowProgressForTask: (taskId) => {
+          const { taskWorkflowProgress } = get();
+          return taskWorkflowProgress[taskId] || null;
+        },
+
+        // Get workflow metadata for task
+        getWorkflowMetadataForTask: (taskId) => {
+          const { taskWorkflowMetadata } = get();
+          return taskWorkflowMetadata[taskId] || null;
+        },
+
+        // Clear workflow logs for task
+        clearWorkflowLogsForTask: (taskId) => {
+          set((state) => {
+            const taskWorkflowLogs = { ...state.taskWorkflowLogs };
+            delete taskWorkflowLogs[taskId];
+            return { taskWorkflowLogs };
+          }, false, 'clearWorkflowLogsForTask');
         },
 
         // Handle workflow completion
