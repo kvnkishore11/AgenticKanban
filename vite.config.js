@@ -11,6 +11,11 @@ export default defineConfig(({ mode }) => {
     server: {
       // Prefer environment variable (from start.sh), fallback to .env file, then default
       port: parseInt(process.env.FRONTEND_PORT || env.FRONTEND_PORT) || 5173,
+      watch: {
+        // Ignore .env files to prevent server restarts during worktree setup
+        // This stabilizes WebSocket connections by avoiding unnecessary restarts
+        ignored: ['**/.env*', '**/app/server/.env*']
+      }
     },
     envPrefix: 'VITE_',
   }
