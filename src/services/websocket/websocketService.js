@@ -40,10 +40,12 @@ class WebSocketService {
       reconnecting: []
     };
 
-    // Configuration
+    // Configuration - extract from VITE_BACKEND_URL
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:9104';
+    const url = new URL(backendUrl);
     this.config = {
-      host: 'localhost',
-      port: 8002,
+      host: url.hostname,
+      port: parseInt(url.port) || 9104,
       protocol: 'ws',
       autoReconnect: true,
       maxReconnectAttempts: 20, // Updated to match instance variable

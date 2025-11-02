@@ -5,10 +5,10 @@
 
 class ADWDiscoveryService {
   constructor() {
+    // Use VITE_BACKEND_URL from environment, fallback to default port
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:9104';
     this.config = {
-      host: 'localhost',
-      port: 8002,
-      protocol: 'http'
+      baseUrl: backendUrl
     };
   }
 
@@ -23,8 +23,7 @@ class ADWDiscoveryService {
    * Get API base URL
    */
   getApiBaseUrl() {
-    const { protocol, host, port } = this.config;
-    return `${protocol}://${host}:${port}`;
+    return this.config.baseUrl;
   }
 
   /**
