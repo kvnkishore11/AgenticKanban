@@ -111,6 +111,10 @@ class ConnectionManager:
         self.rate_limit_window = 60  # 1 minute window for rate limiting
         self.max_triggers_per_minute = 30  # Max 30 workflow triggers per minute per connection
 
+        # Session tracking for deduplication
+        self.client_sessions: dict = {}  # Map of session_id -> client info
+        self.session_connections: dict = {}  # Map of session_id -> set of WebSocket connections
+
     async def connect(self, websocket: WebSocket):
         """Accept a new WebSocket connection with metadata tracking."""
         await websocket.accept()
@@ -137,9 +141,23 @@ class ConnectionManager:
         if conn_id in self.connection_metadata:
             metadata = self.connection_metadata[conn_id]
             duration = time.time() - metadata["connected_at"]
+            session_id = metadata.get("session_id")
+
+            # Clean up session tracking
+            if session_id and session_id in self.session_connections:
+                self.session_connections[session_id].discard(websocket)
+                # Remove session if no more connections
+                if not self.session_connections[session_id]:
+                    del self.session_connections[session_id]
+                    if session_id in self.client_sessions:
+                        del self.client_sessions[session_id]
+                    print(f"Session {session_id} completely disconnected")
+
             print(f"Client disconnected (ID: {metadata['connection_id']}, "
+                  f"Session: {session_id or 'unknown'}, "
                   f"Duration: {duration:.1f}s, Messages: {metadata['message_count']}). "
-                  f"Total connections: {len(self.active_connections)}")
+                  f"Total connections: {len(self.active_connections)}, "
+                  f"Active sessions: {len(self.client_sessions)}")
             del self.connection_metadata[conn_id]
         else:
             print(f"Client disconnected. Total connections: {len(self.active_connections)}")
@@ -224,6 +242,40 @@ class ConnectionManager:
         except Exception:
             return False
 
+    def register_session(self, websocket: WebSocket, session_id: str, client_info: dict = None):
+        """Register a session ID for a WebSocket connection.
+
+        Args:
+            websocket: The WebSocket connection
+            session_id: Unique client session identifier
+            client_info: Optional client information (user agent, etc.)
+        """
+        conn_id = id(websocket)
+
+        # Update connection metadata with session ID
+        if conn_id in self.connection_metadata:
+            self.connection_metadata[conn_id]["session_id"] = session_id
+
+        # Track session info
+        if session_id not in self.client_sessions:
+            self.client_sessions[session_id] = {
+                "session_id": session_id,
+                "first_connected": time.time(),
+                "client_info": client_info or {},
+                "connection_count": 0
+            }
+
+        # Track connections per session
+        if session_id not in self.session_connections:
+            self.session_connections[session_id] = set()
+
+        self.session_connections[session_id].add(websocket)
+        self.client_sessions[session_id]["connection_count"] = len(self.session_connections[session_id])
+
+        print(f"Session registered: {session_id}, "
+              f"Connections for this session: {len(self.session_connections[session_id])}, "
+              f"Total sessions: {len(self.client_sessions)}")
+
     async def send_personal_message(self, message: dict, websocket: WebSocket):
         """Send a message to a specific WebSocket connection."""
         # Validate connection before sending
@@ -239,13 +291,43 @@ class ConnectionManager:
             print(f"Error sending message to client: {e}")
             self.disconnect(websocket)
 
-    async def broadcast(self, message: dict):
-        """Broadcast a message to all connected clients with validation."""
+    async def broadcast(self, message: dict, deduplicate_by_session: bool = False):
+        """Broadcast a message to all connected clients with validation.
+
+        Args:
+            message: The message to broadcast
+            deduplicate_by_session: If True, only send to one connection per unique client session
+        """
         if not self.active_connections:
             return
 
+        # Determine which connections to send to
+        if deduplicate_by_session:
+            # Send to only one connection per session
+            sessions_sent = set()
+            connections_to_broadcast = []
+
+            for connection in self.active_connections:
+                conn_id = id(connection)
+                metadata = self.connection_metadata.get(conn_id, {})
+                session_id = metadata.get("session_id")
+
+                # If session is registered and not yet sent to, include this connection
+                if session_id and session_id not in sessions_sent:
+                    sessions_sent.add(session_id)
+                    connections_to_broadcast.append(connection)
+                elif not session_id:
+                    # If no session registered, send to all unregistered connections
+                    connections_to_broadcast.append(connection)
+
+            print(f"Broadcasting with deduplication: {len(connections_to_broadcast)} connections "
+                  f"({len(sessions_sent)} unique sessions) out of {len(self.active_connections)} total")
+        else:
+            # Send to all connections
+            connections_to_broadcast = list(self.active_connections)
+
         disconnected = set()
-        for connection in self.active_connections:
+        for connection in connections_to_broadcast:
             # Validate connection before broadcasting
             if not self.is_connection_valid(connection):
                 disconnected.add(connection)
@@ -644,6 +726,33 @@ async def websocket_endpoint(websocket: WebSocket):
                         pong_response["client_timestamp"] = client_timestamp
 
                     await manager.send_personal_message(pong_response, websocket)
+
+                elif message_type == "register_session":
+                    # Handle session registration for deduplication
+                    session_data = message.get("data", {})
+                    session_id = session_data.get("session_id")
+                    client_info = session_data.get("client_info", {})
+
+                    if session_id:
+                        manager.register_session(websocket, session_id, client_info)
+
+                        # Send confirmation
+                        await manager.send_personal_message({
+                            "type": "session_registered",
+                            "data": {
+                                "session_id": session_id,
+                                "message": "Session registered successfully"
+                            }
+                        }, websocket)
+                    else:
+                        error_response = WebSocketError(
+                            error_type="validation_error",
+                            message="session_id is required for session registration"
+                        )
+                        await manager.send_personal_message({
+                            "type": "error",
+                            "data": error_response.model_dump()
+                        }, websocket)
 
                 elif message_type == "ticket_notification":
                     # Handle ticket notification from kanban client

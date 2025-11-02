@@ -45,10 +45,13 @@ TEST_TIMEOUT=30000
 **Expected Results**:
 - Console shows exactly one log entry for "handleTriggerResponse" being called
 - Console shows exactly one log entry for "handleWorkflowStatusUpdate" being called
+- Console shows "Processing new status update" or "Processing new trigger response" messages
+- NO console messages showing "Ignoring duplicate status_update" or "Ignoring duplicate trigger_response"
 - No duplicate workflow execution messages
 - Task metadata updated exactly once
 - Task status updated exactly once
 - No warning logs about duplicate listener registration
+- Message deduplication cache is working (no duplicate fingerprints processed)
 
 **Validation Criteria**:
 - `handleTriggerResponse` called: Exactly 1 time
@@ -216,7 +219,56 @@ TEST_TIMEOUT=30000
 
 ---
 
-### Test 6: Verify React useEffect Only Runs Once
+### Test 6: Verify Message Deduplication with Multiple Browser Tabs
+
+**Purpose**: Verify that opening multiple browser tabs doesn't cause duplicate console logs due to message deduplication
+
+**Steps**:
+1. Open the kanban board in browser tab 1
+2. Wait for WebSocket to connect
+3. Open browser console in tab 1 and clear logs
+4. Open the same kanban board URL in browser tab 2 (new tab/window)
+5. Wait for WebSocket to connect in tab 2
+6. Open browser console in tab 2 and clear logs
+7. In tab 1, trigger a workflow on a task
+8. Wait 10 seconds for workflow updates to be broadcast
+9. Observe console logs in BOTH tab 1 and tab 2
+10. Count occurrences of "Processing new status update" in each tab
+11. Count occurrences of "Ignoring duplicate" messages in each tab
+12. Verify that each tab shows unique messages being processed exactly once
+13. Verify that if duplicates are received (from backend broadcasting to both tabs), they are caught by the deduplication cache
+14. Close tab 2
+15. In tab 1, trigger another workflow
+16. Verify single execution in tab 1 only
+
+**Expected Results**:
+- Both tabs connect to WebSocket successfully
+- Both tabs receive workflow update broadcasts from backend
+- Tab 1 shows "Processing new status update" for each unique update
+- If backend sends duplicates, tab 1 shows "Ignoring duplicate status_update" warnings
+- Tab 2 may also receive broadcasts but they should be deduplicated
+- Each unique status update is processed exactly once per tab
+- After closing tab 2, tab 1 continues to work correctly
+- Message deduplication cache prevents duplicate processing
+
+**Validation Criteria**:
+- Both tabs receive WebSocket broadcasts: Yes
+- Each tab processes each unique update exactly once: Yes
+- Deduplication cache catches any duplicates: Yes
+- "Ignoring duplicate" warnings may appear (expected if backend broadcasts to multiple connections): Acceptable
+- Each tab's console shows no duplicate processing of the same message: Confirmed
+- Total unique updates processed in tab 1: Matches expected workflow events
+- No duplicate task updates: Confirmed
+
+**Screenshot Requirements**:
+- Screenshot 1: Both tabs showing console logs with deduplication working
+- Screenshot 2: Tab 1 showing "Processing new" messages
+- Screenshot 3: Tab 2 showing received broadcasts (may show deduplication)
+- Screenshot 4: Tab 1 working correctly after tab 2 is closed
+
+---
+
+### Test 7: Verify React useEffect Only Runs Once
 
 **Purpose**: Verify that the App.jsx useEffect hook doesn't cause multiple WebSocket initializations
 

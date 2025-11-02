@@ -65,6 +65,11 @@ const initialState = {
   projectNotificationConfigs: {}, // Map of projectId -> notification config
   projectNotificationStatus: {}, // Map of projectId -> connection status
   notificationHistory: [], // Array of recent notification attempts
+
+  // Message deduplication cache to prevent duplicate workflow updates
+  processedMessages: new Map(), // Map of message fingerprint -> timestamp
+  messageDeduplicationMaxSize: 1000, // Maximum number of fingerprints to cache
+  messageDeduplicationTTL: 5 * 60 * 1000, // 5 minutes in milliseconds
 };
 
 export const useKanbanStore = create()(
@@ -1002,11 +1007,88 @@ export const useKanbanStore = create()(
           }
         },
 
+        // Helper function to generate message fingerprint for deduplication
+        getMessageFingerprint: (messageType, data) => {
+          // Create a unique fingerprint based on message characteristics
+          const adw_id = data.adw_id || '';
+          const timestamp = data.timestamp || '';
+          const status = data.status || '';
+          const level = data.level || '';
+          const message = data.message || '';
+          const progress = data.progress_percent !== undefined ? data.progress_percent : '';
+          const step = data.current_step || '';
+
+          // Combine fields to create unique fingerprint
+          const fingerprint = `${messageType}:${adw_id}:${timestamp}:${status}${level}:${progress}:${step}:${message}`;
+          return fingerprint;
+        },
+
+        // Helper function to check and record message for deduplication
+        isDuplicateMessage: (messageType, data) => {
+          const fingerprint = get().getMessageFingerprint(messageType, data);
+          const { processedMessages, messageDeduplicationMaxSize, messageDeduplicationTTL } = get();
+
+          // Check if message was already processed
+          if (processedMessages.has(fingerprint)) {
+            const processedTime = processedMessages.get(fingerprint);
+            const now = Date.now();
+
+            // Check if the fingerprint is still within TTL
+            if (now - processedTime < messageDeduplicationTTL) {
+              console.warn(`[Deduplication] Ignoring duplicate ${messageType}:`, {
+                fingerprint: fingerprint.substring(0, 100),
+                cacheSize: processedMessages.size
+              });
+              return true; // It's a duplicate
+            }
+            // Fingerprint expired, remove it
+            processedMessages.delete(fingerprint);
+          }
+
+          // Record this message as processed
+          processedMessages.set(fingerprint, Date.now());
+
+          // Cleanup old entries if cache is too large
+          if (processedMessages.size > messageDeduplicationMaxSize) {
+            // Remove oldest entries (first 20% of max size)
+            const entriesToRemove = Math.floor(messageDeduplicationMaxSize * 0.2);
+            const iterator = processedMessages.keys();
+            for (let i = 0; i < entriesToRemove; i++) {
+              const key = iterator.next().value;
+              if (key) processedMessages.delete(key);
+            }
+            console.log(`[Deduplication] Cache cleanup: removed ${entriesToRemove} old entries, size now: ${processedMessages.size}`);
+          }
+
+          // Also cleanup expired entries periodically
+          const now = Date.now();
+          let expiredCount = 0;
+          for (const [key, timestamp] of processedMessages.entries()) {
+            if (now - timestamp >= messageDeduplicationTTL) {
+              processedMessages.delete(key);
+              expiredCount++;
+            }
+          }
+          if (expiredCount > 0) {
+            console.log(`[Deduplication] Removed ${expiredCount} expired entries`);
+          }
+
+          // Update the store with modified cache
+          set({ processedMessages }, false, 'updateMessageDeduplicationCache');
+
+          return false; // Not a duplicate
+        },
+
         // Handle workflow status updates from WebSocket
         handleWorkflowStatusUpdate: (statusUpdate) => {
+          // Check for duplicate messages
+          if (get().isDuplicateMessage('status_update', statusUpdate)) {
+            return; // Skip processing duplicate
+          }
+
           const { adw_id, status, message, progress_percent, current_step } = statusUpdate;
 
-          console.log('[WebSocket] Status Update:', { adw_id, status, progress_percent, current_step, message });
+          console.log('[WebSocket] Processing new status update:', { adw_id, status, progress_percent, current_step, message });
 
           // Update active workflow tracking
           set((state) => {
@@ -1068,9 +1150,14 @@ export const useKanbanStore = create()(
 
         // Handle workflow log entries from WebSocket
         handleWorkflowLog: (logEntry) => {
+          // Check for duplicate messages
+          if (get().isDuplicateMessage('workflow_log', logEntry)) {
+            return; // Skip processing duplicate
+          }
+
           const { adw_id } = logEntry;
 
-          console.log('[WebSocket] Log Entry:', logEntry);
+          console.log('[WebSocket] Processing new log entry:', logEntry);
 
           // Find the task associated with this workflow
           const { tasks } = get();
@@ -1085,7 +1172,14 @@ export const useKanbanStore = create()(
 
         // Handle trigger response from WebSocket
         handleTriggerResponse: (response) => {
+          // Check for duplicate messages
+          if (get().isDuplicateMessage('trigger_response', response)) {
+            return; // Skip processing duplicate
+          }
+
           const { adw_id, status, workflow_name, message } = response;
+
+          console.log('[WebSocket] Processing new trigger response:', { adw_id, status, workflow_name, message });
 
           // Find task by ADW ID (may have just been created)
           const { tasks } = get();
