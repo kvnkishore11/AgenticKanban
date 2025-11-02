@@ -972,11 +972,12 @@ async def receive_workflow_update(request_data: dict):
                 content={"error": f"Missing required fields: {', '.join(missing_fields)}"}
             )
 
-        # Broadcast message to all connected WebSocket clients
+        # Broadcast message to all connected WebSocket clients with session deduplication
+        # to prevent duplicate logs when multiple tabs are open
         await manager.broadcast({
             "type": message_type,
             "data": data
-        })
+        }, deduplicate_by_session=True)
 
         print(f"Broadcasted {message_type} for ADW {data.get('adw_id')} - {data.get('workflow_name')}")
 

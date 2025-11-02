@@ -334,10 +334,8 @@ export class ConnectionHealthMonitor {
     const sentTime = data.timestamp || now;
     const latency = now - sentTime;
 
-    // Update latency metrics
+    // Update latency metrics (console logging removed to reduce clutter)
     this.updateLatencyMetrics(latency);
-
-    console.log(`Health Monitor: Latency measured: ${latency}ms`);
   }
 
   /**

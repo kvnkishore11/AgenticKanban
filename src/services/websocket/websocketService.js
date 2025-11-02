@@ -303,7 +303,10 @@ class WebSocketService {
   handleMessage(message) {
     const { type, data } = message;
 
-    console.log('Received WebSocket message:', type, data);
+    // Only log non-heartbeat messages to reduce console clutter
+    if (type !== 'ping' && type !== 'pong') {
+      console.log('Received WebSocket message:', type, data);
+    }
 
     switch (type) {
       case 'trigger_response':
@@ -399,7 +402,10 @@ class WebSocketService {
       const messageStr = JSON.stringify(message);
       this.ws.send(messageStr);
       this.connectionMetrics.messageSuccessCount++;
-      console.log('Sent WebSocket message:', message.type);
+      // Only log non-heartbeat messages to reduce console clutter
+      if (message.type !== 'ping') {
+        console.log('Sent WebSocket message:', message.type);
+      }
     } catch (error) {
       console.error('Error sending WebSocket message:', error);
       this.connectionMetrics.messageFailureCount++;
