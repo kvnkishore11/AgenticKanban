@@ -28,7 +28,7 @@ SLASH_COMMAND_MODEL_MAP: Final[Dict[SlashCommand, Dict[ModelSet, str]]] = {
     "/classify_issue": {"base": "sonnet", "heavy": "sonnet"},
     "/classify_adw": {"base": "sonnet", "heavy": "sonnet"},
     "/generate_branch_name": {"base": "sonnet", "heavy": "sonnet"},
-    "/implement": {"base": "sonnet", "heavy": "sonnet"},
+    "/implement": {"base": "sonnet", "heavy": "opus"},
     "/test": {"base": "sonnet", "heavy": "sonnet"},
     "/resolve_failed_test": {"base": "sonnet", "heavy": "sonnet"},
     "/test_e2e": {"base": "sonnet", "heavy": "sonnet"},

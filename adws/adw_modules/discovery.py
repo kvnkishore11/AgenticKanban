@@ -7,9 +7,7 @@ and retrieve metadata from their adw_state.json files.
 import os
 import logging
 from typing import List, Dict, Optional, Any
-from pathlib import Path
 from adw_modules.state import ADWState
-from adw_modules.data_types import ADWStateData
 
 
 logger = logging.getLogger(__name__)
