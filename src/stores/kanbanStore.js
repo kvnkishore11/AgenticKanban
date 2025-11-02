@@ -20,6 +20,50 @@ import { WORK_ITEM_TYPES, QUEUEABLE_STAGES } from '../constants/workItems';
 // Re-export for backward compatibility
 export { WORK_ITEM_TYPES, QUEUEABLE_STAGES };
 
+/**
+ * Utility function to parse workflow names and extract stage sequences
+ * Handles both single-stage workflows (e.g., 'adw_plan_iso' -> ['plan'])
+ * and composite workflows (e.g., 'adw_plan_build_test_iso' -> ['plan', 'build', 'test'])
+ *
+ * @param {string} workflowName - The workflow name (e.g., 'adw_plan_iso', 'adw_plan_build_test_iso')
+ * @returns {string[]} Array of stage names in order
+ */
+const parseWorkflowStages = (workflowName) => {
+  if (!workflowName || typeof workflowName !== 'string') {
+    return [];
+  }
+
+  // Remove 'adw_' prefix and '_iso' suffix
+  let stagesStr = workflowName;
+  if (stagesStr.startsWith('adw_')) {
+    stagesStr = stagesStr.substring(4);
+  }
+  if (stagesStr.endsWith('_iso')) {
+    stagesStr = stagesStr.substring(0, stagesStr.length - 4);
+  }
+
+  // Handle special case: 'sdlc' maps to full pipeline
+  if (stagesStr === 'sdlc') {
+    return ['plan', 'build', 'test', 'review', 'document'];
+  }
+
+  // Split by underscore to get stage array
+  const stages = stagesStr.split('_').filter(s => s.length > 0);
+
+  return stages;
+};
+
+/**
+ * Get the initial stage for a workflow
+ *
+ * @param {string} workflowName - The workflow name
+ * @returns {string|null} The initial stage, or null if cannot be determined
+ */
+const getInitialStageForWorkflow = (workflowName) => {
+  const stages = parseWorkflowStages(workflowName);
+  return stages.length > 0 ? stages[0] : null;
+};
+
 const initialState = {
   // Project management
   selectedProject: null,
@@ -905,6 +949,11 @@ export const useKanbanStore = create()(
             };
             websocketService.on('trigger_response', websocketService._storeListeners.onTriggerResponse);
 
+            websocketService._storeListeners.onStageTransition = (transitionData) => {
+              get().handleStageTransition(transitionData);
+            };
+            websocketService.on('stage_transition', websocketService._storeListeners.onStageTransition);
+
             // Mark listeners as registered
             websocketService._storeListenersRegistered = true;
 
@@ -931,6 +980,7 @@ export const useKanbanStore = create()(
             websocketService.off('status_update', websocketService._storeListeners.onStatusUpdate);
             websocketService.off('workflow_log', websocketService._storeListeners.onWorkflowLog);
             websocketService.off('trigger_response', websocketService._storeListeners.onTriggerResponse);
+            websocketService.off('stage_transition', websocketService._storeListeners.onStageTransition);
 
             // Clear listener references
             websocketService._storeListeners = null;
@@ -974,6 +1024,13 @@ export const useKanbanStore = create()(
 
             // Trigger workflow via WebSocket
             const response = await websocketService.triggerWorkflowForTask(task, workflowType, triggerOptions);
+
+            // Immediately move task to the workflow's initial stage if in backlog
+            const initialStage = getInitialStageForWorkflow(response.workflow_name);
+            if (initialStage && task.stage === 'backlog') {
+              console.log(`[Workflow] Auto-moving task from backlog to ${initialStage} stage for workflow: ${response.workflow_name}`);
+              get().moveTaskToStage(taskId, initialStage);
+            }
 
             // Track the active workflow
             get().trackActiveWorkflow(response.adw_id, {
@@ -1120,6 +1177,32 @@ export const useKanbanStore = create()(
           const task = tasks.find(t => t.metadata?.adw_id === adw_id);
 
           if (task) {
+            // Detect stage transitions from current_step field
+            // Look for patterns like "Stage: {stage_name}" sent by notify_stage_transition()
+            if (current_step && typeof current_step === 'string') {
+              const stageMatch = current_step.match(/^Stage:\s*(\w+)/i);
+              if (stageMatch) {
+                const targetStage = stageMatch[1].toLowerCase();
+
+                // Validate that it's a valid stage and a forward progression
+                const validStages = ['plan', 'build', 'test', 'review', 'document', 'pr'];
+                if (validStages.includes(targetStage)) {
+                  // Get workflow stages to validate progression order
+                  const workflowStages = parseWorkflowStages(task.metadata?.workflow_name || '');
+                  const targetIndex = workflowStages.indexOf(targetStage);
+                  const currentIndex = workflowStages.indexOf(task.stage);
+
+                  // Only move forward, never backward (or if not in workflow stages, allow transition)
+                  if (targetIndex === -1 || currentIndex === -1 || targetIndex > currentIndex) {
+                    if (task.stage !== targetStage) {
+                      console.log(`[Workflow] Auto-transitioning task from ${task.stage} to ${targetStage} (detected from current_step: "${current_step}")`);
+                      get().moveTaskToStage(task.id, targetStage);
+                    }
+                  }
+                }
+              }
+            }
+
             // Update task workflow progress
             get().updateWorkflowProgress(task.id, {
               status,
@@ -1194,6 +1277,30 @@ export const useKanbanStore = create()(
               logs_path: response.logs_path,
               triggeredAt: new Date().toISOString(),
             });
+          }
+        },
+
+        // Handle explicit stage transition events from WebSocket
+        handleStageTransition: (transitionData) => {
+          const { adw_id, from_stage, to_stage } = transitionData;
+
+          console.log('[WebSocket] Stage Transition:', { adw_id, from_stage, to_stage });
+
+          // Find task by ADW ID
+          const { tasks } = get();
+          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+
+          if (task) {
+            // Validate that to_stage is a valid kanban stage
+            const validStages = ['backlog', 'plan', 'build', 'test', 'review', 'document', 'pr', 'errored'];
+            if (validStages.includes(to_stage)) {
+              console.log(`[Workflow] Moving task from ${task.stage} to ${to_stage} via stage transition event`);
+              get().moveTaskToStage(task.id, to_stage);
+            } else {
+              console.warn(`[Workflow] Invalid target stage: ${to_stage}`);
+            }
+          } else {
+            console.warn('[WebSocket] No task found for stage transition with adw_id:', adw_id);
           }
         },
 
@@ -1283,18 +1390,39 @@ export const useKanbanStore = create()(
           const workflowType = task.metadata?.workflow_name;
 
           if (workflowType) {
-            // Map workflow completion to next stage
-            const workflowStageMap = {
-              'adw_plan_iso': 'build',
-              'adw_build_iso': 'test',
-              'adw_test_iso': 'review',
-              'adw_review_iso': 'document',
-              'adw_document_iso': 'pr',
-              'adw_ship_iso': 'pr',
-            };
+            // Parse workflow name to extract stage sequence
+            const stages = parseWorkflowStages(workflowType);
 
-            const nextStage = workflowStageMap[workflowType];
+            // Find current stage in the workflow sequence
+            const currentIndex = stages.indexOf(task.stage);
+
+            let nextStage = null;
+
+            if (currentIndex !== -1 && currentIndex < stages.length - 1) {
+              // Move to next stage in the workflow sequence
+              nextStage = stages[currentIndex + 1];
+            } else {
+              // Handle completion of workflows - move to appropriate final stage
+              // For single-stage workflows or when at the end of composite workflow
+              const lastStage = stages.length > 0 ? stages[stages.length - 1] : null;
+
+              if (lastStage) {
+                // Map final stage to next logical stage in kanban board
+                const completionStageMap = {
+                  'plan': 'build',
+                  'build': 'test',
+                  'test': 'review',
+                  'review': 'document',
+                  'document': 'pr',
+                  'ship': 'pr',
+                };
+
+                nextStage = completionStageMap[lastStage];
+              }
+            }
+
             if (nextStage && task.stage !== nextStage) {
+              console.log(`[Workflow] Auto-moving task from ${task.stage} to ${nextStage} on workflow completion`);
               get().moveTaskToStage(taskId, nextStage);
             }
           }
