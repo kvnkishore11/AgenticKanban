@@ -1,3 +1,14 @@
+/**
+ * @fileoverview Keyboard shortcuts palette component for Claude commands
+ *
+ * Displays available Claude commands for the selected project with search,
+ * filtering by category, and task-specific relevance. Shows command details
+ * including complexity, token count, and execution status. Allows command
+ * execution and editing through integrated interfaces.
+ *
+ * @module components/CommandsPalette
+ */
+
 import { useState, useEffect } from 'react';
 import { useKanbanStore } from '../stores/kanbanStore';
 import claudeCommandsService from '../services/api/claudeCommandsService';

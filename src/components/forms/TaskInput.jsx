@@ -1,3 +1,14 @@
+/**
+ * @fileoverview Task creation form component for creating new work items
+ *
+ * Provides a comprehensive form interface for creating tasks with support for
+ * work item types, stage selection, image attachments with annotations, and
+ * clipboard paste functionality. Validates input and integrates with the kanban
+ * store for task creation.
+ *
+ * @module components/forms/TaskInput
+ */
+
 import { useState, useEffect, useRef } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import { WORK_ITEM_TYPES, QUEUEABLE_STAGES, SDLC_STAGES } from '../../constants/workItems';

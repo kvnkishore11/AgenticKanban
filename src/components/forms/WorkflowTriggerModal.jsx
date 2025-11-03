@@ -1,3 +1,14 @@
+/**
+ * @fileoverview ADW workflow trigger modal component
+ *
+ * Modal interface for triggering ADW (Agentic Development Workflow) workflows
+ * for tasks. Provides workflow type selection (entry point, dependent, orchestrator),
+ * ADW ID management, model set configuration, and workflow execution. Validates
+ * requirements and integrates with WebSocket for workflow triggering.
+ *
+ * @module components/forms/WorkflowTriggerModal
+ */
+
 import { useState, useEffect } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import { X, Play, AlertCircle, Info, Hash } from 'lucide-react';

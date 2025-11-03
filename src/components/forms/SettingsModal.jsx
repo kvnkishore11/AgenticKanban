@@ -1,3 +1,14 @@
+/**
+ * @fileoverview Application settings modal component
+ *
+ * Provides interface for managing application settings including current project
+ * information and WebSocket connection configuration. Displays connection status,
+ * allows users to connect/disconnect, and configure WebSocket server port settings.
+ * Integrates with kanban store for WebSocket management.
+ *
+ * @module components/forms/SettingsModal
+ */
+
 import { useState, useEffect, useRef } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import { X, Settings, Wifi, WifiOff, Play, Square, RefreshCw, CheckCircle, XCircle, AlertCircle, Folder } from 'lucide-react';

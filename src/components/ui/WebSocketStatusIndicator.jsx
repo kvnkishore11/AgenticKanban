@@ -1,7 +1,13 @@
 /**
- * WebSocket Status Indicator Component
- * Provides visual feedback about WebSocket connection status and health
- * Compliant with TAC-7 WebSocket Integration Guide requirements
+ * @fileoverview WebSocket connection status indicator component
+ *
+ * Provides visual feedback about WebSocket connection status and health with
+ * multiple display modes (minimal, compact, normal, detailed). Shows connection
+ * state, health metrics, server status, and provides connection controls. Supports
+ * expandable detailed view with real-time updates. Compliant with TAC-7 WebSocket
+ * Integration Guide requirements.
+ *
+ * @module components/ui/WebSocketStatusIndicator
  */
 
 import React, { useState, useEffect } from 'react';
