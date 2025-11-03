@@ -127,8 +127,6 @@ export const useKanbanStore = create()(
 
         // Initialize data migrations on store creation
         initializeStore: () => {
-          console.log('Initializing Kanban store...');
-
           // Initialize project persistence service first
           const persistenceResult = projectPersistenceService.initialize();
           console.log('Project persistence service initialized:', persistenceResult);
@@ -376,7 +374,7 @@ export const useKanbanStore = create()(
               pipelineId: dynamicPipelineId, // Dynamic pipeline name based on stages
               pipelineIdStatic: taskData.pipelineId, // Keep static pipelineId for backward compatibility
               stage: 'backlog',
-              substage: 'initializing',
+              substage: null,
               progress: 0,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
@@ -420,7 +418,7 @@ export const useKanbanStore = create()(
               pipelineId: `adw_${(taskData.queuedStages || []).join('_')}`,
               pipelineIdStatic: taskData.pipelineId,
               stage: 'backlog',
-              substage: 'initializing',
+              substage: null,
               progress: 0,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
@@ -469,7 +467,7 @@ export const useKanbanStore = create()(
                 ? {
                     ...task,
                     stage: newStage,
-                    substage: 'initializing',
+                    substage: null,
                     progress: 0,
                     updatedAt: new Date().toISOString()
                   }
@@ -903,7 +901,6 @@ export const useKanbanStore = create()(
               return;
             }
 
-            console.log('[WebSocket] Initializing WebSocket with fresh listeners');
             set({ websocketConnecting: true, websocketError: null }, false, 'initializeWebSocket');
 
             // Store listener references for cleanup
@@ -2286,8 +2283,6 @@ export const useKanbanStore = create()(
         // Initialize data migrations on store load
         initializeDataMigrations: () => {
           try {
-            console.log('Initializing data migrations...');
-
             // Check if migrations are needed
             const migrationInfo = dataMigration.getStorageInfo();
             console.log('Migration info:', migrationInfo);
