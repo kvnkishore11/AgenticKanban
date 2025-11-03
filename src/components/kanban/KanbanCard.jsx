@@ -174,6 +174,47 @@ const KanbanCard = ({ task, onEdit }) => {
       onClick={handleCardClick}
     >
       <div className="p-4">
+        {/* ADW Header - Display ADW ID and Trigger Button at the top */}
+        {(task.metadata?.adw_id || workflowMetadata?.adw_id) && (
+          <div className="adw-header mb-3 pb-2 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 flex-1 min-w-0">
+                <span className="text-xs font-semibold text-gray-700">ADW ID:</span>
+                <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-800 truncate">
+                  {task.metadata?.adw_id || workflowMetadata?.adw_id}
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(task.metadata?.adw_id || workflowMetadata?.adw_id);
+                  }}
+                  className="text-blue-600 hover:text-blue-800 text-xs"
+                  title="Copy ADW ID"
+                >
+                  Copy
+                </button>
+              </div>
+
+              {/* Trigger Workflow Button in Header */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleTriggerWorkflow();
+                }}
+                disabled={!websocketStatus.connected}
+                className={`flex items-center space-x-1 text-xs rounded px-2 py-1 ml-2 ${
+                  websocketStatus.connected
+                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+                title={websocketStatus.connected ? 'Trigger Workflow' : 'WebSocket Disconnected'}
+              >
+                <Play className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Card Header */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
@@ -240,11 +281,13 @@ const KanbanCard = ({ task, onEdit }) => {
           </div>
         </div>
 
-        {/* Description */}
+        {/* Description - Full input prompt visible */}
         {task.description && (
-          <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-            {task.description}
-          </p>
+          <div className="text-xs text-gray-600 mb-3 max-h-48 overflow-y-auto">
+            <p className="whitespace-pre-wrap break-words">
+              {task.description}
+            </p>
+          </div>
         )}
 
         {/* Substage Progress */}
@@ -493,24 +536,8 @@ const KanbanCard = ({ task, onEdit }) => {
 
               {/* WebSocket Workflow Controls */}
               <div>
-                <div className="text-xs font-medium text-gray-700 mb-2">WebSocket Workflow</div>
+                <div className="text-xs font-medium text-gray-700 mb-2">Workflow Controls</div>
                 <div className="flex items-center space-x-2 mb-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleTriggerWorkflow();
-                    }}
-                    disabled={!websocketStatus.connected}
-                    className={`flex items-center space-x-1 text-xs rounded px-2 py-1 ${
-                      websocketStatus.connected
-                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
-                    <Play className="h-3 w-3" />
-                    <span>Trigger Workflow</span>
-                  </button>
-
                   {/* Toggle Stage Progression */}
                   <button
                     onClick={(e) => {
@@ -586,23 +613,11 @@ const KanbanCard = ({ task, onEdit }) => {
                   </div>
                 )}
 
-                {/* ADW Metadata Display */}
+                {/* Additional Workflow Metadata (only if not shown in header) */}
                 {(task.metadata?.adw_id || workflowMetadata?.adw_id) && (
                   <div className="mt-2 p-2 bg-gray-50 rounded text-xs border border-gray-200">
-                    <div className="font-medium text-gray-700 flex items-center justify-between">
-                      <span>ADW ID: {task.metadata?.adw_id || workflowMetadata?.adw_id}</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigator.clipboard.writeText(task.metadata?.adw_id || workflowMetadata?.adw_id);
-                        }}
-                        className="text-blue-600 hover:text-blue-800 text-xs"
-                      >
-                        Copy
-                      </button>
-                    </div>
                     {(task.metadata?.workflow_status || workflowMetadata?.status) && (
-                      <div className="text-gray-600 mt-1">
+                      <div className="text-gray-600">
                         Status: {task.metadata?.workflow_status || workflowMetadata?.status}
                       </div>
                     )}
