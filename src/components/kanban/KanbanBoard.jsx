@@ -1,3 +1,14 @@
+/**
+ * @fileoverview Kanban board component for SDLC workflow visualization
+ *
+ * Main board component that renders all workflow stages (backlog, plan, build,
+ * test, review, document, errored) and displays tasks in their respective columns.
+ * Provides stage-specific actions and visual feedback for workflow progression.
+ * Integrates with the task store for real-time updates via WebSocket.
+ *
+ * @module components/kanban/KanbanBoard
+ */
+
 import { useState } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import KanbanCard from './KanbanCard';

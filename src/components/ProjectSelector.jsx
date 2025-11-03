@@ -1,3 +1,14 @@
+/**
+ * @fileoverview Project selection and management component
+ *
+ * Provides a dropdown interface for selecting active projects, creating new
+ * projects, and validating project paths. Integrates with the project store
+ * to manage project state and synchronization. Supports project validation
+ * with visual feedback indicators.
+ *
+ * @module components/ProjectSelector
+ */
+
 import { useState, useEffect } from 'react';
 import { useKanbanStore } from '../stores/kanbanStore';
 import { Folder, FolderOpen, CheckCircle, XCircle, Plus, FileText } from 'lucide-react';

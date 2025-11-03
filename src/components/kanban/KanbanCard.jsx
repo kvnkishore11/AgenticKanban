@@ -1,3 +1,14 @@
+/**
+ * @fileoverview Task card component with workflow status tracking
+ *
+ * Renders an individual task card displaying title, description, timestamps,
+ * ADW workflow status, and action buttons. Supports inline editing, task
+ * progression, workflow triggers, and log viewing. Integrates with ADW
+ * discovery service to show real-time workflow stages and status.
+ *
+ * @module components/kanban/KanbanCard
+ */
+
 import { useState, useEffect } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import {

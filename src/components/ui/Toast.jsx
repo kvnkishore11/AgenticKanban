@@ -1,3 +1,14 @@
+/**
+ * @fileoverview Toast notification component for user feedback
+ *
+ * Provides toast notifications with support for different types (success, error,
+ * warning, info), auto-dismiss timers, and manual close actions. Includes animated
+ * entrance/exit transitions and a container component for managing multiple toasts.
+ * Used throughout the application for user feedback and status updates.
+ *
+ * @module components/ui/Toast
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { CheckCircle, AlertCircle, XCircle, Info, X } from 'lucide-react';
 

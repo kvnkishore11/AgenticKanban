@@ -1,3 +1,14 @@
+/**
+ * @fileoverview Task editing modal component for modifying existing tasks
+ *
+ * Modal interface for editing task properties including title, description,
+ * work item type, queued stages, and image attachments with annotations.
+ * Supports clipboard paste and drag-and-drop for images, with validation
+ * before updating tasks in the kanban store.
+ *
+ * @module components/forms/TaskEditModal
+ */
+
 import { useState, useEffect, useRef } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import { WORK_ITEM_TYPES, QUEUEABLE_STAGES, SDLC_STAGES } from '../../constants/workItems';

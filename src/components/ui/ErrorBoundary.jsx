@@ -1,3 +1,14 @@
+/**
+ * @fileoverview Error boundary component for React error handling
+ *
+ * Catches and handles React component errors to prevent application crashes.
+ * Provides user-friendly error display with recovery options including retry,
+ * reload, and data reset. Logs errors for debugging and preserves workflow
+ * state during recovery. Implements React error boundary lifecycle methods.
+ *
+ * @module components/ui/ErrorBoundary
+ */
+
 import { Component } from 'react';
 import { AlertTriangle, RefreshCw, Home, FileText } from 'lucide-react';
 
