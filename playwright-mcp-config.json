@@ -6,7 +6,7 @@
     },
     "contextOptions": {
       "recordVideo": {
-        "dir": "/Users/kvnkishore/WebstormProjects/AKApp/AgenticKanban/trees/67c1cfc1/videos",
+        "dir": "/Users/kvnkishore/WebstormProjects/AKApp/AgenticKanban/videos",
         "size": {
           "width": 1920,
           "height": 1080

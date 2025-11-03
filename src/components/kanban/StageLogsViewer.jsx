@@ -148,10 +148,10 @@ const StageLogsViewer = ({
   const hasError = activeTab !== 'all' && stageData?.error;
 
   // Show empty state for stage with no logs
+  // Check if actual logs exist instead of relying solely on flags
   const isEmpty = activeTab !== 'all' &&
     !stageData?.loading &&
-    !stageData?.hasStreamingLogs &&
-    !stageData?.hasResult;
+    (!stageData?.logs || stageData.logs.length === 0);
 
   return (
     <div className="stage-logs-viewer border border-gray-200 rounded-lg bg-white shadow-sm">
