@@ -395,6 +395,9 @@ class WebSocketService {
         // Handle heartbeat response
         this.emit('pong', message);
         break;
+      case 'workflow_log':
+        this.emit('workflow_log', data);
+        break;
       default:
         console.warn('Unknown message type:', type);
     }
