@@ -14,7 +14,8 @@ import {
   CheckCircle2,
   Edit,
   Activity,
-  Workflow
+  Workflow,
+  GitMerge
 } from 'lucide-react';
 import {
   getSubstages,
@@ -43,7 +44,8 @@ const KanbanCard = ({ task, onEdit }) => {
     getWorkflowLogsForTask,
     getWorkflowProgressForTask,
     getWorkflowMetadataForTask,
-    clearWorkflowLogsForTask
+    clearWorkflowLogsForTask,
+    triggerMergeWorkflow
   } = useKanbanStore();
 
   const [showMenu, setShowMenu] = useState(false);
@@ -159,6 +161,14 @@ const KanbanCard = ({ task, onEdit }) => {
     }
   };
 
+  const handleMerge = async () => {
+    try {
+      await triggerMergeWorkflow(task.id);
+    } catch (error) {
+      console.error('Failed to trigger merge:', error);
+    }
+  };
+
   const handleEditClick = () => {
     if (onEdit) {
       onEdit(task);
@@ -166,14 +176,36 @@ const KanbanCard = ({ task, onEdit }) => {
     setShowMenu(false);
   };
 
+  // Check if this is a completed task
+  const isCompleted = task.stage === 'completed';
+  const isReadyToMerge = task.stage === 'ready-to-merge';
+
   return (
     <div
       className={`kanban-card ${
         isSelected ? 'selected' : ''
-      } ${progressionStatus.active ? 'auto-progress' : ''}`}
+      } ${progressionStatus.active ? 'auto-progress' : ''} ${isCompleted ? 'completed-card' : ''}`}
       onClick={handleCardClick}
     >
       <div className="p-4">
+        {/* Minimal view for completed tasks */}
+        {isCompleted && !isSelected ? (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <div>
+                <div className="text-sm font-medium text-gray-700">
+                  ADW {task.metadata?.adw_id || `#${task.id}`}
+                </div>
+                <div className="text-xs text-gray-500">Completed</div>
+              </div>
+            </div>
+            <div className="text-xs text-gray-400">
+              {formatTimeAgo(task.updatedAt)}
+            </div>
+          </div>
+        ) : (
+          <>
         {/* Card Header */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
@@ -642,7 +674,20 @@ const KanbanCard = ({ task, onEdit }) => {
 
               {/* Quick Actions */}
               <div className="flex space-x-2">
-                {getNextStage() && (
+                {/* Show Merge button for ready-to-merge stage */}
+                {isReadyToMerge && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMerge();
+                    }}
+                    className="flex items-center justify-center space-x-1 flex-1 text-xs bg-teal-600 text-white rounded px-2 py-1 hover:bg-teal-700"
+                  >
+                    <GitMerge className="h-3 w-3" />
+                    <span>Merge to Main</span>
+                  </button>
+                )}
+                {getNextStage() && !isReadyToMerge && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -656,6 +701,8 @@ const KanbanCard = ({ task, onEdit }) => {
               </div>
             </div>
           </div>
+        )}
+        </>
         )}
       </div>
 

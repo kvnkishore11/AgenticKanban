@@ -34,7 +34,7 @@ class ADWState:
     def update(self, **kwargs):
         """Update state with new key-value pairs."""
         # Filter to only our core fields
-        core_fields = {"adw_id", "issue_number", "branch_name", "plan_file", "issue_class", "worktree_path", "backend_port", "frontend_port", "model_set", "all_adws", "data_source", "issue_json"}
+        core_fields = {"adw_id", "issue_number", "branch_name", "plan_file", "issue_class", "worktree_path", "backend_port", "frontend_port", "model_set", "all_adws", "data_source", "issue_json", "completed"}
         for key, value in kwargs.items():
             if key in core_fields:
                 self.data[key] = value
@@ -49,6 +49,15 @@ class ADWState:
         if adw_id not in all_adws:
             all_adws.append(adw_id)
             self.data["all_adws"] = all_adws
+
+    def mark_completed(self):
+        """Mark the workflow as completed."""
+        self.data["completed"] = True
+        self.logger.info(f"Marked ADW {self.adw_id} as completed")
+
+    def is_completed(self) -> bool:
+        """Check if the workflow is completed."""
+        return self.data.get("completed", False)
 
     def get_working_directory(self) -> str:
         """Get the working directory for this ADW instance.
@@ -91,6 +100,7 @@ class ADWState:
             all_adws=self.data.get("all_adws", []),
             data_source=self.data.get("data_source", "github"),
             issue_json=self.data.get("issue_json"),
+            completed=self.data.get("completed", False),
         )
 
         # Save as JSON
@@ -172,5 +182,6 @@ class ADWState:
             "all_adws": self.data.get("all_adws", []),
             "data_source": self.data.get("data_source", "github"),
             "issue_json": self.data.get("issue_json"),
+            "completed": self.data.get("completed", False),
         }
         print(json.dumps(output_data, indent=2))

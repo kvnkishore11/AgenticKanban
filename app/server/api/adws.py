@@ -103,7 +103,8 @@ def format_adw_for_response(state_data: Dict[str, Any]) -> Dict[str, Any]:
         "issue_class": issue_class,
         "issue_number": issue_number,
         "issue_title": issue_title,
-        "branch_name": state_data.get("branch_name", "")
+        "branch_name": state_data.get("branch_name", ""),
+        "completed": state_data.get("completed", False)
     }
 
 def scan_adw_directories() -> List[Dict[str, Any]]:

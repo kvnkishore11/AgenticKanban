@@ -81,6 +81,8 @@ const initialState = {
     { id: 'test', name: 'Test', color: 'green' },
     { id: 'review', name: 'Review', color: 'purple' },
     { id: 'document', name: 'Document', color: 'indigo' },
+    { id: 'ready-to-merge', name: 'Ready to Merge', color: 'teal' },
+    { id: 'completed', name: 'Completed', color: 'green' },
     { id: 'pr', name: 'PR', color: 'pink' },
     { id: 'errored', name: 'Errored', color: 'red' },
   ],
@@ -1405,6 +1407,77 @@ export const useKanbanStore = create()(
           }, false, 'clearWorkflowLogsForTask');
         },
 
+        // Trigger merge workflow for a task in ready-to-merge stage
+        triggerMergeWorkflow: async (taskId) => {
+          const task = get().tasks.find(t => t.id === taskId);
+          if (!task) {
+            throw new Error('Task not found');
+          }
+
+          // Validate task is in ready-to-merge stage
+          if (task.stage !== 'ready-to-merge') {
+            throw new Error('Task must be in "Ready to Merge" stage to trigger merge');
+          }
+
+          // Get ADW ID and issue number from task metadata
+          const adw_id = task.metadata?.adw_id;
+          const issue_number = task.metadata?.execution_context?.issue?.number;
+
+          if (!adw_id) {
+            throw new Error('Task is missing ADW ID');
+          }
+
+          if (!issue_number) {
+            throw new Error('Task is missing issue number');
+          }
+
+          try {
+            set({ isLoading: true }, false, 'triggerMergeWorkflow');
+
+            // Call merge service to trigger merge
+            const mergeService = (await import('../services/api/adwService')).default;
+            const response = await mergeService.triggerMerge(adw_id, issue_number);
+
+            if (response.success) {
+              // Move task to completed stage
+              get().moveTaskToStage(taskId, 'completed');
+
+              // Update task metadata
+              get().updateTask(taskId, {
+                metadata: {
+                  ...task.metadata,
+                  merge_triggered: true,
+                  merge_triggered_at: new Date().toISOString(),
+                }
+              });
+
+              set({ isLoading: false }, false, 'triggerMergeWorkflowSuccess');
+              return response;
+            } else {
+              throw new Error(response.message || 'Merge failed');
+            }
+
+          } catch (error) {
+            // Move task to errored stage on failure
+            get().moveTaskToStage(taskId, 'errored');
+
+            // Update task with error message
+            get().updateTask(taskId, {
+              metadata: {
+                ...task.metadata,
+                merge_error: error.message,
+                merge_error_at: new Date().toISOString(),
+              }
+            });
+
+            set({
+              isLoading: false,
+              error: `Failed to trigger merge: ${error.message}`
+            }, false, 'triggerMergeWorkflowError');
+            throw error;
+          }
+        },
+
         // Handle workflow completion
         handleWorkflowCompletion: (taskId) => {
           const task = get().tasks.find(t => t.id === taskId);
@@ -1437,7 +1510,7 @@ export const useKanbanStore = create()(
                   'build': 'test',
                   'test': 'review',
                   'review': 'document',
-                  'document': 'pr',
+                  'document': 'ready-to-merge',
                   'ship': 'pr',
                 };
 

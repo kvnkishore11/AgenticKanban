@@ -235,6 +235,8 @@ class ADWStateData(BaseModel):
     # Kanban mode support
     data_source: Optional[Literal["github", "kanban"]] = "github"  # Source of issue data
     issue_json: Optional[dict] = None  # Kanban-provided issue data
+    # Merge completion workflow support
+    completed: Optional[bool] = False  # Tracks if workflow is completed
 
 
 class ReviewIssue(BaseModel):

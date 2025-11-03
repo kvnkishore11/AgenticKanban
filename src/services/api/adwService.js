@@ -375,6 +375,66 @@ class ADWService {
       id: `${cleanPipeline.id}-imported-${Date.now()}`, // Avoid ID conflicts
     });
   }
+
+  /**
+   * Trigger merge workflow for an ADW
+   * Calls the backend API to start the merge and completion process
+   */
+  async triggerMerge(adw_id, issue_number) {
+    try {
+      // Get backend URL from environment or use default
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:9104';
+
+      const response = await fetch(`${backendUrl}/api/merge/trigger`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          adw_id,
+          issue_number
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Failed to trigger merge:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get merge status for an ADW
+   */
+  async getMergeStatus(adw_id) {
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:9104';
+
+      const response = await fetch(`${backendUrl}/api/merge/status/${adw_id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Failed to get merge status:', error);
+      throw error;
+    }
+  }
 }
 
 // Create and export singleton instance
