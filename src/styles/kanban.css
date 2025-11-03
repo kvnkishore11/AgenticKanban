@@ -167,6 +167,27 @@ html {
   overflow: hidden;
 }
 
+/* ADW Header Styling */
+.adw-header {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 4px 4px 0 0;
+  padding: 0.5rem;
+  margin: -1rem -1rem 0.75rem -1rem;
+}
+
+.adw-header button {
+  transition: all 0.2s ease;
+}
+
+.adw-header button:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+.adw-header button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .kanban-card::before {
   content: '';
   position: absolute;
