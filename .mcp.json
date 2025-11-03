@@ -3,9 +3,10 @@
     "playwright": {
       "command": "npx",
       "args": [
-        "-y",
-        "@executeautomation/playwright-mcp-server",
-        "/Users/kvnkishore/WebstormProjects/AKApp/AgenticKanban/playwright-mcp-config.json"
+        "@playwright/mcp@latest",
+        "--isolated",
+        "--config",
+        "./playwright-mcp-config.json"
       ]
     }
   }

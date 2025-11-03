@@ -1,4 +1,21 @@
 {
-  "headless": false,
-  "dir": "/Users/kvnkishore/WebstormProjects/AKApp/AgenticKanban/videos"
+  "browser": {
+    "browserName": "chromium",
+    "launchOptions": {
+      "headless": true
+    },
+    "contextOptions": {
+      "recordVideo": {
+        "dir": "./videos",
+        "size": {
+          "width": 1920,
+          "height": 1080
+        }
+      },
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      }
+    }
+  }
 }
