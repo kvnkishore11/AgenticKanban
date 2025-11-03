@@ -10,6 +10,7 @@
  */
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import {
   Clock,
@@ -362,13 +363,14 @@ const KanbanCard = ({ task, onEdit }) => {
       )}
 
       {/* Card Expand Modal */}
-      {showExpandModal && (
+      {showExpandModal && createPortal(
         <CardExpandModal
           task={task}
           isOpen={showExpandModal}
           onClose={() => setShowExpandModal(false)}
           onEdit={onEdit}
-        />
+        />,
+        document.body
       )}
     </div>
   );
