@@ -42,7 +42,7 @@ from adw_modules.state import ADWState
 from adw_modules.github import make_issue_comment_safe
 from adw_modules.workflow_ops import format_issue_message
 from adw_modules.utils import setup_logger, check_env_vars
-from adw_modules.worktree_ops import validate_worktree, remove_worktree, get_worktree_path
+from adw_modules.worktree_ops import validate_worktree, remove_worktree
 
 # Agent name constant
 AGENT_MERGER = "merger"
