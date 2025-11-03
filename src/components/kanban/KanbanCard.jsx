@@ -636,7 +636,7 @@ const KanbanCard = ({ task, onEdit }) => {
               {/* Quick Actions */}
               <div className="flex space-x-2">
                 {/* Show Merge button for ready-to-merge stage */}
-                {isReadyToMerge && (
+                {isReadyToMerge && !task.metadata?.merge_completed && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -647,6 +647,20 @@ const KanbanCard = ({ task, onEdit }) => {
                     <GitMerge className="h-3 w-3" />
                     <span>Merge to Main</span>
                   </button>
+                )}
+                {/* Show Merged status indicator for completed merges */}
+                {isReadyToMerge && task.metadata?.merge_completed && (
+                  <div className="flex items-center justify-center space-x-2 flex-1 text-xs bg-green-50 text-green-600 rounded px-3 py-2 border border-green-200">
+                    <CheckCircle className="h-4 w-4" />
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">Merged</span>
+                      {task.metadata?.merge_completed_at && (
+                        <span className="text-xs text-green-500">
+                          {formatTimeAgo(task.metadata.merge_completed_at)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 )}
                 {getNextStage() && !isReadyToMerge && (
                   <button
