@@ -41,7 +41,7 @@ class WebSocketService {
     };
 
     // Configuration - extract from VITE_BACKEND_URL (required)
-    // WebSocket server runs on BACKEND_PORT + 1 (convention from start.sh)
+    // WebSocket server runs on same port as backend (BACKEND_PORT)
     const backendUrl = import.meta.env.VITE_BACKEND_URL;
     if (!backendUrl) {
       throw new Error('VITE_BACKEND_URL environment variable is required');
@@ -50,7 +50,7 @@ class WebSocketService {
     const backendPort = parseInt(url.port);
     this.config = {
       host: url.hostname,
-      port: backendPort + 1, // WebSocket server is on backend port + 1
+      port: backendPort, // WebSocket server is on same port as backend
       protocol: 'ws',
       autoReconnect: true,
       maxReconnectAttempts: 20, // Updated to match instance variable
