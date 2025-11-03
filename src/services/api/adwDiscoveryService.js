@@ -83,16 +83,29 @@ class ADWDiscoveryService {
   async fetchPlanFile(adwId) {
     try {
       const url = `${this.getApiBaseUrl()}/api/adws/${adwId}/plan`;
+      console.log(`Fetching plan file from: ${url}`);
       const response = await fetch(url);
 
       if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error(`Plan file not found for ADW ID '${adwId}'`);
+        // Try to extract error details from response
+        let errorDetail = `${response.status} ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.detail) {
+            errorDetail = errorData.detail;
+          }
+        } catch (e) {
+          // Failed to parse error response, use default
         }
-        throw new Error(`Failed to fetch plan file: ${response.status} ${response.statusText}`);
+
+        if (response.status === 404) {
+          throw new Error(`Plan file not found for ADW ID '${adwId}': ${errorDetail}`);
+        }
+        throw new Error(`Failed to fetch plan file: ${errorDetail}`);
       }
 
       const data = await response.json();
+      console.log(`Successfully fetched plan file for ${adwId}`);
       return data;
     } catch (error) {
       console.error(`Error fetching plan file for ${adwId}:`, error);
