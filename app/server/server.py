@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import API routes
-from api import adws
+from api import adws, stage_logs
 
 app = FastAPI(
     title="ADW Management API",
@@ -35,6 +35,7 @@ app.add_middleware(
 
 # Register API routes
 app.include_router(adws.router, prefix="/api")
+app.include_router(stage_logs.router)
 
 @app.get("/")
 async def root():

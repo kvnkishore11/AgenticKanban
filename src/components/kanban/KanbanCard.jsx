@@ -20,7 +20,7 @@ import {
   getSubstages,
   getSubstage
 } from '../../utils/substages';
-import WorkflowLogViewer from './WorkflowLogViewer';
+import StageLogsViewer from './StageLogsViewer';
 import StageProgressionViewer from './StageProgressionViewer';
 
 const KanbanCard = ({ task, onEdit }) => {
@@ -55,12 +55,12 @@ const KanbanCard = ({ task, onEdit }) => {
   const workflowProgress = getWorkflowProgressForTask(task.id);
   const workflowMetadata = getWorkflowMetadataForTask(task.id);
 
-  // Auto-expand logs when workflow starts or new logs arrive
+  // Auto-expand logs when workflow starts or new logs arrive, or when there's an ADW ID
   useEffect(() => {
-    if (workflowLogs.length > 0 && !showLogs) {
+    if ((workflowLogs.length > 0 || task.metadata?.adw_id || workflowMetadata?.adw_id) && !showLogs) {
       setShowLogs(true);
     }
-  }, [workflowLogs.length]);
+  }, [workflowLogs.length, task.metadata?.adw_id, workflowMetadata?.adw_id]);
 
   const pipeline = getPipelineById(task.pipelineId);
   const isSelected = selectedTaskId === task.id;
@@ -627,11 +627,12 @@ const KanbanCard = ({ task, onEdit }) => {
               )}
 
               {/* Real-Time Workflow Logs */}
-              {showLogs && workflowLogs.length > 0 && (
+              {showLogs && (
                 <div onClick={(e) => e.stopPropagation()}>
-                  <WorkflowLogViewer
-                    logs={workflowLogs}
-                    title={`Workflow Logs (${workflowLogs.length})`}
+                  <StageLogsViewer
+                    taskId={task.id}
+                    adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
+                    title="Workflow Logs"
                     maxHeight="250px"
                     onClear={() => clearWorkflowLogsForTask(task.id)}
                     showTimestamps={true}

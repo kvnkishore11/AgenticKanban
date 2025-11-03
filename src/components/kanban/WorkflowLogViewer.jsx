@@ -23,7 +23,8 @@ const WorkflowLogViewer = ({
   maxHeight = "300px",
   onClear,
   showTimestamps = true,
-  autoScroll = true
+  autoScroll = true,
+  logsSource = 'all' // 'all' | 'plan' | 'build' | 'test' | 'review' | 'document'
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [filterLevel, setFilterLevel] = useState('all');
@@ -123,6 +124,22 @@ const WorkflowLogViewer = ({
     setIsAutoScroll(isAtBottom);
   };
 
+  // Get logs source badge
+  const getLogsSourceBadge = () => {
+    if (logsSource === 'all') {
+      return (
+        <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full border border-blue-300">
+          Real-time
+        </span>
+      );
+    }
+    return (
+      <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full border border-green-300">
+        Historical
+      </span>
+    );
+  };
+
   return (
     <div className="workflow-log-viewer border border-gray-200 rounded-lg bg-white shadow-sm">
       {/* Header */}
@@ -143,6 +160,7 @@ const WorkflowLogViewer = ({
           <span className="px-2 py-0.5 text-xs bg-gray-200 text-gray-600 rounded-full">
             {filteredLogs.length} {filteredLogs.length === 1 ? 'entry' : 'entries'}
           </span>
+          {getLogsSourceBadge()}
         </div>
 
         <div className="flex items-center space-x-2">
