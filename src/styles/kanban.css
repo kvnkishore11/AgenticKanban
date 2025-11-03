@@ -862,12 +862,130 @@ button:focus-visible {
   }
 }
 
+/* Card Expand Modal Styles */
+.card-expand-modal {
+  animation: modal-slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  max-width: 1400px;
+}
+
+@keyframes modal-slide-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Scrollbar styling for modal content */
+.card-expand-modal::-webkit-scrollbar {
+  width: 10px;
+}
+
+.card-expand-modal::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 5px;
+}
+
+.card-expand-modal::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 5px;
+}
+
+.card-expand-modal::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Responsive styles for card expand modal */
+@media (max-width: 1536px) {
+  .card-expand-modal {
+    width: 80vw !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .card-expand-modal {
+    width: 85vw !important;
+    height: 92vh !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .card-expand-modal {
+    width: 95vw !important;
+    height: 95vh !important;
+  }
+}
+
+/* Enhanced section styling within modal */
+.card-expand-modal .space-y-6 > div {
+  transition: all 0.2s ease;
+}
+
+.card-expand-modal .space-y-6 > div:hover {
+  transform: translateX(2px);
+}
+
+/* Log display enhancements in expanded view */
+.card-expand-modal .stage-logs-viewer {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* Action buttons in expanded view */
+.card-expand-modal button {
+  transition: all 0.2s ease;
+}
+
+.card-expand-modal button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.card-expand-modal button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Badge styling in expanded view */
+.card-expand-modal .inline-flex.items-center {
+  transition: all 0.2s ease;
+}
+
+/* Copy button hover effect */
+.card-expand-modal button[title="Copy ADW ID"]:hover {
+  background-color: #e5e7eb;
+}
+
+/* Metadata grid styling */
+.card-expand-modal .grid {
+  gap: 1rem;
+}
+
+/* Enhanced spacing for sections */
+.card-expand-modal h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Status indicators */
+.card-expand-modal .bg-blue-50,
+.card-expand-modal .bg-gray-50,
+.card-expand-modal .bg-green-50 {
+  transition: background-color 0.2s ease;
+}
+
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .card-expand-modal {
+    animation: none !important;
   }
 }
 

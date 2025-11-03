@@ -29,12 +29,13 @@ import {
   Workflow,
   GitMerge,
   Eye,
-  GitPullRequest
+  GitPullRequest,
+  Maximize2
 } from 'lucide-react';
 import StageLogsViewer from './StageLogsViewer';
 import PlanViewer from './PlanViewer';
+import CardExpandModal from './CardExpandModal';
 import adwDiscoveryService from '../../services/api/adwDiscoveryService';
-import { isWorkflowComplete } from '../../utils/workflowValidation';
 
 const KanbanCard = ({ task, onEdit }) => {
   const {
@@ -66,6 +67,7 @@ const KanbanCard = ({ task, onEdit }) => {
   const [planContent, setPlanContent] = useState(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState(null);
+  const [showExpandModal, setShowExpandModal] = useState(false);
 
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
@@ -304,7 +306,20 @@ const KanbanCard = ({ task, onEdit }) => {
             </div>
           </div>
 
-          <div className="relative ml-2">
+          <div className="flex items-center space-x-1 ml-2">
+            {/* Expand Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowExpandModal(true);
+              }}
+              className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
+              title="Expand card"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+
+            {/* Menu Button */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -713,6 +728,16 @@ const KanbanCard = ({ task, onEdit }) => {
           isOpen={showPlanModal}
           isLoading={planLoading}
           error={planError}
+        />
+      )}
+
+      {/* Card Expand Modal */}
+      {showExpandModal && (
+        <CardExpandModal
+          task={task}
+          isOpen={showExpandModal}
+          onClose={() => setShowExpandModal(false)}
+          onEdit={onEdit}
         />
       )}
     </div>
