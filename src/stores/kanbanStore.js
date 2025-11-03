@@ -1435,7 +1435,7 @@ export const useKanbanStore = create()(
                 const completionStageMap = {
                   'plan': 'build',
                   'build': 'test',
-                  'test': 'review',
+                  'test': 'pr',
                   'review': 'document',
                   'document': 'pr',
                   'ship': 'pr',
