@@ -13,15 +13,13 @@ import {
   Circle,
   CheckCircle2,
   Edit,
-  Activity,
-  Workflow
+  Activity
 } from 'lucide-react';
 import {
   getSubstages,
   getSubstage
 } from '../../utils/substages';
 import WorkflowLogViewer from './WorkflowLogViewer';
-import StageProgressionViewer from './StageProgressionViewer';
 
 const KanbanCard = ({ task, onEdit }) => {
   const {
@@ -37,23 +35,17 @@ const KanbanCard = ({ task, onEdit }) => {
     resumeTaskProgression,
     getTaskProgressionStatus,
     recoverTaskFromError,
-    getWorkflowStatusForTask,
     getWebSocketStatus,
     triggerWorkflowForTask,
     getWorkflowLogsForTask,
-    getWorkflowProgressForTask,
-    getWorkflowMetadataForTask,
     clearWorkflowLogsForTask
   } = useKanbanStore();
 
   const [showMenu, setShowMenu] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
-  const [showStageProgression, setShowStageProgression] = useState(false);
 
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
-  const workflowProgress = getWorkflowProgressForTask(task.id);
-  const workflowMetadata = getWorkflowMetadataForTask(task.id);
 
   // Auto-expand logs when workflow starts or new logs arrive
   useEffect(() => {
@@ -65,7 +57,6 @@ const KanbanCard = ({ task, onEdit }) => {
   const pipeline = getPipelineById(task.pipelineId);
   const isSelected = selectedTaskId === task.id;
   const progressionStatus = getTaskProgressionStatus(task.id);
-  const workflowStatus = getWorkflowStatusForTask(task.id);
   const websocketStatus = getWebSocketStatus();
 
   // Format dynamic pipeline names for display
@@ -511,18 +502,6 @@ const KanbanCard = ({ task, onEdit }) => {
                     <span>Trigger Workflow</span>
                   </button>
 
-                  {/* Toggle Stage Progression */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowStageProgression(!showStageProgression);
-                    }}
-                    className="flex items-center space-x-1 text-xs bg-purple-600 text-white rounded px-2 py-1 hover:bg-purple-700"
-                  >
-                    <Workflow className="h-3 w-3" />
-                    <span>{showStageProgression ? 'Hide' : 'Show'} Stages</span>
-                  </button>
-
                   {/* Toggle Logs */}
                   {workflowLogs.length > 0 && (
                     <button
@@ -543,88 +522,7 @@ const KanbanCard = ({ task, onEdit }) => {
                   WebSocket: {websocketStatus.connected ? 'Connected' : 'Disconnected'}
                   {websocketStatus.connecting && ' (Connecting...)'}
                 </div>
-
-                {/* Enhanced Workflow Status */}
-                {(workflowStatus || workflowProgress) && (
-                  <div className="mt-2 p-2 bg-blue-50 rounded text-xs border border-blue-200">
-                    <div className="font-medium text-blue-800 flex items-center justify-between">
-                      <span>Workflow: {workflowStatus?.workflowName || workflowMetadata?.workflow_name || 'Unknown'}</span>
-                      {workflowProgress?.status && (
-                        <span className={`px-2 py-0.5 rounded text-xs ${
-                          workflowProgress.status === 'completed' ? 'bg-green-100 text-green-700' :
-                          workflowProgress.status === 'failed' ? 'bg-red-100 text-red-700' :
-                          workflowProgress.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-700'
-                        }`}>
-                          {workflowProgress.status}
-                        </span>
-                      )}
-                    </div>
-                    {(workflowProgress?.progress !== undefined || workflowStatus?.progress !== undefined) && (
-                      <div className="mt-1 flex items-center space-x-2">
-                        <div className="flex-1 bg-blue-200 rounded-full h-1.5">
-                          <div
-                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                            style={{ width: `${workflowProgress?.progress || workflowStatus?.progress || 0}%` }}
-                          />
-                        </div>
-                        <span className="text-blue-700 font-semibold">
-                          {Math.round(workflowProgress?.progress || workflowStatus?.progress || 0)}%
-                        </span>
-                      </div>
-                    )}
-                    {(workflowProgress?.currentStep || workflowStatus?.currentStep) && (
-                      <div className="mt-1 text-blue-600">
-                        Step: {workflowProgress?.currentStep || workflowStatus?.currentStep}
-                      </div>
-                    )}
-                    {(workflowProgress?.message || workflowStatus?.lastUpdate) && (
-                      <div className="mt-1 text-blue-500">
-                        {workflowProgress?.message || workflowStatus?.lastUpdate}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* ADW Metadata Display */}
-                {(task.metadata?.adw_id || workflowMetadata?.adw_id) && (
-                  <div className="mt-2 p-2 bg-gray-50 rounded text-xs border border-gray-200">
-                    <div className="font-medium text-gray-700 flex items-center justify-between">
-                      <span>ADW ID: {task.metadata?.adw_id || workflowMetadata?.adw_id}</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigator.clipboard.writeText(task.metadata?.adw_id || workflowMetadata?.adw_id);
-                        }}
-                        className="text-blue-600 hover:text-blue-800 text-xs"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    {(task.metadata?.workflow_status || workflowMetadata?.status) && (
-                      <div className="text-gray-600 mt-1">
-                        Status: {task.metadata?.workflow_status || workflowMetadata?.status}
-                      </div>
-                    )}
-                    {(task.metadata?.logs_path || workflowMetadata?.logs_path) && (
-                      <div className="text-gray-500 mt-1 truncate" title={task.metadata?.logs_path || workflowMetadata?.logs_path}>
-                        Logs: {task.metadata?.logs_path || workflowMetadata?.logs_path}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
-
-              {/* Real-Time Stage Progression */}
-              {showStageProgression && (
-                <div onClick={(e) => e.stopPropagation()}>
-                  <StageProgressionViewer
-                    currentStage={task.stage}
-                    stages={stages.filter(s => s.id !== 'backlog' && s.id !== 'errored')}
-                    progress={workflowProgress}
-                  />
-                </div>
-              )}
 
               {/* Real-Time Workflow Logs */}
               {showLogs && workflowLogs.length > 0 && (
