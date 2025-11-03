@@ -13,13 +13,16 @@ import {
   Circle,
   CheckCircle2,
   Edit,
-  Activity
+  Activity,
+  FileText
 } from 'lucide-react';
 import {
   getSubstages,
   getSubstage
 } from '../../utils/substages';
 import StageLogsViewer from './StageLogsViewer';
+import PlanViewerModal from '../forms/PlanViewerModal';
+import planService from '../../services/planService';
 
 const KanbanCard = ({ task, onEdit }) => {
   const {
@@ -35,17 +38,26 @@ const KanbanCard = ({ task, onEdit }) => {
     resumeTaskProgression,
     getTaskProgressionStatus,
     recoverTaskFromError,
+    getWorkflowStatusForTask,
     getWebSocketStatus,
     triggerWorkflowForTask,
     getWorkflowLogsForTask,
+    getWorkflowProgressForTask,
+    getWorkflowMetadataForTask,
     clearWorkflowLogsForTask
   } = useKanbanStore();
 
   const [showMenu, setShowMenu] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [planContent, setPlanContent] = useState(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState(null);
 
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
+  const workflowProgress = getWorkflowProgressForTask(task.id);
+  const workflowMetadata = getWorkflowMetadataForTask(task.id);
 
   // Auto-expand logs when workflow starts or new logs arrive, or when there's an ADW ID
   useEffect(() => {
@@ -57,6 +69,7 @@ const KanbanCard = ({ task, onEdit }) => {
   const pipeline = getPipelineById(task.pipelineId);
   const isSelected = selectedTaskId === task.id;
   const progressionStatus = getTaskProgressionStatus(task.id);
+  const workflowStatus = getWorkflowStatusForTask(task.id);
   const websocketStatus = getWebSocketStatus();
 
   // Format dynamic pipeline names for display
@@ -155,6 +168,38 @@ const KanbanCard = ({ task, onEdit }) => {
       onEdit(task);
     }
     setShowMenu(false);
+  };
+
+  const handleViewPlan = (e) => {
+    e.stopPropagation();
+    setPlanLoading(true);
+    setPlanError(null);
+
+    try {
+      // Get ADW ID from task metadata or workflow metadata
+      const adwId = task.metadata?.adw_id || workflowMetadata?.adw_id;
+
+      if (!task.id || !adwId) {
+        setPlanError('Task ID or ADW ID not found');
+        setPlanLoading(false);
+        return;
+      }
+
+      // Fetch plan for this task
+      const planData = planService.getPlanForTask(task.id, adwId);
+
+      if (planData && planData.content) {
+        setPlanContent(planData.content);
+        setShowPlanModal(true);
+      } else {
+        setPlanError('No plan found for this task');
+      }
+    } catch (error) {
+      console.error('Error loading plan:', error);
+      setPlanError('Failed to load plan');
+    } finally {
+      setPlanLoading(false);
+    }
   };
 
   return (
@@ -525,6 +570,22 @@ const KanbanCard = ({ task, onEdit }) => {
                 )}
               </div>
 
+              {/* Plan Viewer */}
+              <div>
+                <div className="text-xs font-medium text-gray-700 mb-2">Implementation Plan</div>
+                <button
+                  onClick={handleViewPlan}
+                  disabled={planLoading}
+                  className="flex items-center space-x-1 text-xs bg-purple-600 text-white rounded px-2 py-1 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  <FileText className="h-3 w-3" />
+                  <span>{planLoading ? 'Loading...' : 'View Plan'}</span>
+                </button>
+                {planError && (
+                  <div className="text-xs text-red-600 mt-1">{planError}</div>
+                )}
+              </div>
+
               {/* WebSocket Workflow Controls */}
               <div>
                 <div className="text-xs font-medium text-gray-700 mb-2">Workflow Controls</div>
@@ -592,6 +653,21 @@ const KanbanCard = ({ task, onEdit }) => {
           onClick={() => setShowMenu(false)}
         />
       )}
+
+      {/* Plan Viewer Modal */}
+      <PlanViewerModal
+        isOpen={showPlanModal}
+        onClose={() => {
+          setShowPlanModal(false);
+          setPlanContent(null);
+          setPlanError(null);
+        }}
+        planContent={planContent}
+        loading={planLoading}
+        error={planError}
+        taskId={task.id}
+        adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
+      />
     </div>
   );
 };
