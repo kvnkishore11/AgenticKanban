@@ -10,7 +10,7 @@ class ADWService {
         id: 'full-stack',
         name: 'Full Stack Development',
         description: 'Complete development workflow with all stages',
-        stages: ['plan', 'build', 'test', 'review', 'document', 'pr'],
+        stages: ['plan', 'build', 'test', 'review', 'document'],
         category: 'development',
         estimatedDuration: '2-5 days',
         requirements: [],
@@ -20,14 +20,13 @@ class ADWService {
           test: ['unit', 'integration', 'e2e'],
           review: ['code-review', 'security-check', 'performance'],
           document: ['api-docs', 'user-guide', 'changelog'],
-          pr: ['create', 'review', 'merge'],
         },
       },
       {
         id: 'frontend-only',
         name: 'Frontend Only',
         description: 'UI/UX focused development workflow',
-        stages: ['plan', 'build', 'test', 'review', 'pr'],
+        stages: ['plan', 'build', 'test', 'review'],
         category: 'frontend',
         estimatedDuration: '1-3 days',
         requirements: [],
@@ -36,14 +35,13 @@ class ADWService {
           build: ['components', 'styling', 'interactions'],
           test: ['component-tests', 'visual-regression', 'accessibility'],
           review: ['design-review', 'usability-check'],
-          pr: ['create', 'review', 'merge'],
         },
       },
       {
         id: 'backend-only',
         name: 'Backend Only',
         description: 'API and server-side focused workflow',
-        stages: ['plan', 'build', 'test', 'review', 'document', 'pr'],
+        stages: ['plan', 'build', 'test', 'review', 'document'],
         category: 'backend',
         estimatedDuration: '1-4 days',
         requirements: [],
@@ -53,21 +51,19 @@ class ADWService {
           test: ['unit', 'integration', 'load'],
           review: ['security-audit', 'performance-review'],
           document: ['api-spec', 'deployment-guide'],
-          pr: ['create', 'review', 'merge'],
         },
       },
       {
         id: 'hotfix',
         name: 'Hotfix',
         description: 'Quick fix workflow for urgent issues',
-        stages: ['build', 'test', 'pr'],
+        stages: ['build', 'test'],
         category: 'maintenance',
         estimatedDuration: '1-6 hours',
         requirements: [],
         substages: {
           build: ['identify', 'fix', 'verify'],
           test: ['regression', 'smoke'],
-          pr: ['urgent-review', 'merge'],
         },
       },
       {
@@ -88,7 +84,7 @@ class ADWService {
         id: 'refactor',
         name: 'Code Refactoring',
         description: 'Code improvement and optimization workflow',
-        stages: ['plan', 'build', 'test', 'review', 'pr'],
+        stages: ['plan', 'build', 'test', 'review'],
         category: 'maintenance',
         estimatedDuration: '1-3 days',
         requirements: [],
@@ -97,7 +93,6 @@ class ADWService {
           build: ['refactor', 'optimize', 'cleanup'],
           test: ['regression', 'performance'],
           review: ['quality-check', 'impact-analysis'],
-          pr: ['create', 'review', 'merge'],
         },
       },
     ];
@@ -145,7 +140,7 @@ class ADWService {
     }
 
     // Validate stage names
-    const validStages = ['plan', 'build', 'test', 'review', 'document', 'pr', 'errored'];
+    const validStages = ['plan', 'build', 'test', 'review', 'document', 'errored'];
     const invalidStages = pipeline.stages?.filter(stage => !validStages.includes(stage));
     if (invalidStages && invalidStages.length > 0) {
       errors.push(`Invalid stages: ${invalidStages.join(', ')}`);

@@ -731,8 +731,7 @@ class WebSocketService {
         'implement': 'build',
         'test': 'test',
         'review': 'review',
-        'document': 'document',
-        'pr': 'ship'
+        'document': 'document'
       };
 
       const adwStages = queuedStages
@@ -751,8 +750,7 @@ class WebSocketService {
       'implement': 'adw_build_iso',
       'test': 'adw_test_iso',
       'review': 'adw_review_iso',
-      'document': 'adw_document_iso',
-      'pr': 'adw_ship_iso'
+      'document': 'adw_document_iso'
     };
 
     return stageWorkflowMap[stage] || 'adw_plan_build_iso';

@@ -125,30 +125,6 @@ export const substageDefinitions = {
     },
   ],
 
-  pr: [
-    {
-      id: 'create',
-      name: 'Create PR',
-      description: 'Creating pull request with proper description and metadata',
-      estimatedDuration: '5-15 minutes',
-      outputs: ['pull_request', 'pr_template_filled'],
-    },
-    {
-      id: 'review',
-      name: 'PR Review',
-      description: 'Code review process and feedback incorporation',
-      estimatedDuration: '30-120 minutes',
-      outputs: ['review_comments', 'approved_changes'],
-    },
-    {
-      id: 'merge',
-      name: 'Merge',
-      description: 'Merging approved changes to main branch',
-      estimatedDuration: '2-10 minutes',
-      outputs: ['merged_commit', 'deployment_triggered'],
-    },
-  ],
-
   errored: [
     {
       id: 'identify',
@@ -200,11 +176,6 @@ export const substageTransitions = {
     'api-docs': { next: 'user-guide', canSkip: true },
     'user-guide': { next: 'changelog', canSkip: true },
     changelog: { next: null, canSkip: false },
-  },
-  pr: {
-    create: { next: 'review', canSkip: false },
-    review: { next: 'merge', canSkip: false },
-    merge: { next: null, canSkip: false },
   },
   errored: {
     identify: { next: 'debug', canSkip: false },

@@ -113,7 +113,7 @@ const KanbanCard = ({ task, onEdit }) => {
     switch (task.stage) {
       case 'errored':
         return <AlertCircle className="h-4 w-4 text-red-500" />;
-      case 'pr':
+      case 'document':
         return task.progress === 100 ?
           <CheckCircle className="h-4 w-4 text-green-500" /> :
           <Play className="h-4 w-4 text-blue-500" />;
@@ -566,7 +566,7 @@ const KanbanCard = ({ task, onEdit }) => {
                         startTaskProgression(task.id);
                       }}
                       className="flex items-center space-x-1 text-xs bg-blue-600 text-white rounded px-2 py-1 hover:bg-blue-700"
-                      disabled={task.stage === 'pr' && task.progress === 100}
+                      disabled={task.stage === 'document' && task.progress === 100}
                     >
                       <Play className="h-3 w-3" />
                       <span>Start Auto</span>

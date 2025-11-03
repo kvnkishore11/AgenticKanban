@@ -17,15 +17,14 @@ export const QUEUEABLE_STAGES = [
   { id: 'implement', name: 'Implement', color: 'yellow' },
   { id: 'test', name: 'Test', color: 'green' },
   { id: 'review', name: 'Review', color: 'purple' },
-  { id: 'document', name: 'Document', color: 'indigo' },
-  { id: 'pr', name: 'PR', color: 'pink' }
+  { id: 'document', name: 'Document', color: 'indigo' }
 ];
 
 // SDLC stages definition (for full SDLC workflow mapping)
 export const SDLC_STAGES = ['plan', 'implement', 'test', 'review', 'document'];
 
 // Stage progression order
-export const STAGE_ORDER = ['plan', 'implement', 'test', 'review', 'pr'];
+export const STAGE_ORDER = ['plan', 'implement', 'test', 'review', 'document'];
 
 // Default pipeline configuration
 export const DEFAULT_PIPELINE_CONFIG = {

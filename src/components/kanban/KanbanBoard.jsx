@@ -8,7 +8,6 @@ import {
   TestTube,
   Eye,
   FileText,
-  GitPullRequest,
   AlertTriangle,
   Inbox,
   Plus
@@ -21,7 +20,6 @@ const stageIcons = {
   test: TestTube,
   review: Eye,
   document: FileText,
-  pr: GitPullRequest,
   errored: AlertTriangle,
 };
 
