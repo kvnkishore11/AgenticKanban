@@ -274,7 +274,7 @@ def main():
     worktree_path = state.get("worktree_path")
     if worktree_path and os.path.exists(worktree_path):
         logger.info(f"Using existing worktree: {worktree_path}")
-        backend_port = state.get("backend_port", 9100)
+        websocket_port = state.get("websocket_port", 9100)
         frontend_port = state.get("frontend_port", 9200)
     else:
         # Create isolated worktree
@@ -292,26 +292,26 @@ def main():
             sys.exit(1)
 
         # Get deterministic ports for this ADW ID
-        backend_port, frontend_port = get_ports_for_adw(adw_id)
+        websocket_port, frontend_port = get_ports_for_adw(adw_id)
 
         # Check if ports are available, find alternatives if not
-        if not is_port_available(backend_port) or not is_port_available(frontend_port):
+        if not is_port_available(websocket_port) or not is_port_available(frontend_port):
             logger.warning(
-                f"Preferred ports {backend_port}/{frontend_port} not available, finding alternatives"
+                f"Preferred ports {websocket_port}/{frontend_port} not available, finding alternatives"
             )
-            backend_port, frontend_port = find_next_available_ports(adw_id)
+            websocket_port, frontend_port = find_next_available_ports(adw_id)
 
         logger.info(
-            f"Allocated ports - Backend: {backend_port}, Frontend: {frontend_port}"
+            f"Allocated ports - WebSocket: {websocket_port}, Frontend: {frontend_port}"
         )
 
         # Set up worktree environment (copy files, create .ports.env)
-        setup_worktree_environment(worktree_path, backend_port, frontend_port, logger)
+        setup_worktree_environment(worktree_path, websocket_port, frontend_port, logger)
 
         # Update state with worktree info
         state.update(
             worktree_path=worktree_path,
-            backend_port=backend_port,
+            websocket_port=websocket_port,
             frontend_port=frontend_port,
         )
         state.save("adw_patch_iso")
@@ -323,7 +323,7 @@ def main():
             "ops",
             f"✅ Using isolated worktree\n"
             f"🏠 Path: {worktree_path}\n"
-            f"🔌 Ports - Backend: {backend_port}, Frontend: {frontend_port}",
+            f"🔌 Ports - WebSocket: {websocket_port}, Frontend: {frontend_port}",
         ),
     )
 

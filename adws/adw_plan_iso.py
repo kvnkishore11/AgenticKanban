@@ -127,8 +127,8 @@ def main():
     if skip_worktree:
         logger.info("Skipping worktree operations - git not available")
         # Still allocate ports for consistency
-        backend_port, frontend_port = get_ports_for_adw(adw_id)
-        state.update(backend_port=backend_port, frontend_port=frontend_port)
+        websocket_port, frontend_port = get_ports_for_adw(adw_id)
+        state.update(websocket_port=websocket_port, frontend_port=frontend_port)
         state.save("adw_plan_iso")
         worktree_path = None
     else:
@@ -137,19 +137,19 @@ def main():
         if valid:
             logger.info(f"Using existing worktree for {adw_id}")
             worktree_path = state.get("worktree_path")
-            backend_port = state.get("backend_port")
+            websocket_port = state.get("websocket_port")
             frontend_port = state.get("frontend_port")
         else:
             # Allocate ports for this instance
-            backend_port, frontend_port = get_ports_for_adw(adw_id)
+            websocket_port, frontend_port = get_ports_for_adw(adw_id)
 
             # Check port availability
-            if not (is_port_available(backend_port) and is_port_available(frontend_port)):
-                logger.warning(f"Deterministic ports {backend_port}/{frontend_port} are in use, finding alternatives")
-                backend_port, frontend_port = find_next_available_ports(adw_id)
+            if not (is_port_available(websocket_port) and is_port_available(frontend_port)):
+                logger.warning(f"Deterministic ports {websocket_port}/{frontend_port} are in use, finding alternatives")
+                websocket_port, frontend_port = find_next_available_ports(adw_id)
 
-            logger.info(f"Allocated ports - Backend: {backend_port}, Frontend: {frontend_port}")
-            state.update(backend_port=backend_port, frontend_port=frontend_port)
+            logger.info(f"Allocated ports - WebSocket: {websocket_port}, Frontend: {frontend_port}")
+            state.update(websocket_port=websocket_port, frontend_port=frontend_port)
             state.save("adw_plan_iso")
 
     # Fetch issue details (kanban-aware)
@@ -253,15 +253,15 @@ def main():
         notifier.notify_log("adw_plan_iso", f"Worktree created at {worktree_path}", "SUCCESS")
 
         # Setup worktree environment (create .ports.env)
-        setup_worktree_environment(worktree_path, backend_port, frontend_port, logger)
+        setup_worktree_environment(worktree_path, websocket_port, frontend_port, logger)
 
         # Run install_worktree command to set up the isolated environment
         logger.info("Setting up isolated environment with custom ports")
-        notifier.notify_log("adw_plan_iso", f"Setting up environment (ports: {backend_port}/{frontend_port})", "INFO")
+        notifier.notify_log("adw_plan_iso", f"Setting up environment (ports: WebSocket {websocket_port}/Frontend {frontend_port})", "INFO")
         install_request = AgentTemplateRequest(
             agent_name="ops",
             slash_command="/install_worktree",
-            args=[worktree_path, str(backend_port), str(frontend_port)],
+            args=[worktree_path, str(websocket_port), str(frontend_port)],
             adw_id=adw_id,
             working_dir=worktree_path,  # Execute in worktree
         )
@@ -282,7 +282,7 @@ def main():
     make_issue_comment_safe(
         issue_number,
         format_issue_message(adw_id, "ops", f"✅ Working in isolated worktree: {worktree_path}\n"
-                           f"🔌 Ports - Backend: {backend_port}, Frontend: {frontend_port}"),
+                           f"🔌 Ports - WebSocket: {websocket_port}, Frontend: {frontend_port}"),
     )
 
     # Build the implementation plan (now executing in worktree)

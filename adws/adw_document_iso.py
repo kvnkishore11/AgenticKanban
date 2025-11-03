@@ -353,7 +353,7 @@ def main():
     logger.info(f"Using worktree at: {worktree_path}")
 
     # Get port information for display
-    backend_port = state.get("backend_port", "9100")
+    websocket_port = state.get("websocket_port", "9100")
     frontend_port = state.get("frontend_port", "9200")
 
     make_issue_comment(
@@ -363,7 +363,7 @@ def main():
             "ops",
             f"✅ Starting isolated documentation phase\n"
             f"🏠 Worktree: {worktree_path}\n"
-            f"🔌 Ports - Backend: {backend_port}, Frontend: {frontend_port}",
+            f"🔌 Ports - WebSocket: {websocket_port}, Frontend: {frontend_port}",
         ),
     )
 

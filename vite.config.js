@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   // Load .ports.env if it exists
-  const env = loadEnv(mode, process.cwd(), ['FRONTEND_PORT', 'BACKEND_PORT'])
+  const env = loadEnv(mode, process.cwd(), ['FRONTEND_PORT', 'WEBSOCKET_PORT'])
 
   return {
     plugins: [react()],

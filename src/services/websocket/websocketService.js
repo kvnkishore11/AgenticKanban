@@ -43,7 +43,7 @@ class WebSocketService {
     };
 
     // Configuration - extract from VITE_BACKEND_URL (required)
-    // WebSocket server runs on same port as backend (BACKEND_PORT)
+    // WebSocket server runs on WEBSOCKET_PORT (separate from HTTP backend)
     const backendUrl = import.meta.env.VITE_BACKEND_URL;
     if (!backendUrl) {
       throw new Error('VITE_BACKEND_URL environment variable is required');

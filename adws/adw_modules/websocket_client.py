@@ -41,13 +41,13 @@ class WebSocketNotifier:
 
         Args:
             adw_id: ADW ID for the workflow
-            server_url: WebSocket server URL (default: http://localhost:8002)
+            server_url: WebSocket server URL (default: http://localhost:8500)
         """
         self.adw_id = adw_id
 
         # Get server URL from environment or use default
         if server_url is None:
-            port = os.getenv("BACKEND_PORT", "8002")
+            port = os.getenv("WEBSOCKET_PORT", "8500")
             server_url = f"http://localhost:{port}"
 
         self.server_url = server_url.rstrip("/")

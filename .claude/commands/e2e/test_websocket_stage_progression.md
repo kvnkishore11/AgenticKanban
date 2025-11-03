@@ -6,7 +6,7 @@ End-to-end test suite for validating that WebSocket messages are properly sent f
 ## Test Environment Setup
 
 ### Prerequisites
-- WebSocket server running on localhost:8002
+- WebSocket server running on localhost:8500
 - Agentic Kanban frontend application running
 - Backend ADW workflows instrumented with WebSocketNotifier
 - Browser developer tools available
@@ -14,7 +14,7 @@ End-to-end test suite for validating that WebSocket messages are properly sent f
 
 ### Environment Variables
 ```bash
-BACKEND_PORT=8002
+WEBSOCKET_PORT=8500
 FRONTEND_PORT=5173  # or your Vite dev server port
 WEBSOCKET_PROTOCOL=ws
 WEBSOCKET_HOST=localhost
@@ -31,7 +31,7 @@ WEBSOCKET_HOST=localhost
 2. Start the frontend: `npm run dev`
 3. Open browser to `http://localhost:5173`
 4. Open browser DevTools > Network > WS tab
-5. Verify WebSocket connection is established to `ws://localhost:8002/ws/trigger`
+5. Verify WebSocket connection is established to `ws://localhost:8500/ws/trigger`
 6. Check WebSocketStatusIndicator shows "Connected"
 
 **Expected Results**:
@@ -356,7 +356,7 @@ uv run start-websocket.py &
 sleep 3
 
 # Verify server is running
-curl http://localhost:8002/health
+curl http://localhost:8500/health
 # Expected: {"status":"healthy", ...}
 
 # Trigger test workflow manually to see WebSocket messages
@@ -432,10 +432,10 @@ All tests must pass with the following criteria:
 ### Common Issues and Troubleshooting
 
 **Issue**: No WebSocket messages appearing
-- Check WebSocket server is running: `curl http://localhost:8002/health`
+- Check WebSocket server is running: `curl http://localhost:8500/health`
 - Check browser DevTools > Network > WS tab for connection
 - Check console for WebSocket errors
-- Verify BACKEND_PORT environment variable matches server port
+- Verify WEBSOCKET_PORT environment variable matches server port
 
 **Issue**: Messages appear in DevTools but UI doesn't update
 - Check console for errors

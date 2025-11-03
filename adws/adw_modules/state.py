@@ -34,7 +34,7 @@ class ADWState:
     def update(self, **kwargs):
         """Update state with new key-value pairs."""
         # Filter to only our core fields
-        core_fields = {"adw_id", "issue_number", "branch_name", "plan_file", "issue_class", "worktree_path", "backend_port", "frontend_port", "model_set", "all_adws", "data_source", "issue_json", "completed"}
+        core_fields = {"adw_id", "issue_number", "branch_name", "plan_file", "issue_class", "worktree_path", "backend_port", "websocket_port", "frontend_port", "model_set", "all_adws", "data_source", "issue_json", "completed"}
         for key, value in kwargs.items():
             if key in core_fields:
                 self.data[key] = value
@@ -95,6 +95,7 @@ class ADWState:
             issue_class=self.data.get("issue_class"),
             worktree_path=self.data.get("worktree_path"),
             backend_port=self.data.get("backend_port"),
+            websocket_port=self.data.get("websocket_port"),
             frontend_port=self.data.get("frontend_port"),
             model_set=self.data.get("model_set", "base"),
             all_adws=self.data.get("all_adws", []),
@@ -178,6 +179,7 @@ class ADWState:
             "issue_class": self.data.get("issue_class"),
             "worktree_path": self.data.get("worktree_path"),
             "backend_port": self.data.get("backend_port"),
+            "websocket_port": self.data.get("websocket_port"),
             "frontend_port": self.data.get("frontend_port"),
             "all_adws": self.data.get("all_adws", []),
             "data_source": self.data.get("data_source", "github"),

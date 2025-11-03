@@ -35,7 +35,7 @@ elif [ -f ".ports.env" ]; then
 fi
 
 # Port configuration with fallbacks
-WEBSOCKET_PORT=${BACKEND_PORT:-8002}
+WEBSOCKET_PORT=${WEBSOCKET_PORT:-8500}
 CLIENT_PORT=${FRONTEND_PORT:-5173}
 
 # Colors for output
@@ -68,7 +68,7 @@ kill_port() {
 }
 
 # Kill any existing processes on our ports
-kill_port $WEBSOCKET_PORT "backend server"
+kill_port $WEBSOCKET_PORT "WebSocket server"
 kill_port $CLIENT_PORT "frontend server"
 
 # Get the script's directory and project root
@@ -85,7 +85,7 @@ if [ ! -f "$PROJECT_ROOT/.env" ]; then
     echo "Please:"
     echo "  1. Create .env file in $PROJECT_ROOT"
     echo "  2. Add necessary environment variables for ADW workflows"
-    echo "  3. Set BACKEND_PORT for websocket trigger (optional, defaults to 8002)"
+    echo "  3. Set WEBSOCKET_PORT for websocket trigger (optional, defaults to 8500)"
     exit 1
 fi
 
@@ -109,7 +109,7 @@ trap cleanup EXIT INT TERM
 # Start websocket trigger (includes REST API endpoints)
 echo -e "${GREEN}Starting websocket trigger on port $WEBSOCKET_PORT...${NC}"
 cd "$PROJECT_ROOT"
-export BACKEND_PORT=$WEBSOCKET_PORT
+export WEBSOCKET_PORT=$WEBSOCKET_PORT
 export FRONTEND_PORT=$CLIENT_PORT
 uv run adws/adw_triggers/trigger_websocket.py &
 WEBSOCKET_PID=$!
@@ -145,7 +145,7 @@ if [ -n "$ADWID" ]; then
     echo -e "${BLUE}Worktree Project: $ADWID${NC}"
 fi
 echo -e "${BLUE}Frontend:          http://localhost:$CLIENT_PORT${NC}"
-echo -e "${BLUE}Backend Server:    http://localhost:$WEBSOCKET_PORT${NC}"
+echo -e "${BLUE}WebSocket Server:  http://localhost:$WEBSOCKET_PORT${NC}"
 echo -e "${BLUE}Health Check:      http://localhost:$WEBSOCKET_PORT/health${NC}"
 echo -e "${BLUE}ADWs List:         http://localhost:$WEBSOCKET_PORT/api/adws/list${NC}"
 echo -e "${BLUE}WebSocket:         ws://localhost:$WEBSOCKET_PORT/ws/trigger${NC}"

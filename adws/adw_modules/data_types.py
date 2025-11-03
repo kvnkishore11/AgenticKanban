@@ -228,7 +228,8 @@ class ADWStateData(BaseModel):
     plan_file: Optional[str] = None
     issue_class: Optional[IssueClassSlashCommand] = None
     worktree_path: Optional[str] = None
-    backend_port: Optional[int] = None
+    backend_port: Optional[int] = None  # Deprecated: This project doesn't use HTTP backend
+    websocket_port: Optional[int] = None  # WebSocket server port (default: 8500, range: 8500-8514)
     frontend_port: Optional[int] = None
     model_set: Optional[ModelSet] = "base"  # Default to "base" model set
     all_adws: List[str] = Field(default_factory=list)

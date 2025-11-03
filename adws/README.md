@@ -7,7 +7,7 @@ ADW automates software development using isolated git worktrees. The `_iso` suff
 ### Isolated Execution
 Every ADW workflow runs in an isolated git worktree under `trees/<adw_id>/` with:
 - Complete filesystem isolation
-- Dedicated port ranges (backend: 9100-9114, frontend: 9200-9214)
+- Dedicated port ranges (WebSocket: 8500-8514, frontend: 9200-9214)
 - Independent git branches
 - Support for 15 concurrent instances
 
@@ -31,7 +31,7 @@ ADW uses persistent state files (`agents/{adw_id}/adw_state.json`) to:
   - `plan_file`: Path to implementation plan
   - `issue_class`: Issue type (`/chore`, `/bug`, `/feature`)
   - `worktree_path`: Absolute path to isolated worktree
-  - `backend_port`: Allocated backend port (9100-9114)
+  - `websocket_port`: Allocated WebSocket port (8500-8514)
   - `frontend_port`: Allocated frontend port (9200-9214)
 
 ## Quick Start
@@ -119,7 +119,7 @@ uv run adw_plan_iso.py <issue-number> [adw-id]
 
 **What it does:**
 1. Creates isolated git worktree at `trees/<adw_id>/`
-2. Allocates unique ports (backend: 9100-9114, frontend: 9200-9214)
+2. Allocates unique ports (WebSocket: 8500-8514, frontend: 9200-9214)
 3. Sets up environment with `.ports.env`
 4. Fetches issue details and classifies type
 5. Creates feature branch in worktree
@@ -310,7 +310,7 @@ uv run adw_ship_iso.py <issue-number> <adw-id>
 - `plan_file` was created
 - `issue_class` was determined
 - `worktree_path` exists
-- `backend_port` and `frontend_port` allocated
+- `websocket_port` and `frontend_port` allocated
 
 #### adw_sdlc_zte_iso.py - Zero Touch Execution
 Complete SDLC with automatic shipping - no human intervention required.
@@ -443,9 +443,9 @@ uv run adw_triggers/trigger_websocket.py [--port PORT]
 ```
 
 **Configuration:**
-- Default port: 8002 (configurable via `WEBSOCKET_PORT` environment variable)
+- Default port: 8500 (configurable via `WEBSOCKET_PORT` environment variable)
 - Endpoints:
-  - `ws://localhost:8002/ws/trigger` - WebSocket endpoint for workflow triggering
+  - `ws://localhost:8500/ws/trigger` - WebSocket endpoint for workflow triggering
   - `/health` - Health check endpoint
 
 **WebSocket API:**
@@ -571,7 +571,7 @@ uv run adw_plan_build_iso.py 103 &
 # Full SDLC with review and documentation
 uv run adw_sdlc_iso.py 789
 # Creates worktree at trees/abc12345/
-# Runs on ports 9107 (backend) and 9207 (frontend)
+# Runs on ports 8507 (WebSocket) and 9207 (frontend)
 # Generates complete documentation with screenshots
 ```
 
@@ -670,7 +670,7 @@ agents/                    # Shared state location (not in worktree)
 ### Port Allocation
 
 Each isolated instance gets unique ports:
-- Backend: 9100-9114 (15 ports)
+- WebSocket: 8500-8514 (15 ports)
 - Frontend: 9200-9214 (15 ports)
 - Deterministic assignment based on ADW ID hash
 - Automatic fallback if preferred ports are busy
@@ -680,15 +680,15 @@ Each isolated instance gets unique ports:
 def get_ports_for_adw(adw_id: str) -> Tuple[int, int]:
     """Deterministically assign ports based on ADW ID."""
     index = int(adw_id[:8], 36) % 15
-    backend_port = 9100 + index
+    websocket_port = 8500 + index
     frontend_port = 9200 + index
-    return backend_port, frontend_port
+    return websocket_port, frontend_port
 ```
 
 **Example Allocations:**
 ```
-ADW abc12345: Backend 9107, Frontend 9207
-ADW def67890: Backend 9103, Frontend 9203
+ADW abc12345: WebSocket 8507, Frontend 9207
+ADW def67890: WebSocket 8503, Frontend 9203
 ```
 
 ### Benefits of Isolated Workflows
@@ -697,7 +697,7 @@ ADW def67890: Backend 9103, Frontend 9203
 2. **No Interference**: Each instance has its own:
    - Git worktree and branch
    - Filesystem (complete repo copy)
-   - Backend and frontend ports
+   - WebSocket and frontend ports
    - Environment configuration
 3. **Clean Isolation**: Changes in one instance don't affect others
 4. **Easy Cleanup**: Remove worktree to clean everything

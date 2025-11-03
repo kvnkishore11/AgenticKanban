@@ -122,7 +122,8 @@ def format_adw_response(state_data: Dict[str, Any]) -> Dict[str, Any]:
         "branch_name": state_data.get("branch_name"),
         "plan_file": state_data.get("plan_file"),
         "model_set": state_data.get("model_set", "base"),
-        "backend_port": state_data.get("backend_port"),
+        "backend_port": state_data.get("backend_port"),  # Deprecated
+        "websocket_port": state_data.get("websocket_port"),
         "frontend_port": state_data.get("frontend_port"),
         "data_source": state_data.get("data_source", "github"),
         "worktree_path": state_data.get("worktree_path"),

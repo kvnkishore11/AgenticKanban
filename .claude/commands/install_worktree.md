@@ -4,7 +4,7 @@ This command sets up an isolated worktree environment with custom port configura
 
 ## Parameters
 - Worktree path: {0}
-- Backend port: {1}
+- WebSocket port: {1}
 - Frontend port: {2}
 
 ## Read
@@ -23,7 +23,7 @@ This command sets up an isolated worktree environment with custom port configura
 2. **Create port configuration file**
    Create `.ports.env` with:
    ```
-   BACKEND_PORT={1}
+   WEBSOCKET_PORT={1}
    FRONTEND_PORT={2}
    VITE_BACKEND_URL=http://localhost:{1}
    ```

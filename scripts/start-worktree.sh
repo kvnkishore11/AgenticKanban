@@ -5,8 +5,8 @@
 #
 # Enhanced worktree startup script that:
 # - Validates worktree and configuration
-# - Starts backend and frontend using .ports.env as source of truth
-# - Verifies backend WebSocket connection
+# - Starts WebSocket server and frontend using .ports.env as source of truth
+# - Verifies WebSocket server connection
 # - Automatically opens browser to frontend
 #
 # Usage: ./scripts/start-worktree.sh <adw_id>
@@ -87,7 +87,7 @@ verify_websocket() {
 
         # If health endpoint doesn't exist, just check if port responds
         if nc -z localhost $port 2>/dev/null; then
-            print_success "Backend port $port is accepting connections"
+            print_success "WebSocket port $port is accepting connections"
             return 0
         fi
 
@@ -173,8 +173,8 @@ print_info "Reading port configuration..."
 source "$PORTS_ENV_FILE"
 
 # Validate required environment variables
-if [ -z "$BACKEND_PORT" ]; then
-    print_error "BACKEND_PORT not set in $PORTS_ENV_FILE"
+if [ -z "$WEBSOCKET_PORT" ]; then
+    print_error "WEBSOCKET_PORT not set in $PORTS_ENV_FILE"
     exit 1
 fi
 
@@ -186,16 +186,16 @@ fi
 # Display configuration
 print_header "Configuration"
 echo -e "  Worktree Path:   ${GREEN}$WORKTREE_PATH${NC}"
-echo -e "  Backend Port:    ${GREEN}$BACKEND_PORT${NC}"
+echo -e "  WebSocket Port:  ${GREEN}$WEBSOCKET_PORT${NC}"
 echo -e "  Frontend Port:   ${GREEN}$FRONTEND_PORT${NC}"
-echo -e "  Backend URL:     ${BLUE}http://localhost:$BACKEND_PORT${NC}"
+echo -e "  WebSocket URL:   ${BLUE}http://localhost:$WEBSOCKET_PORT${NC}"
 echo -e "  Frontend URL:    ${BLUE}http://localhost:$FRONTEND_PORT${NC}"
-echo -e "  WebSocket URL:   ${BLUE}ws://localhost:$BACKEND_PORT/ws/trigger${NC}"
+echo -e "  WebSocket WS:    ${BLUE}ws://localhost:$WEBSOCKET_PORT/ws/trigger${NC}"
 
 # Start the applications
 print_header "Starting Applications"
 
-print_info "Launching backend and frontend..."
+print_info "Launching WebSocket server and frontend..."
 echo ""
 
 # Change to repo root and call existing start.sh
@@ -216,14 +216,14 @@ fi
 
 print_success "Start script launched (PID: $START_PID)"
 
-# Wait for backend to be ready
-print_header "Verifying Backend"
+# Wait for WebSocket server to be ready
+print_header "Verifying WebSocket Server"
 
-if check_port $BACKEND_PORT 30; then
-    print_success "Backend is listening on port $BACKEND_PORT"
-    verify_websocket $BACKEND_PORT
+if check_port $WEBSOCKET_PORT 30; then
+    print_success "WebSocket server is listening on port $WEBSOCKET_PORT"
+    verify_websocket $WEBSOCKET_PORT
 else
-    print_error "Backend failed to start on port $BACKEND_PORT after 30 seconds"
+    print_error "WebSocket server failed to start on port $WEBSOCKET_PORT after 30 seconds"
     print_warning "The application may still be starting. Check manually."
 fi
 
@@ -273,8 +273,8 @@ print_header "Startup Complete"
 echo -e "${GREEN}✓ Worktree $ADW_ID is running!${NC}"
 echo ""
 echo "  Frontend:  http://localhost:$FRONTEND_PORT"
-echo "  Backend:   http://localhost:$BACKEND_PORT"
-echo "  WebSocket: ws://localhost:$BACKEND_PORT/ws/trigger"
+echo "  WebSocket: http://localhost:$WEBSOCKET_PORT"
+echo "  WebSocket: ws://localhost:$WEBSOCKET_PORT/ws/trigger"
 echo ""
 echo -e "${YELLOW}Note: The apps are running in the background.${NC}"
 echo "      Check the start.sh terminal for logs."

@@ -1488,9 +1488,8 @@ export const useKanbanStore = create()(
           }), false, 'fetchStageLogsForTask:loading');
 
           try {
-            // Determine the backend URL
-            const backendPort = import.meta.env.VITE_BACKEND_PORT || '9104';
-            const backendUrl = `http://localhost:${backendPort}`;
+            // Determine the WebSocket server URL from VITE_BACKEND_URL
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8500';
 
             // Fetch stage logs from backend
             const response = await fetch(`${backendUrl}/api/stage-logs/${adwId}/${stage}`);

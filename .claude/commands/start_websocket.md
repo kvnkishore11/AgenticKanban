@@ -14,8 +14,8 @@ uv run start-websocket.py
 
 - Launches the ADW WebSocket trigger server from `adws/adw_triggers/trigger_websocket.py`
 - Enables real-time communication for workflow triggering
-- Provides WebSocket endpoint at `ws://localhost:8002/ws/trigger`
-- Includes health check endpoint at `http://localhost:8002/health`
+- Provides WebSocket endpoint at `ws://localhost:8500/ws/trigger` (default, configurable via WEBSOCKET_PORT)
+- Includes health check endpoint at `http://localhost:8500/health`
 
 ## Requirements
 
