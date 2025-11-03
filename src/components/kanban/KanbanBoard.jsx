@@ -69,7 +69,6 @@ const getStageIconColorClasses = (color) => {
 
 const KanbanBoard = () => {
   const { stages, tasks, getTasksByStage, toggleTaskInput } = useKanbanStore();
-  const [showPipelineSummary, setShowPipelineSummary] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
 
   // Edit modal handlers
@@ -258,50 +257,6 @@ const KanbanBoard = () => {
           );
         })}
       </div>
-
-      {/* Pipeline Summary Toggle */}
-      <div className="mt-8 text-center">
-        <button
-          onClick={() => setShowPipelineSummary(!showPipelineSummary)}
-          className="text-sm text-gray-600 hover:text-gray-800 transition-colors duration-200 flex items-center justify-center space-x-1 mx-auto"
-        >
-          <span>{showPipelineSummary ? 'Hide' : 'Show'} Pipeline Summary</span>
-          <div className={`transform transition-transform duration-200 ${showPipelineSummary ? 'rotate-180' : ''}`}>
-            ▼
-          </div>
-        </button>
-      </div>
-
-      {/* Summary Stats */}
-      {showPipelineSummary && (
-        <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Pipeline Summary</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-            {stages.map((stage) => {
-              const stageTasks = getTasksByStage(stage.id);
-              const StageIcon = stageIcons[stage.id] || ClipboardList;
-
-              return (
-                <div key={`${stage.id}-summary`} className="text-center">
-                  <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full ${
-                    getStageColorClasses(stage.color)
-                  } mb-2`}>
-                    <StageIcon className={`h-6 w-6 ${getStageIconColorClasses(stage.color)}`} />
-                  </div>
-                  <div className="text-sm font-medium text-gray-900">{stageTasks.length}</div>
-                  <div className="text-xs text-gray-500">{stage.name}</div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-4 pt-4 border-t border-gray-200 text-center">
-            <div className="text-sm text-gray-600">
-              Total Tasks: <span className="font-medium">{tasks.length}</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Task Edit Modal - Rendered at board level for proper overlay */}
       {editingTask && (
