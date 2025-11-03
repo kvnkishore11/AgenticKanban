@@ -41,16 +41,14 @@ class WebSocketNotifier:
 
         Args:
             adw_id: ADW ID for the workflow
-            server_url: WebSocket server URL (default: http://localhost:8003)
+            server_url: WebSocket server URL (default: http://localhost:8002)
         """
         self.adw_id = adw_id
 
         # Get server URL from environment or use default
-        # WebSocket server runs on REST API port + 1 (see scripts/start.sh)
         if server_url is None:
-            backend_port = int(os.getenv("BACKEND_PORT", "8002"))
-            websocket_port = backend_port + 1
-            server_url = f"http://localhost:{websocket_port}"
+            port = os.getenv("BACKEND_PORT", "8002")
+            server_url = f"http://localhost:{port}"
 
         self.server_url = server_url.rstrip("/")
         self.endpoint = f"{self.server_url}/api/workflow-updates"
