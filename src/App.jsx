@@ -49,7 +49,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="app-header">
         <div className="px-2 sm:px-4">
@@ -148,7 +148,7 @@ function App() {
       )}
 
       {/* Main Content */}
-      <main className="px-2 sm:px-4 py-8">
+      <main className="px-2 sm:px-4 py-8 flex-1">
         {!selectedProject ? (
           <ProjectSelector />
         ) : (
