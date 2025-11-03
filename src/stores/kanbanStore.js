@@ -81,7 +81,6 @@ const initialState = {
     { id: 'test', name: 'Test', color: 'green' },
     { id: 'review', name: 'Review', color: 'purple' },
     { id: 'document', name: 'Document', color: 'indigo' },
-    { id: 'pr', name: 'PR', color: 'pink' },
     { id: 'errored', name: 'Errored', color: 'red' },
   ],
 
@@ -873,7 +872,7 @@ export const useKanbanStore = create()(
             // Status counts
             if (task.stage === 'errored') {
               stats.erroredTasks++;
-            } else if (task.stage === 'pr' && task.progress === 100) {
+            } else if (task.stage === 'document' && task.progress === 100) {
               stats.completedTasks++;
             } else {
               stats.inProgressTasks++;
@@ -1207,7 +1206,7 @@ export const useKanbanStore = create()(
                 const targetStage = stageMatch[1].toLowerCase();
 
                 // Validate that it's a valid stage and a forward progression
-                const validStages = ['plan', 'build', 'test', 'review', 'document', 'pr'];
+                const validStages = ['plan', 'build', 'test', 'review', 'document'];
                 if (validStages.includes(targetStage)) {
                   // Get workflow stages to validate progression order
                   const workflowStages = parseWorkflowStages(task.metadata?.workflow_name || '');
@@ -1316,7 +1315,7 @@ export const useKanbanStore = create()(
 
           if (task) {
             // Validate that to_stage is a valid kanban stage
-            const validStages = ['backlog', 'plan', 'build', 'test', 'review', 'document', 'pr', 'errored'];
+            const validStages = ['backlog', 'plan', 'build', 'test', 'review', 'document', 'errored'];
             if (validStages.includes(to_stage)) {
               console.log(`[Workflow] Moving task from ${task.stage} to ${to_stage} via stage transition event`);
               get().moveTaskToStage(task.id, to_stage);
@@ -1437,8 +1436,8 @@ export const useKanbanStore = create()(
                   'build': 'test',
                   'test': 'review',
                   'review': 'document',
-                  'document': 'pr',
-                  'ship': 'pr',
+                  'document': 'document', // Document is now the final stage
+                  'ship': 'document',
                 };
 
                 nextStage = completionStageMap[lastStage];
