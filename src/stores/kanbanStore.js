@@ -935,22 +935,42 @@ export const useKanbanStore = create()(
             websocketService.on('error', websocketService._storeListeners.onError);
 
             websocketService._storeListeners.onStatusUpdate = (statusUpdate) => {
-              get().handleWorkflowStatusUpdate(statusUpdate);
+              try {
+                get().handleWorkflowStatusUpdate(statusUpdate);
+              } catch (error) {
+                console.error('[WORKFLOW ERROR] Error handling status update:', error);
+                // Don't propagate to prevent ErrorBoundary from triggering
+              }
             };
             websocketService.on('status_update', websocketService._storeListeners.onStatusUpdate);
 
             websocketService._storeListeners.onWorkflowLog = (logEntry) => {
-              get().handleWorkflowLog(logEntry);
+              try {
+                get().handleWorkflowLog(logEntry);
+              } catch (error) {
+                console.error('[WORKFLOW ERROR] Error handling workflow log:', error);
+                // Don't propagate to prevent ErrorBoundary from triggering
+              }
             };
             websocketService.on('workflow_log', websocketService._storeListeners.onWorkflowLog);
 
             websocketService._storeListeners.onTriggerResponse = (response) => {
-              get().handleTriggerResponse(response);
+              try {
+                get().handleTriggerResponse(response);
+              } catch (error) {
+                console.error('[WORKFLOW ERROR] Error handling trigger response:', error);
+                // Don't propagate to prevent ErrorBoundary from triggering
+              }
             };
             websocketService.on('trigger_response', websocketService._storeListeners.onTriggerResponse);
 
             websocketService._storeListeners.onStageTransition = (transitionData) => {
-              get().handleStageTransition(transitionData);
+              try {
+                get().handleStageTransition(transitionData);
+              } catch (error) {
+                console.error('[WORKFLOW ERROR] Error handling stage transition:', error);
+                // Don't propagate to prevent ErrorBoundary from triggering
+              }
             };
             websocketService.on('stage_transition', websocketService._storeListeners.onStageTransition);
 
@@ -1001,10 +1021,13 @@ export const useKanbanStore = create()(
         triggerWorkflowForTask: async (taskId, options = {}) => {
           const task = get().tasks.find(t => t.id === taskId);
           if (!task) {
-            throw new Error('Task not found');
+            const error = new Error('Task not found');
+            console.error('[WORKFLOW ERROR] Task not found:', taskId);
+            throw error;
           }
 
           try {
+            console.log('[WORKFLOW] Starting workflow trigger for task:', taskId);
             set({ isLoading: true }, false, 'triggerWorkflowForTask');
 
             // Determine workflow type based on task's current stage and queued stages
@@ -1056,10 +1079,16 @@ export const useKanbanStore = create()(
             return response;
 
           } catch (error) {
+            // Log error but don't let it propagate to ErrorBoundary
+            console.error('[WORKFLOW ERROR] Failed to trigger workflow for task:', taskId, error);
+            console.error('[WORKFLOW ERROR] Stack trace:', error.stack);
+
             set({
               isLoading: false,
               error: `Failed to trigger workflow: ${error.message}`
             }, false, 'triggerWorkflowForTaskError');
+
+            // Re-throw so caller can handle it, but it will be caught by try-catch in components
             throw error;
           }
         },
@@ -2003,15 +2032,29 @@ export const useKanbanStore = create()(
         // Manual cleanup of dummy data
         cleanupDummyData: () => {
           try {
+            console.log('[RELOAD TRACKER] cleanupDummyData called - stack trace:', new Error().stack);
             console.log('Manually cleaning up dummy data...');
             const cleanupResult = dataMigration.manualCleanup();
 
             if (cleanupResult.success) {
               console.log(`Cleanup completed. Removed ${cleanupResult.removedProjects} dummy projects, preserved ${cleanupResult.preservedProjects} real projects.`);
 
-              // Refresh store state after cleanup
-              // The persist middleware will reload from localStorage
-              window.location.reload(); // Force reload to ensure clean state
+              // Refresh store state after cleanup by rehydrating from localStorage
+              // NO PAGE RELOAD - use Zustand's persist middleware to refresh state
+              const state = get();
+              const storedState = JSON.parse(localStorage.getItem('agentic-kanban-store') || '{}');
+
+              // Update the store with fresh data from localStorage
+              if (storedState.state) {
+                set({
+                  projects: storedState.state.projects || [],
+                  tasks: storedState.state.tasks || [],
+                  // Preserve workflow state to avoid disrupting active workflows
+                  taskWorkflowProgress: state.taskWorkflowProgress,
+                  taskWorkflowMetadata: state.taskWorkflowMetadata,
+                  taskWorkflowLogs: state.taskWorkflowLogs,
+                }, false, 'cleanupRefresh');
+              }
 
               return cleanupResult;
             } else {

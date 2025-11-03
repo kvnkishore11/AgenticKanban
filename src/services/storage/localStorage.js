@@ -70,17 +70,43 @@ class LocalStorageService {
   }
 
   // Clear all app-specific items from localStorage
-  clear() {
+  // @param {boolean} preserveWorkflowState - If true, preserves workflow-related data
+  clear(preserveWorkflowState = false) {
     try {
+      console.log('[RELOAD TRACKER] localStorage.clear() called - stack trace:', new Error().stack);
+      console.log(`[RELOAD TRACKER] preserveWorkflowState: ${preserveWorkflowState}`);
+
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith(this.prefix)) {
-          keysToRemove.push(key);
+          // If preserving workflow state, skip workflow-related keys
+          if (preserveWorkflowState) {
+            const storageValue = localStorage.getItem(key);
+            try {
+              const parsed = JSON.parse(storageValue);
+              // Check if this contains workflow state
+              const hasWorkflowData = parsed?.state?.taskWorkflowProgress ||
+                                     parsed?.state?.taskWorkflowMetadata ||
+                                     parsed?.state?.taskWorkflowLogs;
+
+              if (!hasWorkflowData) {
+                keysToRemove.push(key);
+              } else {
+                console.log(`[RELOAD TRACKER] Preserving workflow data in key: ${key}`);
+              }
+            } catch (e) {
+              // If not JSON or doesn't have workflow data, safe to remove
+              keysToRemove.push(key);
+            }
+          } else {
+            keysToRemove.push(key);
+          }
         }
       }
 
       keysToRemove.forEach(key => localStorage.removeItem(key));
+      console.log(`[RELOAD TRACKER] Cleared ${keysToRemove.length} localStorage keys`);
       return true;
     } catch (error) {
       console.error('Failed to clear localStorage:', error);
