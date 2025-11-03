@@ -61,3 +61,10 @@ This prompt helps you determine what documentation you should read based on the 
     - When working with upload button text or labeling
     - When implementing UI text changes for data upload functionality
     - When troubleshooting upload button display or terminology
+
+- app_docs/feature-7b25b54d-workflow-log-handler.md
+  - Conditions:
+    - When working with WebSocket message handling in websocketService.js
+    - When implementing new WebSocket message types
+    - When troubleshooting "Unknown message type" warnings in browser console
+    - When working with workflow_log event handling
