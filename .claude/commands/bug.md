@@ -34,8 +34,8 @@ issue_json: $3
 
 Focus on the following files:
 - `README.md` - Contains the project overview and instructions.
-- `app/server/**` - Contains the codebase server.
-- `app/client/**` - Contains the codebase client.
+- `server/**` - Contains the codebase server.
+- `src/**` - Contains the codebase client.
 - `scripts/**` - Contains the scripts to start and stop the server + client.
 - `adws/**` - Contains the AI Developer Workflow (ADW) scripts.
 
@@ -90,9 +90,9 @@ Execute every command to validate the bug is fixed with zero regressions.
 
 <If you created an E2E test, include the following validation step: "Read .claude/commands/test_e2e.md`, then read and execute your new E2E `.claude/commands/e2e/test_<descriptive_name>.md` test file to validate this functionality works.">
 
-- `cd app/server && uv run pytest` - Run server tests to validate the bug is fixed with zero regressions
-- `cd app/client && bun tsc --noEmit` - Run frontend tests to validate the bug is fixed with zero regressions
-- `cd app/client && bun run build` - Run frontend build to validate the bug is fixed with zero regressions
+- `cd server && uv run pytest` - Run server tests to validate the bug is fixed with zero regressions
+- `bun tsc --noEmit` - Run frontend tests to validate the bug is fixed with zero regressions
+- `bun run build` - Run frontend build to validate the bug is fixed with zero regressions
 
 ## Notes
 <optionally list any additional notes or context that are relevant to the bug that will be helpful to the developer>

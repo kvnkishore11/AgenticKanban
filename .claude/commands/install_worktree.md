@@ -9,7 +9,7 @@ This command sets up an isolated worktree environment with custom port configura
 
 ## Read
 - .env.sample (from parent repo)
-- ./app/server/.env.sample (from parent repo)
+- ./server/.env.sample (from parent repo)
 - .mcp.json (from parent repo)
 - playwright-mcp-config.json (from parent repo)
 
@@ -31,8 +31,8 @@ This command sets up an isolated worktree environment with custom port configura
 3. **Copy and update .env files**
    - Copy `.env` from parent repo if it exists
    - Append `.ports.env` contents to `.env`
-   - Copy `app/server/.env` from parent repo if it exists
-   - Append `.ports.env` contents to `app/server/.env`
+   - Copy `server/.env` from parent repo if it exists
+   - Append `.ports.env` contents to `server/.env`
 
 4. **Copy and configure MCP files**
    - Copy `.mcp.json` from parent repo if it exists
@@ -53,17 +53,17 @@ This command sets up an isolated worktree environment with custom port configura
 
 5. **Install backend dependencies**
    ```bash
-   cd app/server && uv sync --all-extras
+   cd server && uv sync --all-extras
    ```
 
 6. **Install frontend dependencies**
    ```bash
-   cd ../client && bun install
+   cd .. && bun install
    ```
 
 7. **Setup database**
    ```bash
-   cd ../.. && ./scripts/reset_db.sh
+   cd .. && ./scripts/reset_db.sh
    ```
 
 ## Error Handling

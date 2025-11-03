@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
       watch: {
         // Ignore .env files to prevent server restarts during worktree setup
         // This stabilizes WebSocket connections by avoiding unnecessary restarts
-        ignored: ['**/.env*', '**/app/server/.env*']
+        ignored: ['**/.env*', '**/server/.env*']
       }
     },
     envPrefix: 'VITE_',

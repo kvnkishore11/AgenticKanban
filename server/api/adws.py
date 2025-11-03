@@ -18,17 +18,17 @@ def get_agents_directory() -> Path:
     """
     Get the path to the agents directory.
     Handles both main project and worktree environments.
-    - If running from a worktree (trees/<adw_id>/app/server), goes up to main project
-    - If running from main project (app/server), uses relative path
+    - If running from a worktree (trees/<adw_id>/server), goes up to main project
+    - If running from main project (server), uses relative path
     """
     # Get the directory where this script is located
     current_file = Path(__file__).resolve()
-    # Navigate from app/server/api/adws.py
-    # Current path: trees/<adw_id>/app/server/api/adws.py
+    # Navigate from server/api/adws.py
+    # Current path: trees/<adw_id>/server/api/adws.py
     # Target path: agents/
 
     # Go up to the worktree or project root
-    project_or_worktree_root = current_file.parent.parent.parent.parent
+    project_or_worktree_root = current_file.parent.parent.parent
 
     # Check if we're in a worktree (trees/<adw_id>)
     if project_or_worktree_root.name and len(project_or_worktree_root.name) == 8:

@@ -10,7 +10,7 @@ Usage:
     uv run adws/adw_tests/test_r2_uploader.py
 
 This will:
-1. Upload app/client/public/bg.png to R2
+1. Upload public/bg.png to R2
 2. Verify the upload succeeded
 3. Check if the public URL is accessible
 4. Clean up the test file (optional)
@@ -84,7 +84,7 @@ def test_r2_upload():
     print(f"   Domain: {uploader.public_domain}")
 
     # Find test file
-    test_file = "app/client/public/bg.png"
+    test_file = "public/bg.png"
     print(f"\n2️⃣ Looking for test file: {test_file}")
 
     # The uploader will handle path resolution, but let's check manually too
