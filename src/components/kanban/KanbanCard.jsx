@@ -14,7 +14,8 @@ import {
   CheckCircle2,
   Edit,
   Activity,
-  Workflow
+  Workflow,
+  Eye
 } from 'lucide-react';
 import {
   getSubstages,
@@ -22,6 +23,8 @@ import {
 } from '../../utils/substages';
 import WorkflowLogViewer from './WorkflowLogViewer';
 import StageProgressionViewer from './StageProgressionViewer';
+import PlanViewer from './PlanViewer';
+import adwDiscoveryService from '../../services/api/adwDiscoveryService';
 
 const KanbanCard = ({ task, onEdit }) => {
   const {
@@ -49,6 +52,10 @@ const KanbanCard = ({ task, onEdit }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [showStageProgression, setShowStageProgression] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [planContent, setPlanContent] = useState(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState(null);
 
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
@@ -156,6 +163,28 @@ const KanbanCard = ({ task, onEdit }) => {
       await triggerWorkflowForTask(task.id, { issue_number: String(task.id) });
     } catch (error) {
       console.error('Failed to trigger workflow:', error);
+    }
+  };
+
+  const handleViewPlan = async () => {
+    const adwId = task.metadata?.adw_id || workflowMetadata?.adw_id;
+    if (!adwId) {
+      console.error('No ADW ID found for this task');
+      return;
+    }
+
+    setPlanLoading(true);
+    setPlanError(null);
+    setShowPlanModal(true);
+
+    try {
+      const data = await adwDiscoveryService.fetchPlanFile(adwId);
+      setPlanContent(data.plan_content);
+    } catch (error) {
+      console.error('Failed to fetch plan file:', error);
+      setPlanError(error.message || 'Failed to load plan file');
+    } finally {
+      setPlanLoading(false);
     }
   };
 
@@ -611,6 +640,19 @@ const KanbanCard = ({ task, onEdit }) => {
                         Logs: {task.metadata?.logs_path || workflowMetadata?.logs_path}
                       </div>
                     )}
+                    <div className="mt-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewPlan();
+                        }}
+                        disabled={planLoading}
+                        className="flex items-center space-x-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded text-xs transition-colors"
+                      >
+                        <Eye className="h-3 w-3" />
+                        <span>{planLoading ? 'Loading...' : 'View Plan'}</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -664,6 +706,22 @@ const KanbanCard = ({ task, onEdit }) => {
         <div
           className="fixed inset-0 z-0"
           onClick={() => setShowMenu(false)}
+        />
+      )}
+
+      {/* Plan Viewer Modal */}
+      {showPlanModal && (
+        <PlanViewer
+          planContent={planContent}
+          adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
+          onClose={() => {
+            setShowPlanModal(false);
+            setPlanContent(null);
+            setPlanError(null);
+          }}
+          isOpen={showPlanModal}
+          isLoading={planLoading}
+          error={planError}
         />
       )}
     </div>

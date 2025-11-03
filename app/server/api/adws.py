@@ -216,3 +216,69 @@ async def get_adw_details(adw_id: str):
             status_code=500,
             detail=f"Internal server error: {str(e)}"
         )
+
+@router.get("/adws/{adw_id}/plan")
+async def get_adw_plan(adw_id: str):
+    """
+    Get the plan file content for a specific ADW ID.
+
+    Args:
+        adw_id: The ADW identifier (8-character alphanumeric string)
+
+    Returns:
+        JSON response with plan file content and path:
+        - plan_content: The markdown content of the plan file
+        - plan_file: The relative path to the plan file
+    """
+    # Validate ADW ID format
+    if len(adw_id) != 8 or not adw_id.isalnum():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid ADW ID format: {adw_id}. Must be 8 alphanumeric characters."
+        )
+
+    try:
+        agents_dir = get_agents_directory()
+        adw_dir = agents_dir / adw_id
+
+        if not adw_dir.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"ADW ID '{adw_id}' not found"
+            )
+
+        # Construct path to plan file
+        plan_file = adw_dir / "sdlc_planner" / "plan.md"
+
+        if not plan_file.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Plan file not found for ADW ID '{adw_id}'"
+            )
+
+        # Read plan file content
+        try:
+            with open(plan_file, 'r', encoding='utf-8') as f:
+                plan_content = f.read()
+        except Exception as e:
+            logger.error(f"Error reading plan file for {adw_id}: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error reading plan file: {str(e)}"
+            )
+
+        # Return plan content and relative path
+        relative_plan_path = f"agents/{adw_id}/sdlc_planner/plan.md"
+        return {
+            "plan_content": plan_content,
+            "plan_file": relative_plan_path
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting plan for {adw_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )

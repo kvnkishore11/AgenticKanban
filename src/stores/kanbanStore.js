@@ -1299,6 +1299,7 @@ export const useKanbanStore = create()(
               status: 'accepted',
               message,
               logs_path: response.logs_path,
+              plan_file: response.plan_file,
               triggeredAt: new Date().toISOString(),
             });
           }
@@ -1394,6 +1395,13 @@ export const useKanbanStore = create()(
         getWorkflowMetadataForTask: (taskId) => {
           const { taskWorkflowMetadata } = get();
           return taskWorkflowMetadata[taskId] || null;
+        },
+
+        // Get workflow plan file path for task
+        getWorkflowPlanForTask: (taskId) => {
+          const { taskWorkflowMetadata } = get();
+          const metadata = taskWorkflowMetadata[taskId];
+          return metadata?.plan_file || null;
         },
 
         // Clear workflow logs for task
