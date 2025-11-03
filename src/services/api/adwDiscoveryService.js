@@ -94,7 +94,7 @@ class ADWDiscoveryService {
           if (errorData.detail) {
             errorDetail = errorData.detail;
           }
-        } catch (e) {
+        } catch {
           // Failed to parse error response, use default
         }
 

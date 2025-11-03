@@ -95,7 +95,7 @@ class LocalStorageService {
               } else {
                 console.log(`[RELOAD TRACKER] Preserving workflow data in key: ${key}`);
               }
-            } catch (e) {
+            } catch {
               // If not JSON or doesn't have workflow data, safe to remove
               keysToRemove.push(key);
             }

@@ -26,12 +26,16 @@ STAGE_TO_FOLDERS = {
 }
 
 class LogEntry(BaseModel):
-    """Individual log entry from JSONL file"""
+    """Individual log entry from JSONL file with structured fields"""
     timestamp: Optional[str] = None
     level: Optional[str] = None
     message: Optional[str] = None
     current_step: Optional[str] = None
     details: Optional[str] = None
+    event_category: Optional[str] = None  # hook, response, status
+    event_type: Optional[str] = None  # PreToolUse, ToolUseBlock, TextBlock, ThinkingBlock
+    summary: Optional[str] = None  # 15-word AI-generated summary (future enhancement)
+    payload: Optional[Dict[str, Any]] = None  # Event metadata (tool names, params, file changes)
     raw_data: Optional[Dict[str, Any]] = None
 
 class StageLogsResponse(BaseModel):
@@ -125,13 +129,17 @@ def parse_jsonl_logs(jsonl_file: Path) -> List[LogEntry]:
                 try:
                     data = json.loads(line)
 
-                    # Extract relevant fields for log entry
+                    # Extract relevant fields for log entry with structured event data
                     log_entry = LogEntry(
                         timestamp=data.get('timestamp'),
                         level=data.get('level', 'INFO'),
                         message=data.get('message') or data.get('content') or str(data),
                         current_step=data.get('current_step'),
                         details=data.get('details'),
+                        event_category=data.get('event_category'),  # hook, response, status
+                        event_type=data.get('event_type'),  # PreToolUse, ToolUseBlock, etc.
+                        summary=data.get('summary'),  # AI-generated summary if available
+                        payload=data.get('payload'),  # Event metadata
                         raw_data=data
                     )
                     logs.append(log_entry)

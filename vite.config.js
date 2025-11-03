@@ -4,12 +4,14 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   // Load .ports.env if it exists
+  // eslint-disable-next-line no-undef
   const env = loadEnv(mode, process.cwd(), ['FRONTEND_PORT', 'WEBSOCKET_PORT'])
 
   return {
     plugins: [react()],
     server: {
       // Prefer environment variable (from start.sh), fallback to .env file, then default
+      // eslint-disable-next-line no-undef
       port: parseInt(process.env.FRONTEND_PORT || env.FRONTEND_PORT) || 5173,
       watch: {
         // Ignore .env files to prevent server restarts during worktree setup

@@ -238,7 +238,7 @@ const WorkflowLogViewer = ({
           <div
             ref={logContainerRef}
             onScroll={handleScroll}
-            className="overflow-y-auto font-mono text-xs"
+            className="overflow-y-auto font-mono text-xs kanban-scroll"
             style={{ maxHeight }}
           >
             {filteredLogs.length === 0 ? (
@@ -250,7 +250,7 @@ const WorkflowLogViewer = ({
                 {filteredLogs.map((log, index) => (
                   <div
                     key={log.id || index}
-                    className={`p-2 hover:bg-gray-50 transition-colors border-l-2 ${
+                    className={`p-2 hover:bg-gray-50 transition-all duration-150 ease-in-out border-l-2 ${
                       getLogLevelColor(log.level)
                     }`}
                   >

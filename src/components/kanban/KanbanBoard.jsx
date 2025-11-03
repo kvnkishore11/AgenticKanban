@@ -68,7 +68,7 @@ const getStageIconColorClasses = (color) => {
 };
 
 const KanbanBoard = () => {
-  const { stages, tasks, getTasksByStage, toggleTaskInput } = useKanbanStore();
+  const { stages, getTasksByStage, toggleTaskInput } = useKanbanStore();
   const [editingTask, setEditingTask] = useState(null);
 
   // Edit modal handlers

@@ -656,7 +656,7 @@ class WebSocketService {
   cleanupPendingPromises() {
     console.log(`Cleaning up ${this.pendingPromises.size} pending promises`);
 
-    for (const [promiseId, promiseData] of this.pendingPromises) {
+    for (const [, promiseData] of this.pendingPromises) {
       if (promiseData.timeoutId) {
         clearTimeout(promiseData.timeoutId);
       }

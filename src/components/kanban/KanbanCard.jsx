@@ -32,7 +32,6 @@ import {
 import StageLogsViewer from './StageLogsViewer';
 import PlanViewer from './PlanViewer';
 import CardExpandModal from './CardExpandModal';
-import adwDiscoveryService from '../../services/api/adwDiscoveryService';
 
 const KanbanCard = ({ task, onEdit }) => {
   const {
@@ -43,21 +42,10 @@ const KanbanCard = ({ task, onEdit }) => {
     getTaskProgressionStatus,
     getWebSocketStatus,
     triggerWorkflowForTask,
-    getWorkflowLogsForTask,
-    getWorkflowMetadataForTask
   } = useKanbanStore();
 
   const [showMenu, setShowMenu] = useState(false);
-  const [showLogs, setShowLogs] = useState(false);
-  const [showPlanModal, setShowPlanModal] = useState(false);
-  const [planContent, setPlanContent] = useState(null);
-  const [planLoading, setPlanLoading] = useState(false);
-  const [planError, setPlanError] = useState(null);
   const [showExpandModal, setShowExpandModal] = useState(false);
-
-  // Get real-time workflow data
-  const workflowLogs = getWorkflowLogsForTask(task.id);
-  const workflowMetadata = getWorkflowMetadataForTask(task.id);
 
   const pipeline = getPipelineById(task.pipelineId);
   const progressionStatus = getTaskProgressionStatus(task.id);

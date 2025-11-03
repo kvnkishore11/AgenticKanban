@@ -280,3 +280,57 @@ def log_workflow_event(
         message = f"[{adw_id}:{phase}] {event}"
 
     logger.info(message, extra=extra)
+
+
+def log_structured_event(
+    logger: logging.Logger,
+    adw_id: str,
+    event_category: str,
+    event_type: str,
+    message: str,
+    level: str = 'INFO',
+    current_step: Optional[str] = None,
+    summary: Optional[str] = None,
+    payload: Optional[Dict[str, Any]] = None,
+    **kwargs
+) -> None:
+    """
+    Log a structured event with all enriched fields for real-time streaming.
+
+    Args:
+        logger: Logger instance to use
+        adw_id: ADW workflow identifier
+        event_category: Category (hook, response, status)
+        event_type: Type (PreToolUse, ToolUseBlock, TextBlock, ThinkingBlock)
+        message: Event message
+        level: Log level (INFO, SUCCESS, WARNING, ERROR, DEBUG)
+        current_step: Optional current workflow step
+        summary: Optional 15-word summary
+        payload: Optional event metadata
+        **kwargs: Additional fields
+
+    Example:
+        log_structured_event(
+            logger,
+            adw_id="a1b2c3d4",
+            event_category="hook",
+            event_type="PreToolUse",
+            message="Preparing to execute tool: Read",
+            level="INFO",
+            current_step="Stage: Build",
+            summary="Reading configuration file before proceeding with build",
+            payload={"tool": "Read", "file": "config.json"}
+        )
+    """
+    extra = {
+        'adw_id': adw_id,
+        'event_category': event_category,
+        'event_type': event_type,
+        'current_step': current_step,
+        'summary': summary,
+        'payload': payload or {},
+        **kwargs
+    }
+
+    log_method = getattr(logger, level.lower(), logger.info)
+    log_method(message, extra=extra)
