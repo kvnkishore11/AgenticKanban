@@ -68,3 +68,11 @@ This prompt helps you determine what documentation you should read based on the 
     - When implementing new WebSocket message types
     - When troubleshooting "Unknown message type" warnings in browser console
     - When working with workflow_log event handling
+
+- app_docs/feature-2c334efc-merge-to-main-fix.md
+  - Conditions:
+    - When working with merge to main workflow
+    - When implementing or troubleshooting task stage transitions after merge
+    - When working with Kanban board merge completion visual indicators
+    - When tasks are disappearing from the board after merge operations
+    - When working with the "Ready to Merge" stage functionality

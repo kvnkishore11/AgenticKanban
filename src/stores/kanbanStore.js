@@ -1615,13 +1615,14 @@ export const useKanbanStore = create()(
             const response = await mergeService.triggerMerge(adw_id, issue_number);
 
             if (response.success) {
-              // Move task to completed stage
-              get().moveTaskToStage(taskId, 'completed');
-
-              // Update task metadata
+              // Keep task in ready-to-merge stage with merge completion metadata
+              // Update task metadata to indicate merge completion
               get().updateTask(taskId, {
                 metadata: {
                   ...task.metadata,
+                  merge_completed: true,
+                  merge_completed_at: new Date().toISOString(),
+                  merged_branch: task.metadata?.branch_name,
                   merge_triggered: true,
                   merge_triggered_at: new Date().toISOString(),
                 }

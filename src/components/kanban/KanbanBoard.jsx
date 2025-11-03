@@ -21,7 +21,8 @@ import {
   FileText,
   AlertTriangle,
   Inbox,
-  Plus
+  Plus,
+  GitMerge
 } from 'lucide-react';
 
 const stageIcons = {
@@ -32,6 +33,7 @@ const stageIcons = {
   review: Eye,
   document: FileText,
   errored: AlertTriangle,
+  'ready-to-merge': GitMerge,
 };
 
 
@@ -45,6 +47,7 @@ const getStageColorClasses = (color) => {
     indigo: 'border-indigo-200 bg-indigo-50',
     pink: 'border-pink-200 bg-pink-50',
     red: 'border-red-200 bg-red-50',
+    teal: 'border-teal-200 bg-teal-50',
   };
   return colorMap[color] || 'border-gray-200 bg-gray-50';
 };
@@ -59,6 +62,7 @@ const getStageIconColorClasses = (color) => {
     indigo: 'text-indigo-600',
     pink: 'text-pink-600',
     red: 'text-red-600',
+    teal: 'text-teal-600',
   };
   return colorMap[color] || 'text-gray-600';
 };
