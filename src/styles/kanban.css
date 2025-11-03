@@ -918,3 +918,49 @@ button:focus-visible {
   font-weight: bold;
   color: #1d4ed8; /* primary-700 */
 }
+
+/* Completed Tasks Modal Styling */
+.completed-tasks-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  animation: fade-in 0.2s ease;
+}
+
+.completed-tasks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  width: 100%;
+}
+
+.completed-task-wrapper {
+  position: relative;
+}
+
+.completed-task-wrapper .kanban-card {
+  opacity: 0.95;
+}
+
+.completed-task-wrapper .kanban-card:hover {
+  opacity: 1;
+}
+
+/* Responsive grid for completed tasks */
+@media (max-width: 1024px) {
+  .completed-tasks-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .completed-tasks-grid {
+    grid-template-columns: 1fr;
+  }
+}

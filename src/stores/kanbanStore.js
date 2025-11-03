@@ -93,6 +93,7 @@ const initialState = {
   selectedTaskId: null,
   isLoading: false,
   error: null,
+  showCompletedTasks: false,
 
   // WebSocket state
   websocketConnected: false,
@@ -655,6 +656,23 @@ export const useKanbanStore = create()(
           return selectedProject
             ? tasks.filter(task => task.projectId === selectedProject.id)
             : tasks;
+        },
+
+        // Completed tasks management
+        getCompletedTasks: () => {
+          const { tasks } = get();
+          // A task is considered completed if:
+          // 1. Progress is 100%, OR
+          // 2. It's in the PR stage and workflow status is 'completed'
+          return tasks.filter(task => {
+            const isFullProgress = task.progress === 100;
+            const isPRCompleted = task.stage === 'pr' && task.metadata?.workflow_status === 'completed';
+            return isFullProgress || isPRCompleted;
+          });
+        },
+
+        toggleCompletedTasksView: () => {
+          set((state) => ({ showCompletedTasks: !state.showCompletedTasks }), false, 'toggleCompletedTasksView');
         },
 
         getPipelineById: (pipelineId) => {
