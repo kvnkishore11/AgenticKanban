@@ -45,8 +45,8 @@ def get_adws_directory() -> Path:
     """
     # Get the directory where this script is located
     current_file = Path(__file__).resolve()
-    # Navigate from app/server/api/merge.py
-    # Current path: trees/<adw_id>/app/server/api/merge.py or app/server/api/merge.py
+    # Navigate from server/api/merge.py
+    # Current path: trees/<adw_id>/server/api/merge.py or server/api/merge.py
     # Target path: adws/
 
     # Go up to the worktree or project root

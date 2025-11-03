@@ -9,10 +9,10 @@ else
 fi
 
 # Check and copy server .env file
-if [ -f "../tac-6/app/server/.env" ]; then
-    cp ../tac-6/app/server/.env app/server/.env
-    echo "Successfully copied ../tac-6/app/server/.env to app/server/.env"
+if [ -f "../tac-6/server/.env" ]; then
+    cp ../tac-6/server/.env server/.env
+    echo "Successfully copied ../tac-6/server/.env to server/.env"
 else
-    echo "Error: ../tac-6/app/server/.env does not exist"
+    echo "Error: ../tac-6/server/.env does not exist"
     exit 1
 fi

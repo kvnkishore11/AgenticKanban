@@ -13,12 +13,12 @@ This prompt helps you determine what documentation you should read based on the 
 
 - README.md
   - Conditions:
-    - When operating on anything under app/server
-    - When operating on anything under app/client
+    - When operating on anything under server
+    - When operating on anything under src
     - When first understanding the project structure
     - When you want to learn the commands to start or stop the server or client
 
-- app/client/src/style.css
+- src/style.css
   - Conditions:
     - When you need to make changes to the client's style
 
