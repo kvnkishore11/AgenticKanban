@@ -166,6 +166,7 @@ html {
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  will-change: transform, box-shadow;
 }
 
 /* ADW Header Styling */
@@ -201,13 +202,13 @@ html {
   transition: opacity 0.2s ease;
 }
 
-.kanban-card:hover {
+.kanban-card:hover:not(.selected) {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   border-color: #c7d2fe;
 }
 
-.kanban-card:hover::before {
+.kanban-card:hover:not(.selected)::before {
   opacity: 1;
 }
 

@@ -9,20 +9,14 @@
  * @module components/kanban/KanbanCard
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import {
   Clock,
-  User,
   MoreHorizontal,
   Play,
-  Pause,
   CheckCircle,
-  AlertCircle,
   ArrowRight,
-  ChevronRight,
-  Circle,
-  CheckCircle2,
   Edit,
   Activity,
   FileText,
@@ -39,26 +33,15 @@ import adwDiscoveryService from '../../services/api/adwDiscoveryService';
 
 const KanbanCard = ({ task, onEdit }) => {
   const {
-    selectTask,
-    selectedTaskId,
     deleteTask,
     moveTaskToStage,
     getPipelineById,
     stages,
-    startTaskProgression,
-    stopTaskProgression,
-    pauseTaskProgression,
-    resumeTaskProgression,
     getTaskProgressionStatus,
-    recoverTaskFromError,
-    getWorkflowStatusForTask,
     getWebSocketStatus,
     triggerWorkflowForTask,
     getWorkflowLogsForTask,
-    getWorkflowProgressForTask,
-    getWorkflowMetadataForTask,
-    clearWorkflowLogsForTask,
-    triggerMergeWorkflow
+    getWorkflowMetadataForTask
   } = useKanbanStore();
 
   const [showMenu, setShowMenu] = useState(false);
@@ -71,20 +54,10 @@ const KanbanCard = ({ task, onEdit }) => {
 
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
-  const workflowProgress = getWorkflowProgressForTask(task.id);
   const workflowMetadata = getWorkflowMetadataForTask(task.id);
 
-  // Auto-expand logs when workflow starts or new logs arrive, or when there's an ADW ID
-  useEffect(() => {
-    if ((workflowLogs.length > 0 || task.metadata?.adw_id) && !showLogs) {
-      setShowLogs(true);
-    }
-  }, [workflowLogs.length, task.metadata?.adw_id]);
-
   const pipeline = getPipelineById(task.pipelineId);
-  const isSelected = selectedTaskId === task.id;
   const progressionStatus = getTaskProgressionStatus(task.id);
-  const workflowStatus = getWorkflowStatusForTask(task.id);
   const websocketStatus = getWebSocketStatus();
 
   // Format dynamic pipeline names for display
@@ -159,7 +132,8 @@ const KanbanCard = ({ task, onEdit }) => {
   };
 
   const handleCardClick = () => {
-    selectTask(isSelected ? null : task.id);
+    // Open modal instead of toggling selected state
+    setShowExpandModal(true);
   };
 
   const handleTriggerWorkflow = async () => {
@@ -168,36 +142,6 @@ const KanbanCard = ({ task, onEdit }) => {
       await triggerWorkflowForTask(task.id, { issue_number: String(task.id) });
     } catch (error) {
       console.error('Failed to trigger workflow:', error);
-    }
-  };
-
-  const handleMerge = async () => {
-    try {
-      await triggerMergeWorkflow(task.id);
-    } catch (error) {
-      console.error('Failed to trigger merge:', error);
-    }
-  };
-
-  const handleViewPlan = async () => {
-    const adwId = task.metadata?.adw_id || workflowMetadata?.adw_id;
-    if (!adwId) {
-      console.error('No ADW ID found for this task');
-      return;
-    }
-
-    setPlanLoading(true);
-    setPlanError(null);
-    setShowPlanModal(true);
-
-    try {
-      const data = await adwDiscoveryService.fetchPlanFile(adwId);
-      setPlanContent(data.plan_content);
-    } catch (error) {
-      console.error('Failed to fetch plan file:', error);
-      setPlanError(error.message || 'Failed to load plan file');
-    } finally {
-      setPlanLoading(false);
     }
   };
 
@@ -210,18 +154,15 @@ const KanbanCard = ({ task, onEdit }) => {
 
   // Check if this is a completed task
   const isCompleted = task.stage === 'completed';
-  const isReadyToMerge = task.stage === 'ready-to-merge';
 
   return (
     <div
-      className={`kanban-card ${
-        isSelected ? 'selected' : ''
-      } ${progressionStatus.active ? 'auto-progress' : ''} ${isCompleted ? 'completed-card' : ''}`}
+      className={`kanban-card ${progressionStatus.active ? 'auto-progress' : ''} ${isCompleted ? 'completed-card' : ''}`}
       onClick={handleCardClick}
     >
       <div className="p-4">
         {/* Minimal view for completed tasks */}
-        {isCompleted && !isSelected ? (
+        {isCompleted ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <CheckCircle className="h-5 w-5 text-green-500" />
@@ -400,309 +341,12 @@ const KanbanCard = ({ task, onEdit }) => {
           )}
         </div>
 
-        {/* Expanded Details */}
-        {isSelected && (
+        {/* Expanded Details - Disabled in favor of modal view */}
+        {/* {isSelected && (
           <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="space-y-4">
-              {/* Task Metadata */}
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div>
-                  <span className="text-gray-500">Created:</span>
-                  <div className="font-medium">
-                    {new Date(task.createdAt).toLocaleDateString()}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-gray-500">Pipeline:</span>
-                  <div className="font-medium">{formatPipelineName(task.pipelineId)}</div>
-                </div>
-              </div>
-
-              {/* Recent Logs */}
-              {task.logs && task.logs.length > 0 && (
-                <div>
-                  <div className="text-xs font-medium text-gray-700 mb-2">Recent Activity</div>
-                  <div className="space-y-1 max-h-24 overflow-y-auto">
-                    {task.logs.slice(-3).map((log, index) => (
-                      <div key={index} className="text-xs bg-gray-50 rounded p-2">
-                        <div className="flex items-center justify-between">
-                          <div className="font-medium text-gray-700">{log.message}</div>
-                          {log.timestamp && (
-                            <div className="text-gray-500">
-                              {formatTimeAgo(log.timestamp)}
-                            </div>
-                          )}
-                        </div>
-                        {log.substageId && (
-                          <div className="text-gray-500 mt-1">
-                            Stage: {log.stage} → {log.substageName}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Progression Controls */}
-              <div>
-                <div className="text-xs font-medium text-gray-700 mb-2">Automatic Progression</div>
-                <div className="flex items-center space-x-2 mb-2">
-                  {progressionStatus.active ? (
-                    <>
-                      {progressionStatus.paused ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            resumeTaskProgression(task.id);
-                          }}
-                          className="flex items-center space-x-1 text-xs bg-green-600 text-white rounded px-2 py-1 hover:bg-green-700"
-                        >
-                          <Play className="h-3 w-3" />
-                          <span>Resume</span>
-                        </button>
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            pauseTaskProgression(task.id);
-                          }}
-                          className="flex items-center space-x-1 text-xs bg-yellow-600 text-white rounded px-2 py-1 hover:bg-yellow-700"
-                        >
-                          <Pause className="h-3 w-3" />
-                          <span>Pause</span>
-                        </button>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          stopTaskProgression(task.id);
-                        }}
-                        className="flex items-center space-x-1 text-xs bg-red-600 text-white rounded px-2 py-1 hover:bg-red-700"
-                      >
-                        <Pause className="h-3 w-3" />
-                        <span>Stop</span>
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startTaskProgression(task.id);
-                      }}
-                      className="flex items-center space-x-1 text-xs bg-blue-600 text-white rounded px-2 py-1 hover:bg-blue-700"
-                      disabled={task.stage === 'document' && task.progress === 100}
-                    >
-                      <Play className="h-3 w-3" />
-                      <span>Start Auto</span>
-                    </button>
-                  )}
-                </div>
-
-                {progressionStatus.active && (
-                  <div className="text-xs text-gray-500">
-                    Auto-progression started {formatTimeAgo(progressionStatus.startedAt)}
-                  </div>
-                )}
-
-                {task.stage === 'errored' && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      recoverTaskFromError(task.id);
-                    }}
-                    className="flex items-center space-x-1 text-xs bg-purple-600 text-white rounded px-2 py-1 hover:bg-purple-700 mt-2"
-                  >
-                    <CheckCircle className="h-3 w-3" />
-                    <span>Recover from Error</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Plan Viewer */}
-              <div>
-                <div className="text-xs font-medium text-gray-700 mb-2">Implementation Plan</div>
-                <button
-                  onClick={handleViewPlan}
-                  disabled={planLoading}
-                  className="flex items-center space-x-1 text-xs bg-purple-600 text-white rounded px-2 py-1 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  <FileText className="h-3 w-3" />
-                  <span>{planLoading ? 'Loading...' : 'View Plan'}</span>
-                </button>
-                {planError && (
-                  <div className="text-xs text-red-600 mt-1">{planError}</div>
-                )}
-              </div>
-
-              {/* WebSocket Workflow Controls */}
-              <div>
-                <div className="text-xs font-medium text-gray-700 mb-2">Workflow Controls</div>
-                <div className="flex items-center space-x-2 mb-2">
-                  {/* Toggle Logs */}
-                  {workflowLogs.length > 0 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowLogs(!showLogs);
-                      }}
-                      className="flex items-center space-x-1 text-xs bg-green-600 text-white rounded px-2 py-1 hover:bg-green-700"
-                    >
-                      <Activity className="h-3 w-3" />
-                      <span>{showLogs ? 'Hide' : 'Show'} Logs ({workflowLogs.length})</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* WebSocket Connection Status */}
-                <div className={`text-xs ${websocketStatus.connected ? 'text-green-600' : 'text-red-600'}`}>
-                  WebSocket: {websocketStatus.connected ? 'Connected' : 'Disconnected'}
-                  {websocketStatus.connecting && ' (Connecting...)'}
-                </div>
-
-                {/* Enhanced Workflow Status */}
-                {(workflowStatus || workflowProgress) && (
-                  <div className="mt-2 p-2 bg-blue-50 rounded text-xs border border-blue-200">
-                    <div className="font-medium text-blue-800 flex items-center justify-between">
-                      <span>Workflow: {workflowStatus?.workflowName || workflowMetadata?.workflow_name || 'Unknown'}</span>
-                      {workflowProgress?.status && (
-                        <span className={`px-2 py-0.5 rounded text-xs ${
-                          workflowProgress.status === 'completed' ? 'bg-green-100 text-green-700' :
-                          workflowProgress.status === 'failed' ? 'bg-red-100 text-red-700' :
-                          workflowProgress.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-700'
-                        }`}>
-                          {workflowProgress.status}
-                        </span>
-                      )}
-                    </div>
-                    {(workflowProgress?.progress !== undefined || workflowStatus?.progress !== undefined) && (
-                      <div className="mt-1 flex items-center space-x-2">
-                        <div className="flex-1 bg-blue-200 rounded-full h-1.5">
-                          <div
-                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                            style={{ width: `${workflowProgress?.progress || workflowStatus?.progress || 0}%` }}
-                          />
-                        </div>
-                        <span className="text-blue-700 font-semibold">
-                          {Math.round(workflowProgress?.progress || workflowStatus?.progress || 0)}%
-                        </span>
-                      </div>
-                    )}
-                    {(workflowProgress?.currentStep || workflowStatus?.currentStep) && (
-                      <div className="mt-1 text-blue-600">
-                        Step: {workflowProgress?.currentStep || workflowStatus?.currentStep}
-                      </div>
-                    )}
-                    {(workflowProgress?.message || workflowStatus?.lastUpdate) && (
-                      <div className="mt-1 text-blue-500">
-                        {workflowProgress?.message || workflowStatus?.lastUpdate}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* ADW Metadata Display */}
-                {(task.metadata?.adw_id || workflowMetadata?.adw_id) && (
-                  <div className="mt-2 p-2 bg-gray-50 rounded text-xs border border-gray-200">
-                    <div className="font-medium text-gray-700 flex items-center justify-between">
-                      <span>ADW ID: {task.metadata?.adw_id || workflowMetadata?.adw_id}</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigator.clipboard.writeText(task.metadata?.adw_id || workflowMetadata?.adw_id);
-                        }}
-                        className="text-blue-600 hover:text-blue-800 text-xs"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    {(task.metadata?.workflow_status || workflowMetadata?.status) && (
-                      <div className="text-gray-600 mt-1">
-                        Status: {task.metadata?.workflow_status || workflowMetadata?.status}
-                      </div>
-                    )}
-                    {(task.metadata?.logs_path || workflowMetadata?.logs_path) && (
-                      <div className="text-gray-500 mt-1 truncate" title={task.metadata?.logs_path || workflowMetadata?.logs_path}>
-                        Logs: {task.metadata?.logs_path || workflowMetadata?.logs_path}
-                      </div>
-                    )}
-                    <div className="mt-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleViewPlan();
-                        }}
-                        disabled={planLoading}
-                        className="flex items-center space-x-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded text-xs transition-colors"
-                      >
-                        <Eye className="h-3 w-3" />
-                        <span>{planLoading ? 'Loading...' : 'View Plan'}</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Real-Time Workflow Logs */}
-              {showLogs && (
-                <div onClick={(e) => e.stopPropagation()}>
-                  <StageLogsViewer
-                    taskId={task.id}
-                    adwId={task.metadata?.adw_id}
-                    title="Workflow Logs"
-                    maxHeight="250px"
-                    onClear={() => clearWorkflowLogsForTask(task.id)}
-                    showTimestamps={true}
-                    autoScroll={true}
-                  />
-                </div>
-              )}
-
-              {/* Quick Actions */}
-              <div className="flex space-x-2">
-                {/* Show Merge button for ready-to-merge stage */}
-                {isReadyToMerge && !task.metadata?.merge_completed && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMerge();
-                    }}
-                    className="flex items-center justify-center space-x-1 flex-1 text-xs bg-teal-600 text-white rounded px-2 py-1 hover:bg-teal-700"
-                  >
-                    <GitMerge className="h-3 w-3" />
-                    <span>Merge to Main</span>
-                  </button>
-                )}
-                {/* Show Merged status indicator for completed merges */}
-                {isReadyToMerge && task.metadata?.merge_completed && (
-                  <div className="flex items-center justify-center space-x-2 flex-1 text-xs bg-green-50 text-green-600 rounded px-3 py-2 border border-green-200">
-                    <CheckCircle className="h-4 w-4" />
-                    <div className="flex flex-col items-start">
-                      <span className="font-medium">Merged</span>
-                      {task.metadata?.merge_completed_at && (
-                        <span className="text-xs text-green-500">
-                          {formatTimeAgo(task.metadata.merge_completed_at)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {getNextStage() && !isReadyToMerge && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMoveToNextStage();
-                    }}
-                    className="flex-1 text-xs bg-primary-600 text-white rounded px-2 py-1 hover:bg-primary-700"
-                  >
-                    Move to {getNextStage().name}
-                  </button>
-                )}
-              </div>
-            </div>
+            ... expanded content removed ...
           </div>
-        )}
+        )} */}
         </>
         )}
       </div>
@@ -712,22 +356,6 @@ const KanbanCard = ({ task, onEdit }) => {
         <div
           className="fixed inset-0 z-0"
           onClick={() => setShowMenu(false)}
-        />
-      )}
-
-      {/* Plan Viewer Modal */}
-      {showPlanModal && (
-        <PlanViewer
-          planContent={planContent}
-          adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
-          onClose={() => {
-            setShowPlanModal(false);
-            setPlanContent(null);
-            setPlanError(null);
-          }}
-          isOpen={showPlanModal}
-          isLoading={planLoading}
-          error={planError}
         />
       )}
 
