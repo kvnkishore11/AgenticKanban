@@ -24,7 +24,9 @@ import {
   GitMerge,
   Eye,
   GitPullRequest,
-  Maximize2
+  Maximize2,
+  Pause,
+  AlertCircle
 } from 'lucide-react';
 import StageLogsViewer from './StageLogsViewer';
 import PlanViewer from './PlanViewer';
