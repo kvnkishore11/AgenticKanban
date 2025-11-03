@@ -35,6 +35,7 @@ class ErrorBoundary extends Component {
   }
 
   handleReload = () => {
+    console.log('[RELOAD TRACKER] ErrorBoundary.handleReload called - stack trace:', new Error().stack);
     window.location.reload();
   };
 
@@ -48,15 +49,31 @@ class ErrorBoundary extends Component {
 
   handleClearData = () => {
     try {
-      // Clear localStorage data
+      console.log('[RELOAD TRACKER] ErrorBoundary.handleClearData called - stack trace:', new Error().stack);
+
+      // Preserve workflow state before clearing
+      const workflowKeys = [];
+      const workflowData = {};
+
+      // Identify and save workflow-related data
       const keys = Object.keys(localStorage);
       keys.forEach(key => {
         if (key.startsWith('agentic-kanban-')) {
-          localStorage.removeItem(key);
+          // Check if this is workflow-related data
+          if (key.includes('workflow') || key.includes('Workflow')) {
+            const value = localStorage.getItem(key);
+            workflowKeys.push(key);
+            workflowData[key] = value;
+          } else {
+            // Clear non-workflow data
+            localStorage.removeItem(key);
+          }
         }
       });
 
-      // Reload the page
+      console.log(`[RELOAD TRACKER] Preserved ${workflowKeys.length} workflow keys during clear`);
+
+      // Reload the page - workflow state will be preserved
       window.location.reload();
     } catch (err) {
       console.error('Failed to clear data:', err);
