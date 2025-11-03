@@ -336,6 +336,63 @@ uv run adw_sdlc_zte_iso.py <issue-number> [adw-id] [--skip-e2e] [--skip-resoluti
 - Code merged to main branch
 - Production deployment
 
+#### adw_merge_worktree.py - Direct Worktree Merge
+Alternative to PR-based shipping that directly merges a worktree branch into main.
+
+**Requirements:**
+- Existing worktree with ADW state
+- ADW ID is mandatory
+- Works with or without issue number
+
+**Usage:**
+```bash
+uv run adw_merge_worktree.py <adw-id> [merge-method]
+
+# Examples
+uv run adw_merge_worktree.py a1b2c3d4 squash    # Default: squash merge
+uv run adw_merge_worktree.py a1b2c3d4 merge     # Regular merge (no-ff)
+uv run adw_merge_worktree.py a1b2c3d4 rebase    # Rebase merge
+```
+
+**What it does:**
+1. Loads ADW state and validates worktree exists
+2. Fetches latest changes from origin
+3. Checks out main and pulls latest
+4. Merges the feature branch using specified strategy
+5. Detects and resolves merge conflicts with Claude Code
+6. Runs validation tests (pytest) to ensure clean merge
+7. Pushes merged changes to origin/main
+8. Cleans up worktree directory
+9. Deletes remote branch
+10. Updates ADW state with merge status
+
+**Conflict Resolution:**
+If merge conflicts are detected, the workflow automatically invokes Claude Code in headless mode to resolve them. Claude analyzes the conflicts and applies best practices for resolution. If conflicts cannot be auto-resolved, the merge is aborted safely.
+
+**Comparison with /ship:**
+
+| Feature | adw_ship_iso.py | adw_merge_worktree.py |
+|---------|-----------------|------------------------|
+| Requires PR | Yes | No |
+| PR Approval | Required | N/A |
+| GitHub Integration | Full | Optional (comments only) |
+| Merge Method | Squash only | Squash, Merge, or Rebase |
+| Conflict Resolution | Manual | Automatic with Claude Code |
+| Worktree Cleanup | Manual | Automatic |
+| Use Case | GitHub-centric workflow | Direct merge, flexible workflow |
+
+**When to use:**
+- You want to merge without creating/managing a PR
+- You need flexibility in merge strategy (squash vs merge vs rebase)
+- You're working without an issue number
+- You want automatic conflict resolution
+- You prefer direct git operations over GitHub PR workflow
+
+**Available via slash command:**
+```
+/merge_worktree <adw-id> [merge-method]
+```
+
 ### Automation Triggers
 
 #### trigger_cron.py - Polling Monitor
