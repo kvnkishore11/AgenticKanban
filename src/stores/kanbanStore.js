@@ -103,6 +103,7 @@ const initialState = {
   taskWorkflowLogs: {}, // Map of taskId -> Array<logEntry> for real-time logs
   taskWorkflowProgress: {}, // Map of taskId -> progressData for progress tracking
   taskWorkflowMetadata: {}, // Map of taskId -> metadata for ADW metadata
+  taskStageLogs: {}, // Map of taskId -> Map of stage -> { logs, result, loading, error }
 
   // Project notification state
   projectNotificationEnabled: true,
@@ -1403,6 +1404,130 @@ export const useKanbanStore = create()(
             delete taskWorkflowLogs[taskId];
             return { taskWorkflowLogs };
           }, false, 'clearWorkflowLogsForTask');
+        },
+
+        // ===== Stage-specific logs actions =====
+
+        // Fetch stage-specific logs for a task
+        fetchStageLogsForTask: async (taskId, adwId, stage) => {
+          if (!taskId || !adwId || !stage) {
+            console.error('[StageLogsStore] Missing required parameters:', { taskId, adwId, stage });
+            return;
+          }
+
+          // Set loading state
+          set((state) => ({
+            taskStageLogs: {
+              ...state.taskStageLogs,
+              [taskId]: {
+                ...(state.taskStageLogs[taskId] || {}),
+                [stage]: {
+                  logs: [],
+                  result: null,
+                  loading: true,
+                  error: null,
+                  stageFolder: null,
+                  hasStreamingLogs: false,
+                  hasResult: false,
+                }
+              }
+            }
+          }), false, 'fetchStageLogsForTask:loading');
+
+          try {
+            // Determine the backend URL
+            const backendPort = import.meta.env.VITE_BACKEND_PORT || '9104';
+            const backendUrl = `http://localhost:${backendPort}`;
+
+            // Fetch stage logs from backend
+            const response = await fetch(`${backendUrl}/api/stage-logs/${adwId}/${stage}`);
+
+            if (!response.ok) {
+              throw new Error(`Failed to fetch stage logs: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            console.log(`[StageLogsStore] Fetched logs for stage '${stage}':`, data);
+
+            // Update state with fetched logs
+            set((state) => ({
+              taskStageLogs: {
+                ...state.taskStageLogs,
+                [taskId]: {
+                  ...(state.taskStageLogs[taskId] || {}),
+                  [stage]: {
+                    logs: data.logs || [],
+                    result: data.result,
+                    loading: false,
+                    error: data.error || null,
+                    stageFolder: data.stage_folder,
+                    hasStreamingLogs: data.has_streaming_logs,
+                    hasResult: data.has_result,
+                    fetchedAt: new Date().toISOString(),
+                  }
+                }
+              }
+            }), false, 'fetchStageLogsForTask:success');
+
+          } catch (error) {
+            console.error(`[StageLogsStore] Error fetching stage logs for ${stage}:`, error);
+
+            // Update state with error
+            set((state) => ({
+              taskStageLogs: {
+                ...state.taskStageLogs,
+                [taskId]: {
+                  ...(state.taskStageLogs[taskId] || {}),
+                  [stage]: {
+                    logs: [],
+                    result: null,
+                    loading: false,
+                    error: error.message,
+                    stageFolder: null,
+                    hasStreamingLogs: false,
+                    hasResult: false,
+                  }
+                }
+              }
+            }), false, 'fetchStageLogsForTask:error');
+          }
+        },
+
+        // Get stage logs for a task
+        getStageLogsForTask: (taskId, stage) => {
+          const { taskStageLogs } = get();
+          return taskStageLogs[taskId]?.[stage] || {
+            logs: [],
+            result: null,
+            loading: false,
+            error: null,
+            stageFolder: null,
+            hasStreamingLogs: false,
+            hasResult: false,
+          };
+        },
+
+        // Clear stage logs cache for a task
+        clearStageLogsForTask: (taskId) => {
+          set((state) => {
+            const taskStageLogs = { ...state.taskStageLogs };
+            delete taskStageLogs[taskId];
+            return { taskStageLogs };
+          }, false, 'clearStageLogsForTask');
+        },
+
+        // Clear specific stage log for a task
+        clearStageLogForTaskAndStage: (taskId, stage) => {
+          set((state) => {
+            const taskStageLogs = { ...state.taskStageLogs };
+            if (taskStageLogs[taskId]) {
+              const updatedTaskLogs = { ...taskStageLogs[taskId] };
+              delete updatedTaskLogs[stage];
+              taskStageLogs[taskId] = updatedTaskLogs;
+            }
+            return { taskStageLogs };
+          }, false, 'clearStageLogForTaskAndStage');
         },
 
         // Handle workflow completion
