@@ -75,7 +75,7 @@ const KanbanBoard = () => {
   };
 
   // Group stages: Backlog first, then SDLC, then others
-  const sdlcStageIds = ['plan', 'build', 'test', 'review', 'document'];
+  const sdlcStageIds = ['plan', 'build', 'test', 'review', 'document', 'errored'];
   const backlogStage = stages.find(stage => stage.id === 'backlog');
   const sdlcStages = stages.filter(stage => sdlcStageIds.includes(stage.id));
   const otherStages = stages.filter(stage => !sdlcStageIds.includes(stage.id) && stage.id !== 'backlog');
@@ -193,11 +193,6 @@ const KanbanBoard = () => {
             </div>
           );
         })}
-
-        {/* Visual Separator */}
-        <div className="kanban-separator">
-          <div className="kanban-separator-line"></div>
-        </div>
 
         {/* Other Stages */}
         {otherStages.map((stage) => {
