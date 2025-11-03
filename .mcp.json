@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@executeautomation/playwright-mcp-server",
+        "/Users/kvnkishore/WebstormProjects/AKApp/AgenticKanban/trees/63c4fbf7/playwright-mcp-config.json"
+      ]
+    }
+  }
+}
