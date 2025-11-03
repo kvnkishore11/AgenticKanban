@@ -306,7 +306,7 @@ def main():
         )
         # Don't exit - we still want to mark as completed
     else:
-        logger.info(f"✅ Successfully removed worktree")
+        logger.info("✅ Successfully removed worktree")
 
     # Step 6: Mark workflow as completed
     logger.info("Marking workflow as completed...")
