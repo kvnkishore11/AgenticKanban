@@ -83,7 +83,6 @@ const initialState = {
     { id: 'review', name: 'Review', color: 'purple' },
     { id: 'document', name: 'Document', color: 'indigo' },
     { id: 'ready-to-merge', name: 'Ready to Merge', color: 'teal' },
-    { id: 'completed', name: 'Completed', color: 'green' },
     { id: 'errored', name: 'Errored', color: 'red' },
   ],
 
