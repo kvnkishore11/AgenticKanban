@@ -23,24 +23,39 @@ def get_agents_directory() -> Path:
     """
     # Get the directory where this script is located
     current_file = Path(__file__).resolve()
+    logger.info(f"Resolving agents directory from: {current_file}")
+
     # Navigate from server/api/adws.py
-    # Current path: trees/<adw_id>/server/api/adws.py
-    # Target path: agents/
+    # Current path could be:
+    # - trees/<adw_id>/server/api/adws.py (worktree)
+    # - server/api/adws.py (main project)
 
-    # Go up to the worktree or project root
-    project_or_worktree_root = current_file.parent.parent.parent
+    # Go up 3 levels to reach the current repository root (worktree or main project)
+    # From server/api/adws.py -> server/api -> server -> (root)
+    current_root = current_file.parent.parent.parent
+    logger.info(f"Current root (3 levels up): {current_root}")
 
-    # Check if we're in a worktree (trees/<adw_id>)
-    if project_or_worktree_root.name and len(project_or_worktree_root.name) == 8:
-        # We're in a worktree, go up two more levels to main project
-        main_project_root = project_or_worktree_root.parent.parent
+    # Check if we're in a worktree by checking if 'trees/' is in the path
+    path_parts = current_root.parts
+    if 'trees' in path_parts:
+        # We're in a worktree (trees/<adw_id>/)
+        # Find the index of 'trees' and go up to the main project root
+        trees_index = path_parts.index('trees')
+        # Reconstruct path up to (but not including) 'trees'
+        main_project_root = Path(*path_parts[:trees_index])
         agents_dir = main_project_root / "agents"
+        logger.info(f"Detected worktree. Main project root: {main_project_root}")
     else:
         # We're in the main project
-        agents_dir = project_or_worktree_root / "agents"
+        agents_dir = current_root / "agents"
+        logger.info(f"Detected main project. Using root: {current_root}")
+
+    logger.info(f"Agents directory resolved to: {agents_dir}")
 
     if not agents_dir.exists():
         logger.warning(f"Agents directory not found at {agents_dir}")
+    else:
+        logger.info(f"Agents directory exists and is accessible")
 
     return agents_dir
 
@@ -239,30 +254,40 @@ async def get_adw_plan(adw_id: str):
         )
 
     try:
+        logger.info(f"Fetching plan for ADW ID: {adw_id}")
         agents_dir = get_agents_directory()
         adw_dir = agents_dir / adw_id
+        logger.info(f"Looking for ADW directory at: {adw_dir}")
 
         if not adw_dir.exists():
+            logger.error(f"ADW directory not found: {adw_dir}")
             raise HTTPException(
                 status_code=404,
-                detail=f"ADW ID '{adw_id}' not found"
+                detail=f"ADW ID '{adw_id}' not found at path: {adw_dir}"
             )
 
         # Construct path to plan file
         plan_file = adw_dir / "sdlc_planner" / "plan.md"
+        logger.info(f"Looking for plan file at: {plan_file}")
 
         if not plan_file.exists():
+            logger.error(f"Plan file not found: {plan_file}")
+            # List what exists in the ADW directory for debugging
+            if adw_dir.exists():
+                contents = [item.name for item in adw_dir.iterdir()]
+                logger.info(f"Contents of ADW directory: {contents}")
             raise HTTPException(
                 status_code=404,
-                detail=f"Plan file not found for ADW ID '{adw_id}'"
+                detail=f"Plan file not found for ADW ID '{adw_id}' at path: {plan_file}"
             )
 
         # Read plan file content
         try:
             with open(plan_file, 'r', encoding='utf-8') as f:
                 plan_content = f.read()
+            logger.info(f"Successfully read plan file for {adw_id}, size: {len(plan_content)} bytes")
         except Exception as e:
-            logger.error(f"Error reading plan file for {adw_id}: {e}")
+            logger.error(f"Error reading plan file for {adw_id}: {e}", exc_info=True)
             raise HTTPException(
                 status_code=500,
                 detail=f"Error reading plan file: {str(e)}"
