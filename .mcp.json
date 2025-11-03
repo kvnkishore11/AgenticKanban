@@ -6,7 +6,7 @@
         "@playwright/mcp@latest",
         "--isolated",
         "--config",
-        "./playwright-mcp-config.json"
+        "/Users/kvnkishore/WebstormProjects/AKApp/AgenticKanban/trees/5274858f/playwright-mcp-config.json"
       ]
     }
   }
