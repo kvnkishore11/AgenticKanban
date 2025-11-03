@@ -5,6 +5,7 @@
 
 import { simulateSubstageExecution, getNextSubstage, getSubstages } from '../../utils/substages';
 import adwService from '../api/adwService';
+import { getNextStageInWorkflow, isWorkflowComplete } from '../../utils/workflowValidation.js';
 
 class StageProgressionService {
   constructor() {
@@ -132,7 +133,8 @@ class StageProgressionService {
    * Check if task should progress to next substage or stage
    */
   async checkProgression(task, store) {
-    const { stage, substage, pipelineId } = task;
+    const { stage, substage, pipelineId, metadata } = task;
+    const workflowName = metadata?.workflow_name;
 
     // Check if there's a next substage in the current stage
     const nextSubstage = getNextSubstage(stage, substage);
@@ -152,7 +154,47 @@ class StageProgressionService {
 
     } else {
       // Current stage is complete, check if we should move to next stage
-      const nextStage = adwService.getNextStage(pipelineId, stage);
+      let nextStage = null;
+
+      // If task has a workflow name, use workflow-aware progression
+      if (workflowName) {
+        console.log(`Checking workflow-aware progression for task ${task.id} (workflow: ${workflowName}, current stage: ${stage})`);
+
+        // Check if workflow is complete
+        if (isWorkflowComplete(workflowName, stage)) {
+          console.log(`Workflow ${workflowName} is complete after stage ${stage}. Moving to 'pr' stage.`);
+
+          // Workflow is complete, move to PR stage
+          store.getState().moveTaskToStage(task.id, 'pr');
+
+          store.getState().updateTask(task.id, {
+            progress: 100,
+            substage: 'ready',
+            metadata: {
+              ...metadata,
+              workflow_complete: true,
+            }
+          });
+
+          store.getState().addTaskLog(task.id, {
+            stage: 'pr',
+            substageId: 'ready',
+            message: `Workflow completed successfully. Ready for PR/merge.`,
+            level: 'success',
+          });
+
+          this.stopProgression(task.id);
+          return;
+        }
+
+        // Get next stage from workflow
+        nextStage = getNextStageInWorkflow(workflowName, stage);
+        console.log(`Next stage in workflow ${workflowName}: ${nextStage || 'none'}`);
+      } else {
+        // Fallback to pipeline-based progression if no workflow name
+        console.log(`No workflow name found for task ${task.id}, using pipeline-based progression`);
+        nextStage = adwService.getNextStage(pipelineId, stage);
+      }
 
       if (nextStage) {
         console.log(`Moving task ${task.id} to next stage: ${nextStage}`);
@@ -182,7 +224,7 @@ class StageProgressionService {
         }, 2000); // Longer pause for stage transitions
 
       } else {
-        // Pipeline complete
+        // Pipeline complete (fallback scenario)
         console.log(`Task ${task.id} completed pipeline`);
 
         store.getState().updateTask(task.id, {

@@ -3,6 +3,8 @@
  * Handles pipeline configurations, discovery, and management
  */
 
+import { getNextStageInWorkflow, isWorkflowComplete } from '../../utils/workflowValidation.js';
+
 class ADWService {
   constructor() {
     this.defaultPipelines = [
@@ -267,6 +269,54 @@ class ADWService {
     }
 
     return null; // First stage
+  }
+
+  /**
+   * Get next stage for a specific workflow (respects workflow boundaries)
+   * This is workflow-aware and will return null when the workflow is complete,
+   * even if there are more stages in the pipeline.
+   *
+   * @param {string} workflowName - The workflow name (e.g., 'adw_plan_build_iso')
+   * @param {string} currentStage - The current stage
+   * @returns {string|null} The next stage in the workflow, or null if workflow is complete
+   */
+  getNextStageForWorkflow(workflowName, currentStage) {
+    if (!workflowName) {
+      console.warn('getNextStageForWorkflow: No workflow name provided');
+      return null;
+    }
+
+    if (!currentStage) {
+      console.warn('getNextStageForWorkflow: No current stage provided');
+      return null;
+    }
+
+    try {
+      return getNextStageInWorkflow(workflowName, currentStage);
+    } catch (error) {
+      console.error(`Error getting next stage for workflow ${workflowName}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Check if a workflow is complete based on current stage
+   *
+   * @param {string} workflowName - The workflow name (e.g., 'adw_plan_build_iso')
+   * @param {string} currentStage - The current stage
+   * @returns {boolean} True if the workflow has no more stages to execute
+   */
+  isWorkflowComplete(workflowName, currentStage) {
+    if (!workflowName || !currentStage) {
+      return false;
+    }
+
+    try {
+      return isWorkflowComplete(workflowName, currentStage);
+    } catch (error) {
+      console.error(`Error checking workflow completion for ${workflowName}:`, error);
+      return false;
+    }
   }
 
   /**

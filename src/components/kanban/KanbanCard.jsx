@@ -14,12 +14,14 @@ import {
   CheckCircle2,
   Edit,
   Activity,
-  Workflow
+  Workflow,
+  GitPullRequest
 } from 'lucide-react';
 import {
   getSubstages,
   getSubstage
 } from '../../utils/substages';
+import { isWorkflowComplete } from '../../utils/workflowValidation';
 import WorkflowLogViewer from './WorkflowLogViewer';
 import StageProgressionViewer from './StageProgressionViewer';
 
@@ -184,6 +186,20 @@ const KanbanCard = ({ task, onEdit }) => {
               <span className="truncate">#{task.id}</span>
               <span className="mx-1">•</span>
               <span>{formatPipelineName(task.pipelineId)}</span>
+              {/* Workflow completion badge */}
+              {task.metadata?.workflow_name && task.metadata?.workflow_complete && (
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Complete
+                </span>
+              )}
+              {/* Ready to merge badge for PR stage */}
+              {task.stage === 'pr' && task.metadata?.workflow_complete && (
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                  <GitPullRequest className="h-3 w-3 mr-1" />
+                  Ready to Merge
+                </span>
+              )}
             </div>
           </div>
 
