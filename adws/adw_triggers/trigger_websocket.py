@@ -767,6 +767,31 @@ async def websocket_endpoint(websocket: WebSocket):
                         "data": response.model_dump()
                     }, websocket)
 
+                elif message_type == "workflow_log":
+                    # Handle workflow log message
+                    log_data = message.get("data", {})
+
+                    # Validate required fields
+                    required_fields = ["adw_id", "workflow_name", "message", "level", "timestamp"]
+                    missing_fields = [field for field in required_fields if field not in log_data]
+
+                    if missing_fields:
+                        error_response = WebSocketError(
+                            error_type="validation_error",
+                            message=f"Missing required fields for workflow_log: {', '.join(missing_fields)}"
+                        )
+                        await manager.send_personal_message({
+                            "type": "error",
+                            "data": error_response.model_dump()
+                        }, websocket)
+                        continue
+
+                    # Broadcast workflow log to all connected clients with session deduplication
+                    await manager.broadcast({
+                        "type": "workflow_log",
+                        "data": log_data
+                    }, deduplicate_by_session=True)
+
                 else:
                     # Unknown message type
                     error_response = WebSocketError(
