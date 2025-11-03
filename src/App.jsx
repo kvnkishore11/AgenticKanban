@@ -10,8 +10,9 @@ import KanbanBoard from './components/kanban/KanbanBoard';
 import TaskInput from './components/forms/TaskInput';
 import CommandsPalette from './components/CommandsPalette';
 import SettingsModal from './components/forms/SettingsModal';
+import CompletedTasksModal from './components/kanban/CompletedTasksModal';
 import ErrorBoundary from './components/ui/ErrorBoundary';
-import { Folder, Plus, Settings, HelpCircle, Terminal } from 'lucide-react';
+import { Folder, Plus, Settings, HelpCircle, Terminal, CheckCircle } from 'lucide-react';
 import './styles/kanban.css';
 
 /**
@@ -32,6 +33,7 @@ function App() {
 
   const [showCommandsPalette, setShowCommandsPalette] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
   const wsInitialized = useRef(false);
 
   useEffect(() => {
@@ -94,6 +96,15 @@ function App() {
                   >
                     <Terminal className="h-4 w-4" />
                     <span>Commands</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowCompletedTasks(true)}
+                    className="btn-secondary flex items-center space-x-2"
+                    title="View completed tasks"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Completed</span>
                   </button>
                 </>
               )}
@@ -169,6 +180,12 @@ function App() {
       <SettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
+      />
+
+      {/* Completed Tasks Modal */}
+      <CompletedTasksModal
+        isOpen={showCompletedTasks}
+        onClose={() => setShowCompletedTasks(false)}
       />
 
       {/* Footer */}
