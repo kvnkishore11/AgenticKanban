@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React from 'react';
 import {
   ChevronRight,
   CheckCircle,
@@ -16,10 +16,9 @@ import {
 const StageProgressionViewer = ({
   currentStage,
   stages = [],
-  progress = null,
-  compact = false
+  progress = null
 }) => {
-  const [showDetails, setShowDetails] = useState(!compact);
+  const showDetails = true; // Always show details since compact view is removed
 
   // Find current stage index
   const currentStageIndex = stages.findIndex(s => s.id === currentStage);
@@ -58,62 +57,6 @@ const StageProgressionViewer = ({
         return 'bg-red-500 border-red-500 text-red-700';
     }
   };
-
-  // Get progress bar color
-  const getProgressBarColor = (status) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-500';
-      case 'active':
-        return 'bg-blue-500';
-      default:
-        return 'bg-gray-300';
-    }
-  };
-
-  if (compact) {
-    return (
-      <div className="stage-progression-compact">
-        {/* Compact Progress Bar */}
-        <div className="flex items-center space-x-1">
-          {stages.map((stage, index) => {
-            const status = getStageStatus(index);
-            const isActive = status === 'active';
-            const stageProgress = isActive && progress ? progress.progress : (status === 'completed' ? 100 : 0);
-
-            return (
-              <div
-                key={stage.id}
-                className="flex-1 relative"
-                title={`${stage.name}${isActive ? ` - ${stageProgress}%` : ''}`}
-              >
-                <div
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    getProgressBarColor(status)
-                  }`}
-                >
-                  {isActive && (
-                    <div
-                      className="h-full bg-current rounded-full transition-all duration-300"
-                      style={{ width: `${stageProgress}%` }}
-                    />
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Current Stage Label */}
-        <div className="mt-1 text-xs text-gray-600 flex items-center justify-between">
-          <span className="font-medium">{stages[currentStageIndex]?.name || 'Unknown'}</span>
-          {progress && progress.progress !== undefined && (
-            <span>{Math.round(progress.progress)}%</span>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="stage-progression-viewer">
@@ -211,25 +154,6 @@ const StageProgressionViewer = ({
           );
         })}
       </div>
-
-      {/* Overall Progress */}
-      {progress && (
-        <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
-            <span>Overall Progress</span>
-            <span className="font-semibold">{Math.round(progress.progress || 0)}%</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div
-              className="h-2 bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-300"
-              style={{ width: `${progress.progress || 0}%` }}
-            />
-          </div>
-          {progress.message && (
-            <p className="mt-2 text-xs text-gray-600">{progress.message}</p>
-          )}
-        </div>
-      )}
     </div>
   );
 };

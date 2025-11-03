@@ -16,10 +16,6 @@ import {
   Activity,
   Workflow
 } from 'lucide-react';
-import {
-  getSubstages,
-  getSubstage
-} from '../../utils/substages';
 import WorkflowLogViewer from './WorkflowLogViewer';
 import StageProgressionViewer from './StageProgressionViewer';
 
@@ -83,13 +79,6 @@ const KanbanCard = ({ task, onEdit }) => {
 
     // Fallback to existing pipeline lookup or display the ID itself
     return pipeline?.name || pipelineId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  };
-
-  const getProgressColor = () => {
-    if (task.stage === 'errored') return 'bg-red-500';
-    if (task.progress === 100) return 'bg-green-500';
-    if (task.progress > 0) return 'bg-blue-500';
-    return 'bg-gray-300';
   };
 
   const getStatusIcon = () => {
@@ -247,55 +236,6 @@ const KanbanCard = ({ task, onEdit }) => {
           </p>
         )}
 
-        {/* Substage Progress */}
-        <div className="mb-3">
-          <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-            <span className="capitalize font-medium">{task.substage || 'waiting'}</span>
-            <span>{Math.round(task.progress || 0)}%</span>
-          </div>
-
-          {/* Substage Steps */}
-          <div className="flex items-center space-x-1 mb-2">
-            {getSubstages(task.stage).map((substage) => {
-              const isCompleted = task.substage === substage.id && task.progress === 100;
-              const isCurrent = task.substage === substage.id;
-
-              return (
-                <div
-                  key={substage.id}
-                  className="flex-1 relative"
-                  title={substage.name}
-                >
-                  <div className={`h-1.5 rounded-full transition-all duration-300 ${
-                    isCompleted ? 'bg-green-500' :
-                    isCurrent ? getProgressColor() :
-                    'bg-gray-200'
-                  }`}>
-                    {isCurrent && (
-                      <div
-                        className="progress-bar progress-bar-glow h-full bg-current rounded-full"
-                        style={{ width: `${task.progress || 0}%` }}
-                      />
-                    )}
-                  </div>
-
-                  {/* Substage Indicator */}
-                  <div className={`substage-indicator absolute -top-2 left-0 border-2 ${
-                    isCompleted ? 'completed bg-green-500 border-green-500' :
-                    isCurrent ? 'active bg-blue-500 border-blue-500' :
-                    'bg-gray-200 border-gray-300'
-                  }`} />
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Current Substage Name */}
-          <div className="text-xs text-gray-600">
-            {getSubstage(task.stage, task.substage)?.name || task.substage || 'Waiting'}
-          </div>
-        </div>
-
         {/* Footer */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
@@ -330,63 +270,6 @@ const KanbanCard = ({ task, onEdit }) => {
                 <div>
                   <span className="text-gray-500">Pipeline:</span>
                   <div className="font-medium">{formatPipelineName(task.pipelineId)}</div>
-                </div>
-              </div>
-
-              {/* Detailed Substage Progress */}
-              <div>
-                <div className="text-xs font-medium text-gray-700 mb-2">Stage Progress</div>
-                <div className="space-y-2">
-                  {getSubstages(task.stage).map((substage) => {
-                    const isCompleted = task.substage === substage.id && task.progress === 100;
-                    const isCurrent = task.substage === substage.id;
-                    const substageProgress = isCurrent ? task.progress : (isCompleted ? 100 : 0);
-
-                    return (
-                      <div key={substage.id} className="flex items-center space-x-3">
-                        {/* Status Icon */}
-                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                          isCompleted ? 'bg-green-500 border-green-500' :
-                          isCurrent ? 'bg-blue-500 border-blue-500' :
-                          'border-gray-300'
-                        }`}>
-                          {isCompleted && <CheckCircle2 className="w-2 h-2 text-white" />}
-                          {isCurrent && !isCompleted && <Circle className="w-2 h-2 text-white fill-current" />}
-                        </div>
-
-                        {/* Substage Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className={`text-xs font-medium ${
-                              isCurrent ? 'text-blue-700' : isCompleted ? 'text-green-700' : 'text-gray-500'
-                            }`}>
-                              {substage.name}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {Math.round(substageProgress)}%
-                            </span>
-                          </div>
-
-                          {/* Progress Bar */}
-                          <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
-                            <div
-                              className={`h-1 rounded-full transition-all duration-300 ${
-                                isCompleted ? 'bg-green-500' :
-                                isCurrent ? 'bg-blue-500' :
-                                'bg-gray-300'
-                              }`}
-                              style={{ width: `${substageProgress}%` }}
-                            />
-                          </div>
-
-                          {/* Description */}
-                          <div className="text-xs text-gray-400 mt-1 truncate">
-                            {substage.description}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
                 </div>
               </div>
 
