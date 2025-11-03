@@ -16,15 +16,16 @@ import {
   Activity,
   FileText,
   Workflow,
-  GitMerge
+  GitMerge,
+  Eye
 } from 'lucide-react';
 import {
   getSubstages,
   getSubstage
 } from '../../utils/substages';
 import StageLogsViewer from './StageLogsViewer';
-import PlanViewerModal from '../forms/PlanViewerModal';
-import planService from '../../services/planService';
+import PlanViewer from './PlanViewer';
+import adwDiscoveryService from '../../services/api/adwDiscoveryService';
 
 const KanbanCard = ({ task, onEdit }) => {
   const {
@@ -174,43 +175,33 @@ const KanbanCard = ({ task, onEdit }) => {
     }
   };
 
+  const handleViewPlan = async () => {
+    const adwId = task.metadata?.adw_id || workflowMetadata?.adw_id;
+    if (!adwId) {
+      console.error('No ADW ID found for this task');
+      return;
+    }
+
+    setPlanLoading(true);
+    setPlanError(null);
+    setShowPlanModal(true);
+
+    try {
+      const data = await adwDiscoveryService.fetchPlanFile(adwId);
+      setPlanContent(data.plan_content);
+    } catch (error) {
+      console.error('Failed to fetch plan file:', error);
+      setPlanError(error.message || 'Failed to load plan file');
+    } finally {
+      setPlanLoading(false);
+    }
+  };
+
   const handleEditClick = () => {
     if (onEdit) {
       onEdit(task);
     }
     setShowMenu(false);
-  };
-
-  const handleViewPlan = (e) => {
-    e.stopPropagation();
-    setPlanLoading(true);
-    setPlanError(null);
-
-    try {
-      // Get ADW ID from task metadata or workflow metadata
-      const adwId = task.metadata?.adw_id || workflowMetadata?.adw_id;
-
-      if (!task.id || !adwId) {
-        setPlanError('Task ID or ADW ID not found');
-        setPlanLoading(false);
-        return;
-      }
-
-      // Fetch plan for this task
-      const planData = planService.getPlanForTask(task.id, adwId);
-
-      if (planData && planData.content) {
-        setPlanContent(planData.content);
-        setShowPlanModal(true);
-      } else {
-        setPlanError('No plan found for this task');
-      }
-    } catch (error) {
-      console.error('Error loading plan:', error);
-      setPlanError('Failed to load plan');
-    } finally {
-      setPlanLoading(false);
-    }
   };
 
   // Check if this is a completed task
@@ -643,6 +634,89 @@ const KanbanCard = ({ task, onEdit }) => {
                   WebSocket: {websocketStatus.connected ? 'Connected' : 'Disconnected'}
                   {websocketStatus.connecting && ' (Connecting...)'}
                 </div>
+
+                {/* Enhanced Workflow Status */}
+                {(workflowStatus || workflowProgress) && (
+                  <div className="mt-2 p-2 bg-blue-50 rounded text-xs border border-blue-200">
+                    <div className="font-medium text-blue-800 flex items-center justify-between">
+                      <span>Workflow: {workflowStatus?.workflowName || workflowMetadata?.workflow_name || 'Unknown'}</span>
+                      {workflowProgress?.status && (
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                          workflowProgress.status === 'completed' ? 'bg-green-100 text-green-700' :
+                          workflowProgress.status === 'failed' ? 'bg-red-100 text-red-700' :
+                          workflowProgress.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {workflowProgress.status}
+                        </span>
+                      )}
+                    </div>
+                    {(workflowProgress?.progress !== undefined || workflowStatus?.progress !== undefined) && (
+                      <div className="mt-1 flex items-center space-x-2">
+                        <div className="flex-1 bg-blue-200 rounded-full h-1.5">
+                          <div
+                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                            style={{ width: `${workflowProgress?.progress || workflowStatus?.progress || 0}%` }}
+                          />
+                        </div>
+                        <span className="text-blue-700 font-semibold">
+                          {Math.round(workflowProgress?.progress || workflowStatus?.progress || 0)}%
+                        </span>
+                      </div>
+                    )}
+                    {(workflowProgress?.currentStep || workflowStatus?.currentStep) && (
+                      <div className="mt-1 text-blue-600">
+                        Step: {workflowProgress?.currentStep || workflowStatus?.currentStep}
+                      </div>
+                    )}
+                    {(workflowProgress?.message || workflowStatus?.lastUpdate) && (
+                      <div className="mt-1 text-blue-500">
+                        {workflowProgress?.message || workflowStatus?.lastUpdate}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ADW Metadata Display */}
+                {(task.metadata?.adw_id || workflowMetadata?.adw_id) && (
+                  <div className="mt-2 p-2 bg-gray-50 rounded text-xs border border-gray-200">
+                    <div className="font-medium text-gray-700 flex items-center justify-between">
+                      <span>ADW ID: {task.metadata?.adw_id || workflowMetadata?.adw_id}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(task.metadata?.adw_id || workflowMetadata?.adw_id);
+                        }}
+                        className="text-blue-600 hover:text-blue-800 text-xs"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    {(task.metadata?.workflow_status || workflowMetadata?.status) && (
+                      <div className="text-gray-600 mt-1">
+                        Status: {task.metadata?.workflow_status || workflowMetadata?.status}
+                      </div>
+                    )}
+                    {(task.metadata?.logs_path || workflowMetadata?.logs_path) && (
+                      <div className="text-gray-500 mt-1 truncate" title={task.metadata?.logs_path || workflowMetadata?.logs_path}>
+                        Logs: {task.metadata?.logs_path || workflowMetadata?.logs_path}
+                      </div>
+                    )}
+                    <div className="mt-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewPlan();
+                        }}
+                        disabled={planLoading}
+                        className="flex items-center space-x-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded text-xs transition-colors"
+                      >
+                        <Eye className="h-3 w-3" />
+                        <span>{planLoading ? 'Loading...' : 'View Plan'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Real-Time Workflow Logs */}
@@ -703,19 +777,20 @@ const KanbanCard = ({ task, onEdit }) => {
       )}
 
       {/* Plan Viewer Modal */}
-      <PlanViewerModal
-        isOpen={showPlanModal}
-        onClose={() => {
-          setShowPlanModal(false);
-          setPlanContent(null);
-          setPlanError(null);
-        }}
-        planContent={planContent}
-        loading={planLoading}
-        error={planError}
-        taskId={task.id}
-        adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
-      />
+      {showPlanModal && (
+        <PlanViewer
+          planContent={planContent}
+          adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
+          onClose={() => {
+            setShowPlanModal(false);
+            setPlanContent(null);
+            setPlanError(null);
+          }}
+          isOpen={showPlanModal}
+          isLoading={planLoading}
+          error={planError}
+        />
+      )}
     </div>
   );
 };

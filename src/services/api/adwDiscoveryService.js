@@ -76,6 +76,31 @@ class ADWDiscoveryService {
   }
 
   /**
+   * Fetch plan file content for a specific ADW ID
+   * @param {string} adwId - The ADW ID to fetch plan file for
+   * @returns {Promise<Object>} Object containing plan_content and plan_file path
+   */
+  async fetchPlanFile(adwId) {
+    try {
+      const url = `${this.getApiBaseUrl()}/api/adws/${adwId}/plan`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(`Plan file not found for ADW ID '${adwId}'`);
+        }
+        throw new Error(`Failed to fetch plan file: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error(`Error fetching plan file for ${adwId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Search/filter ADW list by various criteria
    * @param {Array} adws - List of ADW objects
    * @param {string} query - Search query string
