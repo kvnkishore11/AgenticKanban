@@ -3,6 +3,8 @@
  * Manages real-time communication with the ADW WebSocket trigger server
  */
 
+import { isWorkflowComplete } from '../../utils/workflowValidation.js';
+
 class WebSocketService {
   constructor() {
     this.ws = null;
@@ -325,14 +327,33 @@ class WebSocketService {
           const stageMatch = data.current_step.match(/^Stage:\s*(\w+)/i);
           if (stageMatch) {
             const toStage = stageMatch[1].toLowerCase();
+
+            // Check if workflow is complete after this stage
+            let workflowComplete = false;
+            if (data.workflow_name && data.status === 'completed') {
+              workflowComplete = isWorkflowComplete(data.workflow_name, toStage);
+            }
+
             // Emit dedicated stage transition event
             this.emit('stage_transition', {
               adw_id: data.adw_id,
               to_stage: toStage,
               from_stage: null, // We don't have from_stage in current_step format
               workflow_name: data.workflow_name,
+              workflow_complete: workflowComplete,
               timestamp: data.timestamp || new Date().toISOString(),
             });
+          }
+        }
+
+        // Check if this is a workflow completion status
+        if (data && data.status === 'completed' && data.workflow_name) {
+          // Determine if workflow is complete based on workflow name
+          // This requires knowing what stage we're in, which might be in current_step
+          const currentStage = this.extractStageFromCurrentStep(data.current_step);
+          if (currentStage && isWorkflowComplete(data.workflow_name, currentStage)) {
+            // Add workflow_complete flag to the status update
+            data.workflow_complete = true;
           }
         }
 
@@ -349,6 +370,7 @@ class WebSocketService {
             current_step: data.current_step,
             progress_percent: data.progress_percent,
             workflow_name: data.workflow_name,
+            workflow_complete: data.workflow_complete || false,
           };
           this.emit('workflow_log', logEntry);
         }
@@ -768,6 +790,24 @@ class WebSocketService {
     };
 
     return modelSetMap[workItemType] || 'base';
+  }
+
+  /**
+   * Extract stage name from current_step string
+   * @param {string} currentStep - The current_step string (e.g., "Stage: Build")
+   * @returns {string|null} - The extracted stage name (lowercase) or null
+   */
+  extractStageFromCurrentStep(currentStep) {
+    if (!currentStep || typeof currentStep !== 'string') {
+      return null;
+    }
+
+    const stageMatch = currentStep.match(/^Stage:\s*(\w+)/i);
+    if (stageMatch) {
+      return stageMatch[1].toLowerCase();
+    }
+
+    return null;
   }
 
   /**

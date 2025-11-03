@@ -14,6 +14,7 @@ import stageProgressionService from '../services/websocket/stageProgressionServi
 import websocketService from '../services/websocket/websocketService';
 import projectNotificationService from '../services/storage/projectNotificationService';
 import dataMigration from '../utils/dataMigration';
+import { getNextStageInWorkflow, isWorkflowComplete } from '../utils/workflowValidation';
 
 import { WORK_ITEM_TYPES, QUEUEABLE_STAGES } from '../constants/workItems';
 
@@ -1648,40 +1649,34 @@ export const useKanbanStore = create()(
           const workflowType = task.metadata?.workflow_name;
 
           if (workflowType) {
-            // Parse workflow name to extract stage sequence
-            const stages = parseWorkflowStages(workflowType);
+            console.log(`[Workflow] Handling completion for workflow ${workflowType} at stage ${task.stage}`);
 
-            // Find current stage in the workflow sequence
-            const currentIndex = stages.indexOf(task.stage);
+            // Check if the workflow is complete (current stage is the last stage in the workflow)
+            if (isWorkflowComplete(workflowType, task.stage)) {
+              console.log(`[Workflow] Workflow ${workflowType} is complete. Moving to 'ready-to-merge' stage.`);
 
-            let nextStage = null;
+              // Workflow is complete, move to ready-to-merge stage
+              get().moveTaskToStage(taskId, 'ready-to-merge');
 
-            if (currentIndex !== -1 && currentIndex < stages.length - 1) {
-              // Move to next stage in the workflow sequence
-              nextStage = stages[currentIndex + 1];
+              // Update task metadata to indicate workflow completion
+              get().updateTask(taskId, {
+                metadata: {
+                  ...task.metadata,
+                  workflow_complete: true,
+                },
+                progress: 100,
+                substage: 'ready',
+              });
             } else {
-              // Handle completion of workflows - move to appropriate final stage
-              // For single-stage workflows or when at the end of composite workflow
-              const lastStage = stages.length > 0 ? stages[stages.length - 1] : null;
+              // Get next stage in the workflow
+              const nextStage = getNextStageInWorkflow(workflowType, task.stage);
 
-              if (lastStage) {
-                // Map final stage to next logical stage in kanban board
-                const completionStageMap = {
-                  'plan': 'build',
-                  'build': 'test',
-                  'test': 'review',
-                  'review': 'document',
-                  'document': 'ready-to-merge',
-                  'ship': 'ready-to-merge',
-                };
-
-                nextStage = completionStageMap[lastStage];
+              if (nextStage) {
+                console.log(`[Workflow] Moving task from ${task.stage} to ${nextStage} (workflow: ${workflowType})`);
+                get().moveTaskToStage(taskId, nextStage);
+              } else {
+                console.warn(`[Workflow] No next stage found for workflow ${workflowType} at stage ${task.stage}`);
               }
-            }
-
-            if (nextStage && task.stage !== nextStage) {
-              console.log(`[Workflow] Auto-moving task from ${task.stage} to ${nextStage} on workflow completion`);
-              get().moveTaskToStage(taskId, nextStage);
             }
           }
 
