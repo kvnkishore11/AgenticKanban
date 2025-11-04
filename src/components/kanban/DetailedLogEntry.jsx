@@ -83,7 +83,7 @@ const DetailedLogEntry = ({ log, showTimestamps = true }) => {
     <div className="detailed-log-entry border-l-4 border-gray-200 hover:border-blue-400 transition-colors">
       {/* Main Entry Header */}
       <div
-        className="p-3 cursor-pointer hover:bg-gray-50"
+        className="p-2 cursor-pointer hover:bg-gray-50"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-start space-x-2">
@@ -162,7 +162,7 @@ const DetailedLogEntry = ({ log, showTimestamps = true }) => {
 
       {/* Expanded Details */}
       {isExpanded && (
-        <div className="border-t border-gray-200 bg-gray-50 p-3 space-y-3">
+        <div className="border-t border-gray-200 bg-gray-50 p-2 space-y-2">
           {/* Tool Input */}
           {log.tool_input && (
             <div>
@@ -170,7 +170,7 @@ const DetailedLogEntry = ({ log, showTimestamps = true }) => {
                 <Code className="h-3 w-3" />
                 <span>Tool Input</span>
               </h4>
-              <div className="bg-white border border-gray-200 rounded p-2 text-xs font-mono overflow-auto max-h-48">
+              <div className="bg-white border border-gray-200 rounded p-2 text-xs font-mono overflow-auto max-h-32">
                 <pre className="text-gray-800 whitespace-pre-wrap break-words">
                   {formatToolInput(log.tool_input)}
                 </pre>
@@ -257,7 +257,7 @@ const DetailedLogEntry = ({ log, showTimestamps = true }) => {
                     <Copy className="h-3.5 w-3.5" />
                   )}
                 </button>
-                <div className="bg-gray-900 border border-gray-700 rounded p-3 text-xs font-mono overflow-auto max-h-64">
+                <div className="bg-gray-900 border border-gray-700 rounded p-3 text-xs font-mono overflow-auto max-h-48">
                   <pre className="text-green-400 whitespace-pre-wrap break-words">
                     {JSON.stringify(log.raw_data, null, 2)}
                   </pre>

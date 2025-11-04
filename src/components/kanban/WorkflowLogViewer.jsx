@@ -164,7 +164,7 @@ const WorkflowLogViewer = ({
   return (
     <div className="workflow-log-viewer border border-gray-200 rounded-lg bg-white shadow-sm">
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gray-50">
+      <div className="flex items-center justify-between p-2 border-b border-gray-200 bg-gray-50">
         <div className="flex items-center space-x-2">
           <button
             onClick={() => setIsExpanded(!isExpanded)}
@@ -255,7 +255,7 @@ const WorkflowLogViewer = ({
       {isExpanded && (
         <>
           {/* Filters */}
-          <div className="flex items-center space-x-2 p-2 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center space-x-2 p-1.5 border-b border-gray-200 bg-gray-50">
             {/* Level Filter */}
             <div className="flex items-center space-x-1">
               <Filter className="h-3 w-3 text-gray-500" />
@@ -314,7 +314,7 @@ const WorkflowLogViewer = ({
                 {filteredLogs.map((log, index) => (
                   <div
                     key={log.id || index}
-                    className={`p-2 hover:bg-gray-50 transition-all duration-150 ease-in-out border-l-2 ${
+                    className={`p-1.5 hover:bg-gray-50 transition-all duration-150 ease-in-out border-l-2 ${
                       getLogLevelColor(log.level)
                     }`}
                   >

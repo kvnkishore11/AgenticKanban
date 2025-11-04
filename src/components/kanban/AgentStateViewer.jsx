@@ -89,7 +89,7 @@ const AgentStateViewer = ({ adwId }) => {
   }
 
   return (
-    <div className="agent-state-viewer p-4 space-y-4">
+    <div className="agent-state-viewer p-3 space-y-3">
       {/* Header */}
       <div className="flex items-center space-x-2 pb-2 border-b border-gray-200">
         <Server className="h-5 w-5 text-blue-600" />
@@ -106,9 +106,9 @@ const AgentStateViewer = ({ adwId }) => {
       </div>
 
       {/* Workflow Info */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {/* ADW ID */}
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
           <div className="flex items-center space-x-2 mb-1">
             <Hash className="h-4 w-4 text-gray-500" />
             <span className="text-xs font-semibold text-gray-600">ADW ID</span>
@@ -118,7 +118,7 @@ const AgentStateViewer = ({ adwId }) => {
 
         {/* Issue Number */}
         {state.issue_number && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
             <div className="flex items-center space-x-2 mb-1">
               <Hash className="h-4 w-4 text-gray-500" />
               <span className="text-xs font-semibold text-gray-600">Issue #</span>
@@ -129,7 +129,7 @@ const AgentStateViewer = ({ adwId }) => {
 
         {/* Branch Name */}
         {state.branch_name && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 md:col-span-2">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 md:col-span-2">
             <div className="flex items-center space-x-2 mb-1">
               <GitBranch className="h-4 w-4 text-gray-500" />
               <span className="text-xs font-semibold text-gray-600">Branch Name</span>
@@ -140,7 +140,7 @@ const AgentStateViewer = ({ adwId }) => {
 
         {/* Issue Class */}
         {state.issue_class && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
             <div className="flex items-center space-x-2 mb-1">
               <Settings className="h-4 w-4 text-gray-500" />
               <span className="text-xs font-semibold text-gray-600">Issue Class</span>
@@ -151,7 +151,7 @@ const AgentStateViewer = ({ adwId }) => {
 
         {/* Model Set */}
         {state.model_set && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
             <div className="flex items-center space-x-2 mb-1">
               <Cpu className="h-4 w-4 text-gray-500" />
               <span className="text-xs font-semibold text-gray-600">Model Set</span>
@@ -163,7 +163,7 @@ const AgentStateViewer = ({ adwId }) => {
 
       {/* Ports Configuration */}
       {(state.backend_port || state.frontend_port) && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
           <div className="flex items-center space-x-2 mb-2">
             <Globe className="h-4 w-4 text-blue-600" />
             <span className="text-xs font-semibold text-blue-800">Port Configuration</span>
@@ -187,7 +187,7 @@ const AgentStateViewer = ({ adwId }) => {
 
       {/* Workflow Stages */}
       {state.all_adws && state.all_adws.length > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-2">
           <div className="flex items-center space-x-2 mb-2">
             <CheckCircle className="h-4 w-4 text-green-600" />
             <span className="text-xs font-semibold text-green-800">Executed Stages</span>
@@ -207,7 +207,7 @@ const AgentStateViewer = ({ adwId }) => {
 
       {/* Data Source */}
       {state.data_source && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
           <div className="flex items-center space-x-2 mb-1">
             <Database className="h-4 w-4 text-gray-500" />
             <span className="text-xs font-semibold text-gray-600">Data Source</span>
@@ -218,7 +218,7 @@ const AgentStateViewer = ({ adwId }) => {
 
       {/* Issue Details */}
       {state.issue_json && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
           <details className="group">
             <summary className="cursor-pointer text-xs font-semibold text-gray-700 hover:text-gray-900 select-none flex items-center">
               <span>Issue Details</span>
@@ -256,7 +256,7 @@ const AgentStateViewer = ({ adwId }) => {
 
       {/* Worktree Path */}
       {state.worktree_path && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
           <details className="group">
             <summary className="cursor-pointer text-xs font-semibold text-gray-700 hover:text-gray-900 select-none flex items-center">
               <span>Worktree Path</span>

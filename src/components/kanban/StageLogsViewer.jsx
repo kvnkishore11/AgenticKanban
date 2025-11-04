@@ -184,7 +184,7 @@ const StageLogsViewer = ({
               key={stage}
               onClick={() => handleTabClick(stage)}
               className={`
-                flex items-center space-x-1.5 px-3 py-2 text-xs font-medium
+                flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium
                 border-b-2 transition-colors whitespace-nowrap
                 ${isActive
                   ? 'border-blue-500 text-blue-600 bg-blue-50'
@@ -204,7 +204,7 @@ const StageLogsViewer = ({
       <div className="relative">
         {/* Detailed View Toggle (only for log tabs, not agent-state) */}
         {activeTab !== 'agent-state' && (
-          <div className="px-3 py-2 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+          <div className="px-2 py-1.5 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
             <span className="text-xs text-gray-600">View Mode:</span>
             <button
               onClick={handleToggleDetailedView}

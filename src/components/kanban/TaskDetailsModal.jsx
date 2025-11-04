@@ -9,7 +9,7 @@
  * @module components/kanban/TaskDetailsModal
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import {
   X,
@@ -19,7 +19,10 @@ import {
   FileText,
   Eye,
   GitMerge,
-  Edit
+  Edit,
+  Play,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import StageLogsViewer from './StageLogsViewer';
 import PlanViewer from './PlanViewer';
@@ -43,6 +46,33 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
   const [planContent, setPlanContent] = useState(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState(null);
+
+  // Collapsible section states (with localStorage persistence)
+  const [taskInfoExpanded, setTaskInfoExpanded] = useState(() => {
+    const saved = localStorage.getItem('taskDetailsTaskInfoExpanded');
+    return saved !== null ? saved === 'true' : true; // default: expanded
+  });
+  const [recentActivityExpanded, setRecentActivityExpanded] = useState(() => {
+    const saved = localStorage.getItem('taskDetailsRecentActivityExpanded');
+    return saved !== null ? saved === 'true' : false; // default: collapsed if logs present
+  });
+  const [workflowControlsExpanded, setWorkflowControlsExpanded] = useState(() => {
+    const saved = localStorage.getItem('taskDetailsWorkflowControlsExpanded');
+    return saved !== null ? saved === 'true' : true; // default: expanded
+  });
+
+  // Save collapse states to localStorage
+  useEffect(() => {
+    localStorage.setItem('taskDetailsTaskInfoExpanded', String(taskInfoExpanded));
+  }, [taskInfoExpanded]);
+
+  useEffect(() => {
+    localStorage.setItem('taskDetailsRecentActivityExpanded', String(recentActivityExpanded));
+  }, [recentActivityExpanded]);
+
+  useEffect(() => {
+    localStorage.setItem('taskDetailsWorkflowControlsExpanded', String(workflowControlsExpanded));
+  }, [workflowControlsExpanded]);
 
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
@@ -138,7 +168,7 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
       <div className="modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="modal-content bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 sticky top-0 bg-white z-10">
             <div className="flex-1 min-w-0">
               <h2 className="text-xl font-semibold text-gray-900 truncate">
                 {task.title}
@@ -167,10 +197,10 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
           </div>
 
           {/* Body */}
-          <div className="p-6 space-y-6">
+          <div className="p-4 space-y-4">
             {/* ADW Header */}
             {task.metadata?.adw_id && (
-              <div className="adw-header p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="adw-header p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2 flex-1 min-w-0">
                     <span className="text-sm font-semibold text-gray-700">ADW ID:</span>
@@ -211,7 +241,7 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
             {task.description && (
               <div>
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Description</h3>
-                <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-4 max-h-48 overflow-y-auto">
+                <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 max-h-48 overflow-y-auto">
                   <p className="whitespace-pre-wrap break-words">
                     {task.description}
                   </p>
@@ -221,46 +251,70 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
 
             {/* Task Metadata */}
             <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Task Information</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <span className="text-gray-500">Created:</span>
-                  <div className="font-medium text-gray-900 mt-1">
-                    {new Date(task.createdAt).toLocaleDateString()}
+              <button
+                onClick={() => setTaskInfoExpanded(!taskInfoExpanded)}
+                className="flex items-center justify-between w-full text-sm font-medium text-gray-700 mb-2 hover:text-gray-900"
+              >
+                <h3 className="text-sm font-medium text-gray-700">Task Information</h3>
+                {taskInfoExpanded ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </button>
+              {taskInfoExpanded && (
+                <div className="grid grid-cols-2 gap-4 text-sm transition-all duration-200">
+                  <div className="bg-gray-50 rounded-lg p-2">
+                    <span className="text-gray-500">Created:</span>
+                    <div className="font-medium text-gray-900 mt-1">
+                      {new Date(task.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-2">
+                    <span className="text-gray-500">Last Updated:</span>
+                    <div className="font-medium text-gray-900 mt-1">
+                      {formatTimeAgo(task.updatedAt)}
+                    </div>
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <span className="text-gray-500">Last Updated:</span>
-                  <div className="font-medium text-gray-900 mt-1">
-                    {formatTimeAgo(task.updatedAt)}
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Recent Logs */}
             {task.logs && task.logs.length > 0 && (
               <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Recent Activity</h3>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {task.logs.slice(-3).map((log, index) => (
-                    <div key={index} className="text-sm bg-gray-50 rounded-lg p-3 border border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <div className="font-medium text-gray-700">{log.message}</div>
-                        {log.timestamp && (
-                          <div className="text-gray-500 text-xs">
-                            {formatTimeAgo(log.timestamp)}
+                <button
+                  onClick={() => setRecentActivityExpanded(!recentActivityExpanded)}
+                  className="flex items-center justify-between w-full text-sm font-medium text-gray-700 mb-2 hover:text-gray-900"
+                >
+                  <h3 className="text-sm font-medium text-gray-700">Recent Activity</h3>
+                  {recentActivityExpanded ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </button>
+                {recentActivityExpanded && (
+                  <div className="space-y-2 max-h-32 overflow-y-auto transition-all duration-200">
+                    {task.logs.slice(-3).map((log, index) => (
+                      <div key={index} className="text-sm bg-gray-50 rounded-lg p-3 border border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <div className="font-medium text-gray-700">{log.message}</div>
+                          {log.timestamp && (
+                            <div className="text-gray-500 text-xs">
+                              {formatTimeAgo(log.timestamp)}
+                            </div>
+                          )}
+                        </div>
+                        {log.substageId && (
+                          <div className="text-gray-500 mt-1 text-xs">
+                            Stage: {log.stage} → {log.substageName}
                           </div>
                         )}
                       </div>
-                      {log.substageId && (
-                        <div className="text-gray-500 mt-1 text-xs">
-                          Stage: {log.stage} → {log.substageName}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -282,8 +336,33 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
 
             {/* WebSocket Workflow Controls */}
             <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Workflow Controls</h3>
-              <div className="flex items-center space-x-2 mb-2">
+              <button
+                onClick={() => setWorkflowControlsExpanded(!workflowControlsExpanded)}
+                className="flex items-center justify-between w-full text-sm font-medium text-gray-700 mb-2 hover:text-gray-900"
+              >
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-sm font-medium text-gray-700">Workflow Controls</h3>
+                  {/* Status summary when collapsed */}
+                  {!workflowControlsExpanded && workflowProgress?.status && (
+                    <span className={`px-2 py-0.5 rounded text-xs ${
+                      workflowProgress.status === 'completed' ? 'bg-green-100 text-green-700' :
+                      workflowProgress.status === 'failed' ? 'bg-red-100 text-red-700' :
+                      workflowProgress.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {workflowProgress.status}
+                    </span>
+                  )}
+                </div>
+                {workflowControlsExpanded ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </button>
+              {workflowControlsExpanded && (
+                <>
+              <div className="flex items-center space-x-2 mb-2 transition-all duration-200">
                 {/* Toggle Logs */}
                 {workflowLogs.length > 0 && (
                   <button
@@ -387,6 +466,8 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
                   </div>
                 </div>
               )}
+                </>
+              )}
             </div>
 
             {/* Real-Time Workflow Logs */}
@@ -396,7 +477,7 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
                   taskId={task.id}
                   adwId={task.metadata?.adw_id}
                   title="Workflow Logs"
-                  maxHeight="250px"
+                  maxHeight="400px"
                   onClear={() => clearWorkflowLogsForTask(task.id)}
                   showTimestamps={true}
                   autoScroll={true}
