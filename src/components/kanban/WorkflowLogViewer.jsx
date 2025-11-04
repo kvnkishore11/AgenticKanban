@@ -11,6 +11,7 @@ import {
   Info,
   AlertTriangle
 } from 'lucide-react';
+import DetailedLogEntry from './DetailedLogEntry';
 
 /**
  * WorkflowLogViewer Component
@@ -24,7 +25,8 @@ const WorkflowLogViewer = ({
   onClear,
   showTimestamps = true,
   autoScroll = true,
-  logsSource = 'all' // 'all' | 'plan' | 'build' | 'test' | 'review' | 'document'
+  logsSource = 'all', // 'all' | 'plan' | 'build' | 'test' | 'review' | 'document'
+  detailedView = false // Enable detailed log entry view
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [filterLevel, setFilterLevel] = useState('all');
@@ -93,25 +95,44 @@ const WorkflowLogViewer = ({
     return levelMatch && searchMatch;
   });
 
-  // Export logs to text file
-  const handleExportLogs = () => {
-    const logText = filteredLogs.map(log => {
-      const timestamp = showTimestamps ? `[${formatTimestamp(log.timestamp)}] ` : '';
-      const level = log.level ? `[${log.level}] ` : '';
-      const step = log.current_step ? `[${log.current_step}] ` : '';
-      return `${timestamp}${level}${step}${log.message}`;
-    }).join('\n');
+  // Export logs (text or JSON format)
+  const handleExportLogs = (format = 'text') => {
+    let content, mimeType, extension;
 
-    const blob = new Blob([logText], { type: 'text/plain' });
+    if (format === 'json') {
+      // Export as JSON with full structure
+      content = JSON.stringify(filteredLogs, null, 2);
+      mimeType = 'application/json';
+      extension = 'json';
+    } else {
+      // Export as formatted text
+      const logText = filteredLogs.map(log => {
+        const timestamp = showTimestamps ? `[${formatTimestamp(log.timestamp)}] ` : '';
+        const level = log.level ? `[${log.level}] ` : '';
+        const step = log.current_step ? `[${log.current_step}] ` : '';
+        const type = log.entry_type ? `[${log.entry_type}] ` : '';
+        const tool = log.tool_name ? `[Tool: ${log.tool_name}] ` : '';
+        return `${timestamp}${type}${level}${step}${tool}${log.message}`;
+      }).join('\n');
+      content = logText;
+      mimeType = 'text/plain';
+      extension = 'txt';
+    }
+
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `workflow-logs-${new Date().toISOString()}.txt`;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    a.download = `workflow-logs-${logsSource}-${timestamp}.${extension}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+
+  // State for export dropdown
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Handle scroll event to detect manual scrolling
   const handleScroll = () => {
@@ -179,13 +200,43 @@ const WorkflowLogViewer = ({
 
           {/* Export logs */}
           {filteredLogs.length > 0 && (
-            <button
-              onClick={handleExportLogs}
-              className="p-1 hover:bg-gray-200 rounded transition-colors"
-              title="Export logs"
-            >
-              <Download className="h-4 w-4 text-gray-600" />
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="p-1 hover:bg-gray-200 rounded transition-colors"
+                title="Export logs"
+              >
+                <Download className="h-4 w-4 text-gray-600" />
+              </button>
+              {showExportMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowExportMenu(false)}
+                  />
+                  <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                    <button
+                      onClick={() => {
+                        handleExportLogs('text');
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-gray-100 rounded-t-lg"
+                    >
+                      Export as Text
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleExportLogs('json');
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-gray-100 rounded-b-lg border-t border-gray-100"
+                    >
+                      Export as JSON
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           )}
 
           {/* Clear logs */}
@@ -245,7 +296,20 @@ const WorkflowLogViewer = ({
               <div className="p-4 text-center text-gray-400">
                 {logs.length === 0 ? 'No logs yet' : 'No logs match the current filter'}
               </div>
+            ) : detailedView ? (
+              // Detailed view with DetailedLogEntry component
+              <div className="divide-y divide-gray-100">
+                {filteredLogs.map((log, index) => (
+                  <DetailedLogEntry
+                    key={log.id || index}
+                    log={log}
+                    index={index}
+                    showTimestamps={showTimestamps}
+                  />
+                ))}
+              </div>
             ) : (
+              // Simple view (original)
               <div className="divide-y divide-gray-100">
                 {filteredLogs.map((log, index) => (
                   <div

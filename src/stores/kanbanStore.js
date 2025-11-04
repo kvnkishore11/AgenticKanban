@@ -106,6 +106,7 @@ const initialState = {
   taskWorkflowProgress: {}, // Map of taskId -> progressData for progress tracking
   taskWorkflowMetadata: {}, // Map of taskId -> metadata for ADW metadata
   taskStageLogs: {}, // Map of taskId -> Map of stage -> { logs, result, loading, error }
+  agentStates: {}, // Map of taskId -> { data, loading, error } for agent state metadata
 
   // Project notification state
   projectNotificationEnabled: true,
@@ -1580,6 +1581,82 @@ export const useKanbanStore = create()(
             }
             return { taskStageLogs };
           }, false, 'clearStageLogForTaskAndStage');
+        },
+
+        // ===== Agent State actions =====
+
+        // Fetch agent state for a task
+        fetchAgentState: async (taskId, adwId) => {
+          if (!taskId || !adwId) {
+            console.error('[AgentStateStore] Missing required parameters:', { taskId, adwId });
+            return;
+          }
+
+          // Set loading state
+          set((state) => ({
+            agentStates: {
+              ...state.agentStates,
+              [taskId]: {
+                data: null,
+                loading: true,
+                error: null,
+              }
+            }
+          }), false, 'fetchAgentState:loading');
+
+          try {
+            // Determine the WebSocket server URL from VITE_BACKEND_URL
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8500';
+
+            // Fetch agent state from backend
+            const response = await fetch(`${backendUrl}/api/agent-state/${adwId}`);
+
+            if (!response.ok) {
+              throw new Error(`Failed to fetch agent state: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            console.log(`[AgentStateStore] Fetched agent state:`, data);
+
+            // Update state with fetched data
+            set((state) => ({
+              agentStates: {
+                ...state.agentStates,
+                [taskId]: {
+                  data: data,
+                  loading: false,
+                  error: null,
+                  fetchedAt: new Date().toISOString(),
+                }
+              }
+            }), false, 'fetchAgentState:success');
+
+          } catch (error) {
+            console.error(`[AgentStateStore] Error fetching agent state:`, error);
+
+            // Update state with error
+            set((state) => ({
+              agentStates: {
+                ...state.agentStates,
+                [taskId]: {
+                  data: null,
+                  loading: false,
+                  error: error.message,
+                }
+              }
+            }), false, 'fetchAgentState:error');
+          }
+        },
+
+        // Get agent state for a task
+        getAgentState: (taskId) => {
+          const { agentStates } = get();
+          return agentStates?.[taskId] || {
+            data: null,
+            loading: false,
+            error: null,
+          };
         },
 
         // Trigger merge workflow for a task in ready-to-merge stage

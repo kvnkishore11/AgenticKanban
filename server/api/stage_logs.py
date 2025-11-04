@@ -37,6 +37,15 @@ class LogEntry(BaseModel):
     summary: Optional[str] = None  # 15-word AI-generated summary (future enhancement)
     payload: Optional[Dict[str, Any]] = None  # Event metadata (tool names, params, file changes)
     raw_data: Optional[Dict[str, Any]] = None
+    # New fields for detailed logs
+    entry_type: Optional[str] = None  # system, assistant, user
+    subtype: Optional[str] = None  # init, tool_use, tool_result, etc.
+    tool_name: Optional[str] = None  # Name of tool being called
+    tool_input: Optional[Dict[str, Any]] = None  # Tool call parameters
+    usage: Optional[Dict[str, Any]] = None  # Token usage statistics
+    session_id: Optional[str] = None  # Agent session identifier
+    model: Optional[str] = None  # Model used
+    stop_reason: Optional[str] = None  # Stop reason for assistant messages
 
 class StageLogsResponse(BaseModel):
     """Response format for stage logs endpoint"""
@@ -109,7 +118,7 @@ def find_stage_folder(adw_dir: Path, stage: str) -> Optional[Path]:
 
 def parse_jsonl_logs(jsonl_file: Path) -> List[LogEntry]:
     """
-    Parse JSONL file and extract log entries.
+    Parse JSONL file and extract log entries with full JSONL structure.
 
     Args:
         jsonl_file: Path to the raw_output.jsonl file
@@ -129,18 +138,90 @@ def parse_jsonl_logs(jsonl_file: Path) -> List[LogEntry]:
                 try:
                     data = json.loads(line)
 
-                    # Extract relevant fields for log entry with structured event data
+                    # Extract type and subtype
+                    entry_type = data.get('type')  # system, assistant, user, result
+                    subtype = data.get('subtype')  # init, tool_use, tool_result, success, error
+
+                    # Extract message/content
+                    message = data.get('message', '')
+                    if not message and 'content' in data:
+                        content = data['content']
+                        if isinstance(content, str):
+                            message = content
+                        elif isinstance(content, list):
+                            # For assistant messages with content blocks
+                            message = ' '.join([
+                                block.get('text', '') if isinstance(block, dict) and block.get('type') == 'text'
+                                else str(block)
+                                for block in content
+                            ])
+
+                    # If still no message, use result or type as message
+                    if not message:
+                        if 'result' in data:
+                            message = str(data.get('result'))
+                        elif entry_type:
+                            message = f"[{entry_type}]" + (f" - {subtype}" if subtype else "")
+
+                    # Extract tool call information
+                    tool_name = None
+                    tool_input = None
+
+                    if entry_type == 'assistant' and 'message' in data and isinstance(data['message'], dict):
+                        msg = data['message']
+                        content = msg.get('content', [])
+                        if isinstance(content, list):
+                            for block in content:
+                                if isinstance(block, dict) and block.get('type') == 'tool_use':
+                                    tool_name = block.get('name')
+                                    tool_input = block.get('input', {})
+                                    break
+
+                    # Extract usage statistics
+                    usage = None
+                    if 'usage' in data:
+                        usage = data['usage']
+                    elif entry_type == 'assistant' and 'message' in data and isinstance(data['message'], dict):
+                        usage = data['message'].get('usage')
+
+                    # Extract session_id
+                    session_id = data.get('session_id')
+
+                    # Extract model
+                    model = data.get('model')
+                    if not model and entry_type == 'assistant' and 'message' in data and isinstance(data['message'], dict):
+                        model = data['message'].get('model')
+
+                    # Extract stop_reason
+                    stop_reason = None
+                    if entry_type == 'assistant' and 'message' in data and isinstance(data['message'], dict):
+                        stop_reason = data['message'].get('stop_reason')
+
+                    # Determine log level
+                    level = data.get('level', 'INFO')
+                    if subtype == 'error' or data.get('is_error'):
+                        level = 'ERROR'
+                    elif entry_type == 'result':
+                        level = 'SUCCESS' if subtype == 'success' else 'ERROR'
+                    elif entry_type == 'system':
+                        level = 'INFO'
+
+                    # Create log entry with all fields
                     log_entry = LogEntry(
                         timestamp=data.get('timestamp'),
-                        level=data.get('level', 'INFO'),
-                        message=data.get('message') or data.get('content') or str(data),
+                        level=level,
+                        message=message,
                         current_step=data.get('current_step'),
                         details=data.get('details'),
-                        event_category=data.get('event_category'),  # hook, response, status
-                        event_type=data.get('event_type'),  # PreToolUse, ToolUseBlock, etc.
-                        summary=data.get('summary'),  # AI-generated summary if available
-                        payload=data.get('payload'),  # Event metadata
-                        raw_data=data
+                        raw_data=data,
+                        entry_type=entry_type,
+                        subtype=subtype,
+                        tool_name=tool_name,
+                        tool_input=tool_input,
+                        usage=usage,
+                        session_id=session_id,
+                        model=model,
+                        stop_reason=stop_reason
                     )
                     logs.append(log_entry)
 
@@ -338,3 +419,68 @@ async def get_all_stage_logs(adw_id: str) -> Dict[str, StageLogsResponse]:
                 raise
 
     return all_logs
+
+@router.get("/api/agent-state/{adw_id}")
+async def get_agent_state(adw_id: str) -> Dict[str, Any]:
+    """
+    Get the adw_state.json file for an ADW workflow.
+
+    Args:
+        adw_id: Unique workflow identifier (8-character string)
+
+    Returns:
+        Dictionary containing the agent state metadata
+
+    Raises:
+        HTTPException: If ADW ID is invalid or state file cannot be found
+    """
+    # Validate adw_id format
+    if not adw_id or len(adw_id) != 8:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid ADW ID format: {adw_id}. Expected 8-character identifier."
+        )
+
+    # Get agents directory
+    agents_dir = get_agents_directory()
+
+    if not agents_dir.exists():
+        raise HTTPException(
+            status_code=500,
+            detail=f"Agents directory not found at {agents_dir}"
+        )
+
+    # Get ADW directory
+    adw_dir = agents_dir / adw_id
+
+    if not adw_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"ADW directory not found: {adw_id}"
+        )
+
+    # Read adw_state.json
+    state_file = adw_dir / "adw_state.json"
+
+    if not state_file.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Agent state file not found for ADW: {adw_id}"
+        )
+
+    try:
+        with open(state_file, 'r', encoding='utf-8') as f:
+            state_data = json.load(f)
+        return state_data
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse agent state file {state_file}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to parse agent state file: {e}"
+        )
+    except Exception as e:
+        logger.error(f"Error reading agent state file {state_file}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error reading agent state file: {e}"
+        )

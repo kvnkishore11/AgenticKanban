@@ -7,9 +7,13 @@ import {
   Eye,
   FileCheck,
   Activity,
-  Loader2
+  Loader2,
+  Server,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
 import WorkflowLogViewer from './WorkflowLogViewer';
+import AgentStateViewer from './AgentStateViewer';
 
 /**
  * Stage icon mapping for visual identification
@@ -21,6 +25,7 @@ const STAGE_ICONS = {
   test: FlaskConical,
   review: Eye,
   document: FileCheck,
+  'agent-state': Server,
 };
 
 /**
@@ -45,28 +50,41 @@ const StageLogsViewer = ({
   } = useKanbanStore();
 
   // Available stages for tabs
-  const stages = ['all', 'plan', 'build', 'test', 'review', 'document'];
+  const stages = ['all', 'plan', 'build', 'test', 'review', 'document', 'agent-state'];
 
   // State for active tab
   const [activeTab, setActiveTab] = useState('all');
+
+  // State for detailed view toggle (stored in localStorage)
+  const [detailedView, setDetailedView] = useState(() => {
+    const saved = localStorage.getItem('stageLogsDetailedView');
+    return saved === 'true';
+  });
 
   // Get real-time logs for "All" tab
   const allLogs = getWorkflowLogsForTask(taskId);
 
   // Get stage-specific logs for the active tab
-  const stageData = activeTab !== 'all'
+  const stageData = activeTab !== 'all' && activeTab !== 'agent-state'
     ? getStageLogsForTask(taskId, activeTab)
     : null;
 
   // Fetch stage logs when tab is clicked
   useEffect(() => {
-    if (activeTab !== 'all' && adwId) {
+    if (activeTab !== 'all' && activeTab !== 'agent-state' && adwId) {
       // Only fetch if we don't have data yet or if there was an error
       if (!stageData?.fetchedAt || stageData?.error) {
         fetchStageLogsForTask(taskId, adwId, activeTab);
       }
     }
   }, [activeTab, taskId, adwId]);
+
+  // Toggle detailed view and save to localStorage
+  const handleToggleDetailedView = () => {
+    const newValue = !detailedView;
+    setDetailedView(newValue);
+    localStorage.setItem('stageLogsDetailedView', String(newValue));
+  };
 
   // Get icon for stage
   const getStageIcon = (stage) => {
@@ -83,6 +101,7 @@ const StageLogsViewer = ({
       test: 'Test',
       review: 'Review',
       document: 'Document',
+      'agent-state': 'Agent State',
     };
     return labels[stage] || stage;
   };
@@ -142,14 +161,15 @@ const StageLogsViewer = ({
   };
 
   // Show loading state
-  const isLoading = activeTab !== 'all' && stageData?.loading;
+  const isLoading = activeTab !== 'all' && activeTab !== 'agent-state' && stageData?.loading;
 
   // Show error state
-  const hasError = activeTab !== 'all' && stageData?.error;
+  const hasError = activeTab !== 'all' && activeTab !== 'agent-state' && stageData?.error;
 
   // Show empty state for stage with no logs
   // Check if actual logs exist instead of relying solely on flags
   const isEmpty = activeTab !== 'all' &&
+    activeTab !== 'agent-state' &&
     !stageData?.loading &&
     (!stageData?.logs || stageData.logs.length === 0);
 
@@ -182,6 +202,33 @@ const StageLogsViewer = ({
 
       {/* Content */}
       <div className="relative">
+        {/* Detailed View Toggle (only for log tabs, not agent-state) */}
+        {activeTab !== 'agent-state' && (
+          <div className="px-3 py-2 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+            <span className="text-xs text-gray-600">View Mode:</span>
+            <button
+              onClick={handleToggleDetailedView}
+              className={`flex items-center space-x-2 px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                detailedView
+                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                  : 'bg-gray-100 text-gray-600 border border-gray-300'
+              }`}
+              title={detailedView ? 'Switch to simple view' : 'Switch to detailed view'}
+            >
+              {detailedView ? (
+                <>
+                  <ToggleRight className="h-3.5 w-3.5" />
+                  <span>Detailed</span>
+                </>
+              ) : (
+                <>
+                  <ToggleLeft className="h-3.5 w-3.5" />
+                  <span>Simple</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
         {/* Loading State */}
         {isLoading && (
           <div className="flex items-center justify-center p-8">
@@ -232,8 +279,13 @@ const StageLogsViewer = ({
           </div>
         )}
 
+        {/* Agent State Viewer */}
+        {activeTab === 'agent-state' && adwId && (
+          <AgentStateViewer adwId={adwId} />
+        )}
+
         {/* Logs Viewer */}
-        {!isLoading && !hasError && (activeTab === 'all' || !isEmpty) && (
+        {!isLoading && !hasError && activeTab !== 'agent-state' && (activeTab === 'all' || !isEmpty) && (
           <WorkflowLogViewer
             logs={getLogsToDisplay()}
             title={getLogViewerTitle()}
@@ -242,6 +294,7 @@ const StageLogsViewer = ({
             showTimestamps={showTimestamps}
             autoScroll={activeTab === 'all' ? autoScroll : false}
             logsSource={activeTab}
+            detailedView={detailedView}
           />
         )}
 
