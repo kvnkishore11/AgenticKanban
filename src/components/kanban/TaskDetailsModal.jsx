@@ -14,15 +14,12 @@ import { useKanbanStore } from '../../stores/kanbanStore';
 import {
   X,
   Clock,
-  Play,
-  Pause,
   CheckCircle,
   Activity,
   FileText,
   Eye,
   GitMerge,
-  Edit,
-  ArrowRight
+  Edit
 } from 'lucide-react';
 import StageLogsViewer from './StageLogsViewer';
 import PlanViewer from './PlanViewer';
@@ -30,15 +27,7 @@ import adwDiscoveryService from '../../services/api/adwDiscoveryService';
 
 const TaskDetailsModal = ({ task, onClose, onEdit }) => {
   const {
-    moveTaskToStage,
     getPipelineById,
-    stages,
-    startTaskProgression,
-    stopTaskProgression,
-    pauseTaskProgression,
-    resumeTaskProgression,
-    getTaskProgressionStatus,
-    recoverTaskFromError,
     getWorkflowStatusForTask,
     getWebSocketStatus,
     triggerWorkflowForTask,
@@ -61,7 +50,6 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
   const workflowMetadata = getWorkflowMetadataForTask(task.id);
 
   const pipeline = getPipelineById(task.pipelineId);
-  const progressionStatus = getTaskProgressionStatus(task.id);
   const workflowStatus = getWorkflowStatusForTask(task.id);
   const websocketStatus = getWebSocketStatus();
 
@@ -97,21 +85,6 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
 
     const diffInDays = Math.floor(diffInHours / 24);
     return `${diffInDays}d ago`;
-  };
-
-  const getNextStage = () => {
-    const currentStageIndex = stages.findIndex(stage => stage.id === task.stage);
-    if (currentStageIndex < stages.length - 1) {
-      return stages[currentStageIndex + 1];
-    }
-    return null;
-  };
-
-  const handleMoveToNextStage = () => {
-    const nextStage = getNextStage();
-    if (nextStage) {
-      moveTaskToStage(task.id, nextStage.id);
-    }
   };
 
   const handleTriggerWorkflow = async () => {
@@ -291,81 +264,6 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
               </div>
             )}
 
-            {/* Progression Controls */}
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Automatic Progression</h3>
-              <div className="flex items-center space-x-2 mb-2">
-                {progressionStatus.active ? (
-                  <>
-                    {progressionStatus.paused ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          resumeTaskProgression(task.id);
-                        }}
-                        className="flex items-center space-x-1 text-sm bg-green-600 text-white rounded px-3 py-1.5 hover:bg-green-700"
-                      >
-                        <Play className="h-4 w-4" />
-                        <span>Resume</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          pauseTaskProgression(task.id);
-                        }}
-                        className="flex items-center space-x-1 text-sm bg-yellow-600 text-white rounded px-3 py-1.5 hover:bg-yellow-700"
-                      >
-                        <Pause className="h-4 w-4" />
-                        <span>Pause</span>
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        stopTaskProgression(task.id);
-                      }}
-                      className="flex items-center space-x-1 text-sm bg-red-600 text-white rounded px-3 py-1.5 hover:bg-red-700"
-                    >
-                      <Pause className="h-4 w-4" />
-                      <span>Stop</span>
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startTaskProgression(task.id);
-                    }}
-                    className="flex items-center space-x-1 text-sm bg-blue-600 text-white rounded px-3 py-1.5 hover:bg-blue-700"
-                    disabled={task.stage === 'document' && task.progress === 100}
-                  >
-                    <Play className="h-4 w-4" />
-                    <span>Start Auto</span>
-                  </button>
-                )}
-              </div>
-
-              {progressionStatus.active && (
-                <div className="text-sm text-gray-500">
-                  Auto-progression started {formatTimeAgo(progressionStatus.startedAt)}
-                </div>
-              )}
-
-              {task.stage === 'errored' && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    recoverTaskFromError(task.id);
-                  }}
-                  className="flex items-center space-x-1 text-sm bg-purple-600 text-white rounded px-3 py-1.5 hover:bg-purple-700 mt-2"
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  <span>Recover from Error</span>
-                </button>
-              )}
-            </div>
-
             {/* Plan Viewer */}
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-2">Implementation Plan</h3>
@@ -536,18 +434,6 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
                       )}
                     </div>
                   </div>
-                )}
-                {getNextStage() && !isReadyToMerge && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMoveToNextStage();
-                    }}
-                    className="flex items-center space-x-1 flex-1 text-sm bg-blue-600 text-white rounded px-3 py-1.5 hover:bg-blue-700"
-                  >
-                    <ArrowRight className="h-4 w-4" />
-                    <span>Move to {getNextStage().name}</span>
-                  </button>
                 )}
               </div>
             </div>

@@ -17,7 +17,6 @@ import {
   MoreHorizontal,
   Play,
   CheckCircle,
-  ArrowRight,
   Edit,
   Activity,
   FileText,
@@ -29,26 +28,20 @@ import {
   Pause,
   AlertCircle
 } from 'lucide-react';
-import StageLogsViewer from './StageLogsViewer';
-import PlanViewer from './PlanViewer';
 import CardExpandModal from './CardExpandModal';
 
 const KanbanCard = ({ task, onEdit }) => {
   const {
     deleteTask,
-    moveTaskToStage,
     getPipelineById,
-    stages,
-    getTaskProgressionStatus,
     getWebSocketStatus,
-    triggerWorkflowForTask,
+    triggerWorkflowForTask
   } = useKanbanStore();
 
   const [showMenu, setShowMenu] = useState(false);
   const [showExpandModal, setShowExpandModal] = useState(false);
 
   const pipeline = getPipelineById(task.pipelineId);
-  const progressionStatus = getTaskProgressionStatus(task.id);
   const websocketStatus = getWebSocketStatus();
 
   // Format dynamic pipeline names for display
@@ -69,14 +62,6 @@ const KanbanCard = ({ task, onEdit }) => {
   };
 
   const getStatusIcon = () => {
-    // Show progression status if auto-progression is active
-    if (progressionStatus.active) {
-      if (progressionStatus.paused) {
-        return <Pause className="h-4 w-4 text-yellow-500" />;
-      }
-      return <Play className="h-4 w-4 text-blue-500 animate-pulse" />;
-    }
-
     // Default status based on task state
     switch (task.stage) {
       case 'errored':
@@ -107,21 +92,6 @@ const KanbanCard = ({ task, onEdit }) => {
     return `${diffInDays}d ago`;
   };
 
-  const getNextStage = () => {
-    const currentStageIndex = stages.findIndex(stage => stage.id === task.stage);
-    if (currentStageIndex < stages.length - 1) {
-      return stages[currentStageIndex + 1];
-    }
-    return null;
-  };
-
-  const handleMoveToNextStage = () => {
-    const nextStage = getNextStage();
-    if (nextStage) {
-      moveTaskToStage(task.id, nextStage.id);
-    }
-  };
-
   const handleCardClick = () => {
     // Open modal instead of toggling selected state
     setShowExpandModal(true);
@@ -148,7 +118,7 @@ const KanbanCard = ({ task, onEdit }) => {
 
   return (
     <div
-      className={`kanban-card ${progressionStatus.active ? 'auto-progress' : ''} ${isCompleted ? 'completed-card' : ''}`}
+      className={`kanban-card ${isCompleted ? 'completed-card' : ''}`}
       onClick={handleCardClick}
     >
       <div className="p-4">
@@ -265,19 +235,6 @@ const KanbanCard = ({ task, onEdit }) => {
             {showMenu && (
               <div className="absolute right-0 top-6 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-32">
                 <div className="py-1">
-                  {getNextStage() && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleMoveToNextStage();
-                        setShowMenu(false);
-                      }}
-                      className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <ArrowRight className="h-4 w-4 mr-2" />
-                      Move to {getNextStage().name}
-                    </button>
-                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -316,7 +273,7 @@ const KanbanCard = ({ task, onEdit }) => {
         {/* Footer */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className={`status-icon ${progressionStatus.active ? 'auto-progress' : ''}`}>
+            <div className="status-icon">
               {getStatusIcon()}
             </div>
             <div className="flex items-center text-xs text-gray-500">

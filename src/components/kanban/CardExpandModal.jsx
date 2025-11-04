@@ -13,10 +13,8 @@ import {
   X,
   Clock,
   Play,
-  Pause,
   CheckCircle,
   AlertCircle,
-  ArrowRight,
   Edit,
   FileText,
   GitMerge,
@@ -32,15 +30,7 @@ import { useState } from 'react';
 
 const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   const {
-    moveTaskToStage,
     getPipelineById,
-    stages,
-    startTaskProgression,
-    stopTaskProgression,
-    pauseTaskProgression,
-    resumeTaskProgression,
-    getTaskProgressionStatus,
-    recoverTaskFromError,
     getWebSocketStatus,
     triggerWorkflowForTask,
     getWorkflowLogsForTask,
@@ -60,7 +50,6 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   const workflowProgress = getWorkflowProgressForTask(task.id);
   const workflowMetadata = getWorkflowMetadataForTask(task.id);
   const pipeline = getPipelineById(task.pipelineId);
-  const progressionStatus = getTaskProgressionStatus(task.id);
   const websocketStatus = getWebSocketStatus();
 
   // Handle escape key to close modal
@@ -111,21 +100,6 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
 
     const diffInDays = Math.floor(diffInHours / 24);
     return `${diffInDays}d ago`;
-  };
-
-  const getNextStage = () => {
-    const currentStageIndex = stages.findIndex(stage => stage.id === task.stage);
-    if (currentStageIndex < stages.length - 1) {
-      return stages[currentStageIndex + 1];
-    }
-    return null;
-  };
-
-  const handleMoveToNextStage = () => {
-    const nextStage = getNextStage();
-    if (nextStage) {
-      moveTaskToStage(task.id, nextStage.id);
-    }
   };
 
   const handleTriggerWorkflow = async () => {
@@ -526,76 +500,6 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                 </div>
               </div>
 
-              {/* Progression Controls */}
-              <div>
-                <label className="text-xs font-medium text-gray-600 block mb-2">Automatic Progression</label>
-                <div className="flex flex-wrap gap-2">
-                  {progressionStatus.active ? (
-                    <>
-                      {progressionStatus.paused ? (
-                        <button
-                          onClick={() => resumeTaskProgression(task.id)}
-                          className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors"
-                        >
-                          <Play className="h-4 w-4" />
-                          <span>Resume</span>
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => pauseTaskProgression(task.id)}
-                          className="flex items-center space-x-2 px-4 py-2 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700 transition-colors"
-                        >
-                          <Pause className="h-4 w-4" />
-                          <span>Pause</span>
-                        </button>
-                      )}
-                      <button
-                        onClick={() => stopTaskProgression(task.id)}
-                        className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700 transition-colors"
-                      >
-                        <Pause className="h-4 w-4" />
-                        <span>Stop</span>
-                      </button>
-                      <div className="flex items-center px-3 py-2 bg-blue-50 text-blue-700 rounded text-xs">
-                        Started {formatTimeAgo(progressionStatus.startedAt)}
-                      </div>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => startTaskProgression(task.id)}
-                      className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
-                      disabled={task.stage === 'document' && task.progress === 100}
-                    >
-                      <Play className="h-4 w-4" />
-                      <span>Start Auto-Progression</span>
-                    </button>
-                  )}
-
-                  {task.stage === 'errored' && (
-                    <button
-                      onClick={() => recoverTaskFromError(task.id)}
-                      className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 transition-colors"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      <span>Recover from Error</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Stage Movement */}
-              {getNextStage() && !isReadyToMerge && (
-                <div>
-                  <label className="text-xs font-medium text-gray-600 block mb-2">Stage Movement</label>
-                  <button
-                    onClick={handleMoveToNextStage}
-                    className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded text-sm hover:bg-primary-700 transition-colors"
-                  >
-                    <ArrowRight className="h-4 w-4" />
-                    <span>Move to {getNextStage().name}</span>
-                  </button>
-                </div>
-              )}
             </div>
           </div>
 
