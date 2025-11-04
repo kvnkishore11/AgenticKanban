@@ -17,7 +17,7 @@ issue_json: $3
 - Use the plan format below to create the plan. 
 - Research the codebase and put together a plan to accomplish the chore.
 - IMPORTANT: Replace every <placeholder> in the `Plan Format` with the requested value. Add as much detail as needed to accomplish the chore.
-- Use your reasoning model: THINK HARD about the plan and the steps to accomplish the chore.
+- Use your reasoning model: THINK HARDER about the plan and the steps to accomplish the chore.
 - Respect requested files in the `Relevant Files` section.
 - Start your research by reading the `README.md` file.
 - `adws/*.py` contain astral uv single file python scripts. So if you want to run them use `uv run <script_name>`.
@@ -27,7 +27,6 @@ issue_json: $3
 
 Focus on the following files:
 - `README.md` - Contains the project overview and instructions.
-- `server/**` - Contains the codebase server.
 - `src/**` - Contains the codebase client.
 - `scripts/**` - Contains the scripts to start and stop the server + client.
 - `adws/**` - Contains the AI Developer Workflow (ADW) scripts.

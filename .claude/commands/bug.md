@@ -17,11 +17,11 @@ issue_json: $3
 - Use the plan format below to create the plan. 
 - Research the codebase to understand the bug, reproduce it, and put together a plan to fix it.
 - IMPORTANT: Replace every <placeholder> in the `Plan Format` with the requested value. Add as much detail as needed to fix the bug.
-- Use your reasoning model: THINK HARD about the bug, its root cause, and the steps to fix it properly.
+- Use your reasoning model: THINK HARDER about the bug, its root cause, and the steps to fix it properly.
 - IMPORTANT: Be surgical with your bug fix, solve the bug at hand and don't fall off track.
-- IMPORTANT: We want the minimal number of changes that will fix and address the bug.
+- IMPORTANT: We want the MINIMAL number of changes that will fix and address the bug.
 - Don't use decorators. Keep it simple.
-- If you need a new library, use `uv add` and be sure to report it in the `Notes` section of the `Plan Format`.
+- If you need a new library, use `uv add` if it is related to backend and be sure to report it in the `Notes` section of the `Plan Format`.
 - IMPORTANT: If the bug affects the UI or user interactions:
   - Add a task in the `Step by Step Tasks` section to create a separate E2E test file in `.claude/commands/e2e/test_<descriptive_name>.md` based on examples in that directory
   - Add E2E test validation to your Validation Commands section
@@ -34,7 +34,6 @@ issue_json: $3
 
 Focus on the following files:
 - `README.md` - Contains the project overview and instructions.
-- `server/**` - Contains the codebase server.
 - `src/**` - Contains the codebase client.
 - `scripts/**` - Contains the scripts to start and stop the server + client.
 - `adws/**` - Contains the AI Developer Workflow (ADW) scripts.
@@ -90,9 +89,8 @@ Execute every command to validate the bug is fixed with zero regressions.
 
 <If you created an E2E test, include the following validation step: "Read .claude/commands/test_e2e.md`, then read and execute your new E2E `.claude/commands/e2e/test_<descriptive_name>.md` test file to validate this functionality works.">
 
-- `cd server && uv run pytest` - Run server tests to validate the bug is fixed with zero regressions
-- `bun tsc --noEmit` - Run frontend tests to validate the bug is fixed with zero regressions
-- `bun run build` - Run frontend build to validate the bug is fixed with zero regressions
+- `npm run tsc --noEmit` - Run frontend tests to validate the bug is fixed with zero regressions
+- `npm run build` - Run frontend build to validate the bug is fixed with zero regressions
 
 ## Notes
 <optionally list any additional notes or context that are relevant to the bug that will be helpful to the developer>
