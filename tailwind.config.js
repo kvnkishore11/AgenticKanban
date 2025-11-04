@@ -31,6 +31,7 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Monaco', 'Menlo', 'Ubuntu Mono', 'Courier New', 'monospace'],
       },
       spacing: {
         '18': '4.5rem',
