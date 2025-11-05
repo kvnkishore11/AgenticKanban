@@ -15,6 +15,7 @@ import { WORK_ITEM_TYPES, QUEUEABLE_STAGES, SDLC_STAGES } from '../../constants/
 import { X, Plus, Image as ImageIcon, Clipboard } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useClipboard } from '../../hooks/useClipboard';
+import AdwIdInput from '../ui/AdwIdInput';
 
 const TaskInput = () => {
   const {
@@ -30,7 +31,6 @@ const TaskInput = () => {
   const [workItemType, setWorkItemType] = useState(WORK_ITEM_TYPES.FEATURE);
   const [queuedStages, setQueuedStages] = useState(['plan', 'implement']);
   const [customAdwId, setCustomAdwId] = useState('');
-  const [adwIdError, setAdwIdError] = useState('');
   const [images, setImages] = useState([]);
   const [errors, setErrors] = useState([]);
   const [annotatingImage, setAnnotatingImage] = useState(null);
@@ -151,32 +151,6 @@ const TaskInput = () => {
   };
 
 
-  // Validate ADW ID format
-  const validateAdwId = (value) => {
-    if (!value || !value.trim()) {
-      return ''; // Empty is valid (optional field)
-    }
-
-    const trimmed = value.trim();
-    const validPattern = /^[a-zA-Z0-9_-]{1,100}$/;
-
-    if (!validPattern.test(trimmed)) {
-      return 'ADW ID must contain only alphanumeric characters, hyphens, and underscores (1-100 characters)';
-    }
-
-    return '';
-  };
-
-  // Handle ADW ID change with validation
-  const handleAdwIdChange = (e) => {
-    const value = e.target.value;
-    setCustomAdwId(value);
-
-    // Validate and set error message
-    const errorMessage = validateAdwId(value);
-    setAdwIdError(errorMessage);
-  };
-
   // Check if all SDLC stages are selected
   const isFullSdlcSelected = SDLC_STAGES.every(stage => queuedStages.includes(stage));
 
@@ -205,12 +179,6 @@ const TaskInput = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
-    // Check for client-side ADW ID validation errors
-    if (adwIdError) {
-      setErrors([adwIdError]);
-      return;
-    }
 
     const taskData = {
       title: title.trim(),
@@ -243,7 +211,6 @@ const TaskInput = () => {
     setWorkItemType(WORK_ITEM_TYPES.FEATURE);
     setQueuedStages(['plan', 'implement']);
     setCustomAdwId('');
-    setAdwIdError('');
     setImages([]);
     setErrors([]);
     setImageAnnotations({});
@@ -360,28 +327,13 @@ const TaskInput = () => {
           </div>
 
           {/* ADW ID Input Field */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              ADW ID (optional)
-            </label>
-            <input
-              type="text"
-              value={customAdwId}
-              onChange={handleAdwIdChange}
-              placeholder="Leave empty for auto-generated ID"
-              className={`input-field ${adwIdError ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
-            />
-            {adwIdError && (
-              <p className="mt-1 text-sm text-red-600">
-                {adwIdError}
-              </p>
-            )}
-            {!adwIdError && (
-              <p className="mt-1 text-xs text-gray-500">
-                Specify a custom ADW ID if required by your workflow. Must contain only alphanumeric characters, hyphens, and underscores.
-              </p>
-            )}
-          </div>
+          <AdwIdInput
+            value={customAdwId}
+            onChange={(value) => setCustomAdwId(value)}
+            isRequired={false}
+            showHelpText={true}
+            placeholder="Search or enter ADW ID..."
+          />
 
           {/* Stage Queue Selection */}
           <div>
