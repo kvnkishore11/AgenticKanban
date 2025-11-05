@@ -39,7 +39,16 @@ class WebSocketService {
       pong: [],
       workflow_log: [], // New event for real-time logs
       stage_transition: [], // New event for stage transitions
-      reconnecting: []
+      reconnecting: [],
+      // Agent state streaming events
+      agent_summary_update: [],
+      agent_log: [],
+      thinking_block: [],
+      tool_use_pre: [],
+      tool_use_post: [],
+      file_changed: [],
+      text_block: [],
+      summary_update: []
     };
 
     // Configuration - extract from environment variables
@@ -141,7 +150,8 @@ class WebSocketService {
    */
   getWebSocketUrl() {
     const { protocol, host, port } = this.config;
-    return `${protocol}://${host}:${port}/ws/trigger`;
+    // Connect to main WebSocket endpoint for real-time agent state streaming
+    return `${protocol}://${host}:${port}/ws`;
   }
 
   /**
@@ -402,6 +412,35 @@ class WebSocketService {
         break;
       case 'workflow_log':
         this.emit('workflow_log', data);
+        break;
+      // Agent state streaming events
+      case 'agent_summary_update':
+        this.emit('agent_summary_update', data);
+        break;
+      case 'agent_log':
+        this.emit('agent_log', data);
+        break;
+      case 'thinking_block':
+        this.emit('thinking_block', data);
+        break;
+      case 'tool_use_pre':
+        this.emit('tool_use_pre', data);
+        break;
+      case 'tool_use_post':
+        this.emit('tool_use_post', data);
+        break;
+      case 'file_changed':
+        this.emit('file_changed', data);
+        break;
+      case 'text_block':
+        this.emit('text_block', data);
+        break;
+      case 'summary_update':
+        this.emit('summary_update', data);
+        break;
+      case 'connection_ack':
+        // Handle connection acknowledgment from server
+        console.log('WebSocket connection acknowledged:', data);
         break;
       default:
         console.warn('Unknown message type:', type);

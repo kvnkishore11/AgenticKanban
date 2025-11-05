@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Server,
   GitBranch,
@@ -9,8 +9,10 @@ import {
   CheckCircle,
   Globe,
   Database,
-  Cpu
+  Cpu,
+  Radio
 } from 'lucide-react';
+import agentStateStreamService from '../../services/agentStateStreamService';
 
 /**
  * AgentStateViewer Component
@@ -21,7 +23,10 @@ const AgentStateViewer = ({ adwId }) => {
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isLive, setIsLive] = useState(false);
+  const unsubscribeRef = useRef(null);
 
+  // Fetch initial state from REST API
   useEffect(() => {
     const fetchAgentState = async () => {
       if (!adwId) {
@@ -41,7 +46,7 @@ const AgentStateViewer = ({ adwId }) => {
         }
 
         const data = await response.json();
-        setState(data);
+        setState(data.state || data);
       } catch (err) {
         console.error('Error fetching agent state:', err);
         setError(err.message);
@@ -51,6 +56,41 @@ const AgentStateViewer = ({ adwId }) => {
     };
 
     fetchAgentState();
+  }, [adwId]);
+
+  // Subscribe to real-time updates via WebSocket
+  useEffect(() => {
+    if (!adwId) return;
+
+    // Handle real-time state updates
+    const handleStateUpdate = (agentState) => {
+      console.log('Received real-time agent state update:', agentState);
+
+      // Update state with latest data
+      setState(prevState => ({
+        ...prevState,
+        ...agentState,
+        // Preserve nested structures
+        issue_json: agentState.issue_json || prevState?.issue_json
+      }));
+
+      setIsLive(true);
+
+      // Reset live indicator after 3 seconds
+      setTimeout(() => setIsLive(false), 3000);
+    };
+
+    // Subscribe to agent state updates
+    const unsubscribe = agentStateStreamService.subscribeToAgentState(adwId, handleStateUpdate);
+    unsubscribeRef.current = unsubscribe;
+
+    return () => {
+      // Cleanup subscription on unmount
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
   }, [adwId]);
 
   // Loading state
@@ -94,6 +134,15 @@ const AgentStateViewer = ({ adwId }) => {
       <div className="flex items-center space-x-2 pb-2 border-b border-gray-200">
         <Server className="h-5 w-5 text-blue-600" />
         <h3 className="text-sm font-semibold text-gray-800">Agent Workflow State</h3>
+
+        {/* Live indicator */}
+        {isLive && (
+          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 border border-red-300 rounded animate-pulse">
+            <Radio className="h-3 w-3 mr-1" />
+            Live
+          </span>
+        )}
+
         {state.completed !== undefined && (
           <span className={`ml-auto px-2 py-0.5 text-xs font-medium rounded ${
             state.completed

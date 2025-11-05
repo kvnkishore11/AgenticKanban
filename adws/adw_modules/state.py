@@ -10,6 +10,7 @@ import sys
 import logging
 from typing import Dict, Any, Optional
 from adw_modules.data_types import ADWStateData
+from adw_modules.websocket_client import WebSocketNotifier
 
 
 class ADWState:
@@ -19,17 +20,24 @@ class ADWState:
 
     def __init__(self, adw_id: str):
         """Initialize ADWState with a required ADW ID.
-        
+
         Args:
             adw_id: The ADW ID for this state (required)
         """
         if not adw_id:
             raise ValueError("adw_id is required for ADWState")
-        
+
         self.adw_id = adw_id
         # Start with minimal state
         self.data: Dict[str, Any] = {"adw_id": self.adw_id}
         self.logger = logging.getLogger(__name__)
+
+        # Initialize WebSocket notifier for real-time state updates
+        self._ws_notifier: Optional[WebSocketNotifier] = None
+        try:
+            self._ws_notifier = WebSocketNotifier(adw_id=self.adw_id)
+        except Exception as e:
+            self.logger.debug(f"WebSocket notifier initialization skipped: {e}")
 
     def update(self, **kwargs):
         """Update state with new key-value pairs."""
@@ -81,6 +89,61 @@ class ADWState:
         )
         return os.path.join(project_root, "agents", self.adw_id, self.STATE_FILENAME)
 
+    def notify_state_change(
+        self,
+        workflow_step: Optional[str] = None,
+        changed_fields: Optional[list] = None
+    ) -> None:
+        """
+        Send real-time state change notification via WebSocket.
+
+        Args:
+            workflow_step: Current workflow step
+            changed_fields: List of fields that changed (optional)
+        """
+        if not self._ws_notifier:
+            return
+
+        try:
+            # Prepare state change payload
+            state_snapshot = {
+                "adw_id": self.adw_id,
+                "issue_number": self.data.get("issue_number"),
+                "issue_class": self.data.get("issue_class"),
+                "branch_name": self.data.get("branch_name"),
+                "completed": self.data.get("completed", False),
+                "workflow_step": workflow_step,
+                "changed_fields": changed_fields or []
+            }
+
+            # Determine status
+            status = "completed" if self.data.get("completed") else "in_progress"
+
+            # Send state update via WebSocket
+            import requests
+            from datetime import datetime
+
+            endpoint = f"{self._ws_notifier.server_url}/api/agent-state-update"
+            payload = {
+                "adw_id": self.adw_id,
+                "event_type": "state_change",
+                "data": {
+                    "status": status,
+                    "workflow_name": workflow_step,
+                    "current_step": workflow_step,
+                    "message": f"State updated: {workflow_step}" if workflow_step else "State updated",
+                    "state_snapshot": state_snapshot
+                },
+                "timestamp": datetime.utcnow().isoformat() + "Z"
+            }
+
+            requests.post(endpoint, json=payload, timeout=2)
+            self.logger.debug(f"Sent state change notification for {self.adw_id}")
+
+        except Exception as e:
+            # Fail silently - state notifications are optional
+            self.logger.debug(f"Failed to send state change notification: {e}")
+
     def save(self, workflow_step: Optional[str] = None) -> None:
         """Save state to file in agents/{adw_id}/adw_state.json."""
         state_path = self.get_state_path()
@@ -111,6 +174,9 @@ class ADWState:
         self.logger.info(f"Saved state to {state_path}")
         if workflow_step:
             self.logger.info(f"State updated by: {workflow_step}")
+
+        # Trigger real-time WebSocket notification
+        self.notify_state_change(workflow_step=workflow_step)
 
     @classmethod
     def load(

@@ -326,3 +326,212 @@ class WebSocketNotifier:
             message=msg,
             current_step=f"Stage: {to_stage}"
         )
+
+    # ===== Granular Agent State Update Methods =====
+
+    def send_agent_state_update(
+        self,
+        event_type: str,
+        data: dict,
+        timeout: int = 2
+    ) -> bool:
+        """
+        Send a granular agent state update to the new agent state streaming endpoint.
+
+        Args:
+            event_type: Type of event (state_change, log_entry, file_operation, thinking, tool_execution)
+            data: Event-specific payload
+            timeout: Request timeout in seconds
+
+        Returns:
+            True if sent successfully
+        """
+        if not self.enabled:
+            return False
+
+        try:
+            endpoint = f"{self.server_url}/api/agent-state-update"
+            payload = {
+                "adw_id": self.adw_id,
+                "event_type": event_type,
+                "data": data,
+                "timestamp": datetime.utcnow().isoformat() + "Z"
+            }
+
+            response = requests.post(
+                endpoint,
+                json=payload,
+                timeout=timeout,
+                headers={"Content-Type": "application/json"}
+            )
+
+            if response.status_code == 200:
+                self.logger.debug(f"Sent agent state update ({event_type}) to WebSocket server")
+                return True
+            else:
+                self.logger.warning(
+                    f"Failed to send agent state update: HTTP {response.status_code} - {response.text}"
+                )
+                return False
+
+        except requests.exceptions.ConnectionError:
+            self.logger.debug(f"WebSocket server not available at {self.server_url}")
+            return False
+        except requests.exceptions.Timeout:
+            self.logger.warning(f"Timeout sending agent state update to WebSocket server")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error sending agent state update: {str(e)}")
+            return False
+
+    def send_agent_log_entry(
+        self,
+        message: str,
+        level: Literal["INFO", "WARNING", "ERROR", "DEBUG", "SUCCESS"] = "INFO",
+        details: Optional[str] = None,
+        context: Optional[dict] = None
+    ) -> bool:
+        """
+        Send a detailed log entry with context.
+
+        Args:
+            message: Log message
+            level: Log level
+            details: Additional details
+            context: Contextual data
+
+        Returns:
+            True if sent successfully
+        """
+        data = {
+            "message": message,
+            "level": level,
+            "details": details,
+            "context": context or {},
+            "event_category": "system",
+            "type": "log_entry"
+        }
+
+        return self.send_agent_state_update("log_entry", data)
+
+    def send_file_operation(
+        self,
+        file_path: str,
+        operation: Literal["read", "write", "modify", "delete"],
+        diff: Optional[str] = None,
+        summary: Optional[str] = None,
+        lines_added: int = 0,
+        lines_removed: int = 0
+    ) -> bool:
+        """
+        Send a file operation notification.
+
+        Args:
+            file_path: Path to the file
+            operation: Type of operation
+            diff: Git diff of changes
+            summary: AI-generated summary
+            lines_added: Number of lines added
+            lines_removed: Number of lines removed
+
+        Returns:
+            True if sent successfully
+        """
+        data = {
+            "file_path": file_path,
+            "operation": operation,
+            "diff": diff,
+            "summary": summary,
+            "lines_added": lines_added,
+            "lines_removed": lines_removed
+        }
+
+        return self.send_agent_state_update("file_operation", data)
+
+    def send_agent_thinking(
+        self,
+        content: str,
+        duration_ms: Optional[int] = None,
+        sequence: Optional[int] = None
+    ) -> bool:
+        """
+        Send a Claude Code thinking block.
+
+        Args:
+            content: Thinking content
+            duration_ms: Duration in milliseconds
+            sequence: Sequence number
+
+        Returns:
+            True if sent successfully
+        """
+        data = {
+            "content": content,
+            "duration_ms": duration_ms,
+            "sequence": sequence
+        }
+
+        return self.send_agent_state_update("thinking", data)
+
+    def send_tool_execution(
+        self,
+        tool_name: str,
+        phase: Literal["pre", "post"],
+        tool_use_id: Optional[str] = None,
+        input_data: Optional[dict] = None,
+        output: Optional[str] = None,
+        duration_ms: Optional[int] = None,
+        success: bool = True,
+        error: Optional[str] = None
+    ) -> bool:
+        """
+        Send a tool execution event (pre or post).
+
+        Args:
+            tool_name: Name of the tool
+            phase: Execution phase (pre or post)
+            tool_use_id: Unique tool use identifier
+            input_data: Tool input parameters
+            output: Tool output
+            duration_ms: Execution duration
+            success: Whether execution was successful
+            error: Error message if failed
+
+        Returns:
+            True if sent successfully
+        """
+        event_type = f"tool_execution_{phase}"
+
+        data = {
+            "tool_name": tool_name,
+            "tool_use_id": tool_use_id,
+            "input": input_data,
+            "output": output,
+            "duration_ms": duration_ms,
+            "success": success,
+            "error": error
+        }
+
+        return self.send_agent_state_update(event_type, data)
+
+    def send_text_block(
+        self,
+        content: str,
+        sequence: Optional[int] = None
+    ) -> bool:
+        """
+        Send a text block from Claude.
+
+        Args:
+            content: Text content
+            sequence: Sequence number
+
+        Returns:
+            True if sent successfully
+        """
+        data = {
+            "content": content,
+            "sequence": sequence
+        }
+
+        return self.send_agent_state_update("text_block", data)

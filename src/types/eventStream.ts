@@ -110,6 +110,95 @@ export interface ChatStreamEvent {
   is_complete: boolean;
 }
 
+// ===== Agent State Streaming Event Types =====
+
+/**
+ * Agent state update event (full state change from adw_state.json)
+ */
+export interface AgentStateUpdateEvent {
+  adw_id: string;
+  timestamp: string;
+  event_type: 'state_change';
+  state_snapshot: {
+    adw_id: string;
+    issue_number?: number;
+    issue_class?: string;
+    branch_name?: string;
+    completed: boolean;
+    workflow_step?: string;
+    changed_fields: string[];
+  };
+  status: 'started' | 'in_progress' | 'completed' | 'failed';
+  workflow_name?: string;
+  current_step?: string;
+  message?: string;
+}
+
+/**
+ * Agent log entry event (individual log with context)
+ */
+export interface AgentLogEntryEvent {
+  adw_id: string;
+  timestamp: string;
+  level: 'INFO' | 'WARNING' | 'ERROR' | 'DEBUG' | 'SUCCESS';
+  message: string;
+  details?: string;
+  context?: Record<string, any>;
+  event_category: string;
+  type: string;
+}
+
+/**
+ * File operation event (file read/write/modify)
+ */
+export interface FileOperationEvent {
+  adw_id: string;
+  timestamp: string;
+  file_path: string;
+  operation: 'read' | 'write' | 'modify' | 'delete';
+  diff?: string;
+  summary?: string;
+  lines_added: number;
+  lines_removed: number;
+}
+
+/**
+ * Agent thinking event (Claude Code reasoning)
+ */
+export interface AgentThinkingEvent {
+  adw_id: string;
+  timestamp: string;
+  content: string;
+  duration_ms?: number;
+  sequence?: number;
+}
+
+/**
+ * Tool execution event (pre/post)
+ */
+export interface ToolExecutionEvent {
+  adw_id: string;
+  timestamp: string;
+  tool_name: string;
+  tool_use_id?: string;
+  phase: 'pre' | 'post';
+  input?: Record<string, any>;
+  output?: any;
+  duration_ms?: number;
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Text block event (Claude Code text response)
+ */
+export interface TextBlockEvent {
+  adw_id: string;
+  timestamp: string;
+  content: string;
+  sequence?: number;
+}
+
 /**
  * Union type for all event types
  */
@@ -120,7 +209,13 @@ export type Event =
   | { type: 'thinking_block'; data: ThinkingBlockEvent }
   | { type: 'tool_use_block'; data: ToolUseBlockEvent }
   | { type: 'orchestrator_chat'; data: OrchestratorChatEvent }
-  | { type: 'chat_stream'; data: ChatStreamEvent };
+  | { type: 'chat_stream'; data: ChatStreamEvent }
+  | { type: 'agent_state_update'; data: AgentStateUpdateEvent }
+  | { type: 'agent_log_entry'; data: AgentLogEntryEvent }
+  | { type: 'file_operation'; data: FileOperationEvent }
+  | { type: 'agent_thinking'; data: AgentThinkingEvent }
+  | { type: 'tool_execution'; data: ToolExecutionEvent }
+  | { type: 'text_block'; data: TextBlockEvent };
 
 /**
  * Event filter options
