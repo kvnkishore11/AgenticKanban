@@ -192,6 +192,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
               {/* Edit Button */}
               {onEdit && (
                 <button
+                  type="button"
                   onClick={() => {
                     onEdit(task);
                     onClose();
@@ -205,6 +206,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
 
               {/* Close Button */}
               <button
+                type="button"
                 onClick={onClose}
                 className="p-2 hover:bg-gray-200 rounded transition-colors"
                 title="Close"
@@ -347,6 +349,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                         {task.metadata?.adw_id || workflowMetadata?.adw_id}
                       </code>
                       <button
+                        type="button"
                         onClick={() => handleCopyToClipboard(task.metadata?.adw_id || workflowMetadata?.adw_id)}
                         className="p-2 hover:bg-gray-200 rounded transition-colors"
                         title="Copy ADW ID"
@@ -402,6 +405,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                 {/* View Plan Button */}
                 <div className="pt-2">
                   <button
+                    type="button"
                     onClick={handleViewPlan}
                     disabled={planLoading}
                     className="flex items-center space-x-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white rounded text-sm transition-colors"
@@ -461,6 +465,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                 <label className="text-xs font-medium text-gray-600 block mb-2">Workflow Controls</label>
                 <div className="flex flex-wrap gap-2">
                   <button
+                    type="button"
                     onClick={handleTriggerWorkflow}
                     disabled={!websocketStatus.connected}
                     className={`flex items-center space-x-2 px-4 py-2 rounded text-sm transition-colors ${
@@ -477,6 +482,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                   {/* Merge Button for ready-to-merge */}
                   {isReadyToMerge && !task.metadata?.merge_completed && (
                     <button
+                      type="button"
                       onClick={handleMerge}
                       className="flex items-center space-x-2 px-4 py-2 bg-teal-600 text-white rounded text-sm hover:bg-teal-700 transition-colors"
                     >
@@ -507,6 +513,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
           <div className="flex items-center justify-end p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg space-x-2">
             {onEdit && (
               <button
+                type="button"
                 onClick={() => {
                   onEdit(task);
                   onClose();
@@ -517,6 +524,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
               </button>
             )}
             <button
+              type="button"
               onClick={onClose}
               className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded transition-colors"
             >

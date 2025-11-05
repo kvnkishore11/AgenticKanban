@@ -150,6 +150,7 @@ const KanbanCard = ({ task, onEdit }) => {
                   {task.metadata?.adw_id}
                 </span>
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     navigator.clipboard.writeText(task.metadata?.adw_id);
@@ -163,6 +164,7 @@ const KanbanCard = ({ task, onEdit }) => {
 
               {/* Trigger Workflow Button in Header */}
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleTriggerWorkflow();
@@ -211,6 +213,7 @@ const KanbanCard = ({ task, onEdit }) => {
           <div className="flex items-center space-x-1 ml-2">
             {/* Expand Button */}
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setShowExpandModal(true);
@@ -223,6 +226,7 @@ const KanbanCard = ({ task, onEdit }) => {
 
             {/* Menu Button */}
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setShowMenu(!showMenu);
@@ -236,6 +240,7 @@ const KanbanCard = ({ task, onEdit }) => {
               <div className="absolute right-0 top-6 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-32">
                 <div className="py-1">
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleEditClick();
@@ -246,6 +251,7 @@ const KanbanCard = ({ task, onEdit }) => {
                     Edit
                   </button>
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       deleteTask(task.id);

@@ -217,6 +217,7 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-2 text-gray-400 hover:text-gray-600"
           >
