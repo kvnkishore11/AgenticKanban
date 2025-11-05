@@ -5,7 +5,7 @@ Merge an isolated ADW worktree into the main branch using automated git operatio
 ## Variables
 
 adw_id: $ARGUMENT (required)
-merge_method: $ARGUMENT (optional, default: "squash", options: "squash"|"merge"|"rebase")
+merge_method: $ARGUMENT (optional, default: "rebase", options: "squash"|"merge"|"rebase")
 
 ## Instructions
 
