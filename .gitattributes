@@ -1,0 +1,7 @@
+# Git attributes for merge strategies
+
+# Config files that should always use main branch version during merges
+# These files are often modified in worktrees to point to worktree-specific paths
+# and should always be restored to main repository paths after merge
+.mcp.json merge=ours
+playwright-mcp-config.json merge=ours
