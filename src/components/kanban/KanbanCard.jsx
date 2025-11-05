@@ -269,8 +269,8 @@ const KanbanCard = ({ task, onEdit }) => {
 
         {/* Description - Full input prompt visible */}
         {task.description && (
-          <div className="text-xs text-gray-600 mb-3 max-h-48 overflow-y-auto">
-            <p className="whitespace-pre-wrap break-words">
+          <div className="text-xs text-gray-600 mb-3 overflow-hidden">
+            <p className="whitespace-pre-wrap break-words line-clamp-3">
               {task.description}
             </p>
           </div>

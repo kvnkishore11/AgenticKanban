@@ -24,6 +24,7 @@ import {
   Activity,
   ExternalLink
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import StageLogsViewer from './StageLogsViewer';
 import PlanViewer from './PlanViewer';
 import adwDiscoveryService from '../../services/api/adwDiscoveryService';
@@ -291,12 +292,12 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                 </div>
               </div>
 
-              {/* Compact Description */}
+              {/* Enhanced Description with Markdown Rendering */}
               {task.description && (
                 <div>
-                  <label className="text-xs font-medium text-gray-500 block mb-1">Description</label>
-                  <div className="text-xs text-gray-700 bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap break-words max-h-20 overflow-y-auto">
-                    {task.description}
+                  <label className="text-xs font-medium text-gray-500 block mb-2">Description</label>
+                  <div className="text-sm text-gray-800 bg-white p-4 rounded border border-gray-300 prose prose-sm max-w-none">
+                    <ReactMarkdown>{task.description}</ReactMarkdown>
                   </div>
                 </div>
               )}
