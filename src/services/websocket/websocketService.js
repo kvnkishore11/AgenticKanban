@@ -151,7 +151,7 @@ class WebSocketService {
   getWebSocketUrl() {
     const { protocol, host, port } = this.config;
     // Connect to main WebSocket endpoint for real-time agent state streaming
-    return `${protocol}://${host}:${port}/ws`;
+    return `${protocol}://${host}:${port}/ws/trigger`;
   }
 
   /**
