@@ -323,3 +323,197 @@ class WebSocketManager:
             }
         }
         await self._broadcast(event)
+
+    # ===== New Granular Streaming Methods =====
+
+    async def broadcast_thinking_block(
+        self,
+        adw_id: str,
+        content: str,
+        duration_ms: Optional[int] = None,
+        sequence: Optional[int] = None
+    ):
+        """
+        Broadcast a thinking block event (Claude's internal reasoning).
+
+        Args:
+            adw_id: ADW workflow identifier
+            content: Thinking content from Claude
+            duration_ms: Optional duration of thinking in milliseconds
+            sequence: Optional sequence number for ordering
+        """
+        event = {
+            'type': 'thinking_block',
+            'data': {
+                'adw_id': adw_id,
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'content': content,
+                'duration_ms': duration_ms,
+                'sequence': sequence
+            }
+        }
+
+        await self._broadcast(event)
+
+    async def broadcast_tool_use_pre(
+        self,
+        adw_id: str,
+        tool_name: str,
+        input_data: Dict[str, Any],
+        tool_use_id: Optional[str] = None
+    ):
+        """
+        Broadcast a pre-tool execution event.
+
+        Args:
+            adw_id: ADW workflow identifier
+            tool_name: Name of the tool about to be executed
+            input_data: Input parameters for the tool
+            tool_use_id: Unique identifier for this tool use
+        """
+        event = {
+            'type': 'tool_use_pre',
+            'data': {
+                'adw_id': adw_id,
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'tool_name': tool_name,
+                'input': input_data,
+                'tool_use_id': tool_use_id
+            }
+        }
+
+        await self._broadcast(event)
+
+    async def broadcast_tool_use_post(
+        self,
+        adw_id: str,
+        tool_name: str,
+        tool_use_id: Optional[str],
+        output: Any,
+        duration_ms: int,
+        success: bool = True,
+        error: Optional[str] = None
+    ):
+        """
+        Broadcast a post-tool execution event.
+
+        Args:
+            adw_id: ADW workflow identifier
+            tool_name: Name of the tool that was executed
+            tool_use_id: Unique identifier for this tool use
+            output: Output from the tool
+            duration_ms: Execution duration in milliseconds
+            success: Whether execution was successful
+            error: Error message if execution failed
+        """
+        event = {
+            'type': 'tool_use_post',
+            'data': {
+                'adw_id': adw_id,
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'tool_name': tool_name,
+                'tool_use_id': tool_use_id,
+                'output': str(output) if output else None,
+                'duration_ms': duration_ms,
+                'success': success,
+                'error': error
+            }
+        }
+
+        await self._broadcast(event)
+
+    async def broadcast_file_changed(
+        self,
+        adw_id: str,
+        file_path: str,
+        operation: str,
+        diff: Optional[str] = None,
+        summary: Optional[str] = None,
+        lines_added: int = 0,
+        lines_removed: int = 0
+    ):
+        """
+        Broadcast a file change event.
+
+        Args:
+            adw_id: ADW workflow identifier
+            file_path: Path to the file that changed
+            operation: Operation type ('read', 'modified', 'created', 'deleted')
+            diff: Git diff of the changes
+            summary: AI-generated summary of the change
+            lines_added: Number of lines added
+            lines_removed: Number of lines removed
+        """
+        event = {
+            'type': 'file_changed',
+            'data': {
+                'adw_id': adw_id,
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'file_path': file_path,
+                'operation': operation,
+                'diff': diff,
+                'summary': summary,
+                'lines_added': lines_added,
+                'lines_removed': lines_removed
+            }
+        }
+
+        await self._broadcast(event)
+
+    async def broadcast_summary_update(
+        self,
+        adw_id: str,
+        summary_type: str,
+        content: str,
+        related_file: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Broadcast an AI-generated summary update.
+
+        Args:
+            adw_id: ADW workflow identifier
+            summary_type: Type of summary ('file_change', 'tool_use', 'session')
+            content: Summary content
+            related_file: Optional related file path
+            metadata: Optional metadata about summary generation
+        """
+        event = {
+            'type': 'summary_update',
+            'data': {
+                'adw_id': adw_id,
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'summary_type': summary_type,
+                'content': content,
+                'related_file': related_file,
+                'metadata': metadata or {}
+            }
+        }
+
+        await self._broadcast(event)
+
+    async def broadcast_text_block(
+        self,
+        adw_id: str,
+        content: str,
+        sequence: Optional[int] = None
+    ):
+        """
+        Broadcast a text block event (Claude's text response).
+
+        Args:
+            adw_id: ADW workflow identifier
+            content: Text content from Claude
+            sequence: Optional sequence number for ordering
+        """
+        event = {
+            'type': 'text_block',
+            'data': {
+                'adw_id': adw_id,
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'content': content,
+                'sequence': sequence
+            }
+        }
+
+        await self._broadcast(event)

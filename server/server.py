@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import API routes
-from api import adws, stage_logs, merge
+from api import adws, stage_logs, merge, file_operations
 
 # Import WebSocket manager
 from core.websocket_manager import WebSocketManager
@@ -46,6 +46,7 @@ app.add_middleware(
 app.include_router(adws.router, prefix="/api")
 app.include_router(stage_logs.router)
 app.include_router(merge.router, prefix="/api")
+app.include_router(file_operations.router)
 
 @app.get("/")
 async def root():
