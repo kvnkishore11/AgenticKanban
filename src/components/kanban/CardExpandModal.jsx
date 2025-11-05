@@ -406,6 +406,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                       <span>{planLoading ? 'Loading...' : 'View Plan'}</span>
                     </button>
                   </div>
+                </div>
               </div>
             )}
 
