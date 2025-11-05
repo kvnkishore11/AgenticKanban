@@ -83,6 +83,7 @@ const initialState = {
     { id: 'review', name: 'Review', color: 'purple' },
     { id: 'document', name: 'Document', color: 'indigo' },
     { id: 'ready-to-merge', name: 'Ready to Merge', color: 'teal' },
+    { id: 'completed', name: 'Completed', color: 'emerald' },
     { id: 'errored', name: 'Errored', color: 'red' },
   ],
 
@@ -1295,7 +1296,16 @@ export const useKanbanStore = create()(
 
             // Auto-progress task stage based on workflow status
             if (status === 'completed') {
-              get().handleWorkflowCompletion(task.id, statusUpdate);
+              // Check if this is a merge worktree completion
+              // The adw_merge_worktree.py script adds 'adw_merge_worktree' to adw_ids when complete
+              const adwIds = task.metadata?.adw_ids || [];
+              if (adwIds.includes('adw_merge_worktree') ||
+                  (statusUpdate.workflow_name && statusUpdate.workflow_name.includes('merge_worktree'))) {
+                console.log(`[Workflow] Merge worktree completed for ADW ${adw_id}`);
+                get().handleMergeCompletion(adw_id);
+              } else {
+                get().handleWorkflowCompletion(task.id, statusUpdate);
+              }
             } else if (status === 'failed') {
               get().moveTaskToStage(task.id, 'errored');
             }
@@ -1686,21 +1696,18 @@ export const useKanbanStore = create()(
           try {
             set({ isLoading: true }, false, 'triggerMergeWorkflow');
 
-            // Call merge service to trigger merge
+            // Call merge service to trigger merge worktree workflow
             const mergeService = (await import('../services/api/adwService')).default;
             const response = await mergeService.triggerMerge(adw_id, issue_number);
 
             if (response.success) {
-              // Keep task in ready-to-merge stage with merge completion metadata
-              // Update task metadata to indicate merge completion
+              // Update task metadata to indicate merge is in progress
               get().updateTask(taskId, {
                 metadata: {
                   ...task.metadata,
-                  merge_completed: true,
-                  merge_completed_at: new Date().toISOString(),
-                  merged_branch: task.metadata?.branch_name,
                   merge_triggered: true,
                   merge_triggered_at: new Date().toISOString(),
+                  merge_in_progress: true,
                 }
               });
 
@@ -1729,6 +1736,32 @@ export const useKanbanStore = create()(
             }, false, 'triggerMergeWorkflowError');
             throw error;
           }
+        },
+
+        // Handle merge completion - called by WebSocket listener
+        handleMergeCompletion: (adw_id) => {
+          const task = get().tasks.find(t => t.metadata?.adw_id === adw_id);
+          if (!task) {
+            console.warn(`Task not found for ADW ID: ${adw_id}`);
+            return;
+          }
+
+          // Move task to completed stage
+          get().moveTaskToStage(task.id, 'completed');
+
+          // Update task metadata with merge completion info
+          get().updateTask(task.id, {
+            metadata: {
+              ...task.metadata,
+              merge_completed: true,
+              merge_completed_at: new Date().toISOString(),
+              merged_branch: task.metadata?.branch_name,
+              merge_in_progress: false,
+              merge_method: 'squash',
+            }
+          });
+
+          console.log(`Task ${task.id} moved to completed stage after successful merge`);
         },
 
         // Handle workflow completion

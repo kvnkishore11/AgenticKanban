@@ -110,10 +110,13 @@ async def trigger_merge(request: MergeTriggerRequest):
     """
     Trigger merge workflow for an ADW ID.
 
-    This endpoint triggers the adw_complete_iso.py workflow which:
-    1. Merges the branch to main
-    2. Clears the worktree
-    3. Marks the workflow as completed
+    This endpoint triggers the adw_merge_worktree.py workflow which:
+    1. Merges the branch to main using git operations
+    2. Handles merge conflicts with Claude Code assistance if needed
+    3. Runs validation tests to ensure merge is clean
+    4. Clears the worktree
+    5. Deletes the remote branch
+    6. Updates ADW state with merge status
 
     Args:
         request: MergeTriggerRequest containing adw_id and issue_number
@@ -139,31 +142,33 @@ async def trigger_merge(request: MergeTriggerRequest):
             detail=f"ADW state not found for ADW ID: {adw_id}"
         )
 
-    # Check if already completed
-    if state_data.get("completed", False):
+    # Check if already merged
+    adw_ids = state_data.get("adw_ids", [])
+    if "adw_merge_worktree" in adw_ids:
         return MergeTriggerResponse(
             success=True,
-            message="Workflow already completed",
+            message="Worktree already merged",
             adw_id=adw_id
         )
 
     # Get adws directory and script path
     adws_dir = get_adws_directory()
-    script_path = adws_dir / "adw_complete_iso.py"
+    script_path = adws_dir / "adw_merge_worktree.py"
 
     if not script_path.exists():
         raise HTTPException(
             status_code=500,
-            detail=f"adw_complete_iso.py script not found at {script_path}"
+            detail=f"adw_merge_worktree.py script not found at {script_path}"
         )
 
     # Trigger the workflow using subprocess
     try:
-        logger.info(f"Triggering merge workflow for ADW {adw_id}, Issue #{issue_number}")
+        logger.info(f"Triggering merge worktree workflow for ADW {adw_id}, Issue #{issue_number}")
 
         # Run the script in the background
         # Note: We use Popen to run it asynchronously
-        cmd = ["uv", "run", str(script_path), str(issue_number), adw_id]
+        # The script uses squash merge by default
+        cmd = ["uv", "run", str(script_path), adw_id, "squash"]
 
         # Run in background and don't wait for completion
         process = subprocess.Popen(
@@ -174,19 +179,19 @@ async def trigger_merge(request: MergeTriggerRequest):
             text=True
         )
 
-        logger.info(f"Started merge workflow process (PID: {process.pid})")
+        logger.info(f"Started merge worktree workflow process (PID: {process.pid})")
 
         return MergeTriggerResponse(
             success=True,
-            message=f"Merge workflow started for ADW {adw_id}",
+            message=f"Merge worktree workflow started for ADW {adw_id}",
             adw_id=adw_id
         )
 
     except Exception as e:
-        logger.error(f"Failed to trigger merge workflow: {e}")
+        logger.error(f"Failed to trigger merge worktree workflow: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to trigger merge workflow: {str(e)}"
+            detail=f"Failed to trigger merge worktree workflow: {str(e)}"
         )
 
 
