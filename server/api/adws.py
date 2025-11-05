@@ -59,6 +59,37 @@ def get_agents_directory() -> Path:
 
     return agents_dir
 
+def get_specs_directory() -> Path:
+    """
+    Get the path to the specs directory.
+    Handles both main project and worktree environments.
+    - If running from a worktree (trees/<adw_id>/server), goes up to main project
+    - If running from main project (server), uses relative path
+    """
+    # Get the directory where this script is located
+    current_file = Path(__file__).resolve()
+
+    # Go up 3 levels to reach the current repository root (worktree or main project)
+    # From server/api/adws.py -> server/api -> server -> (root)
+    current_root = current_file.parent.parent.parent
+
+    # Check if we're in a worktree by checking if 'trees/' is in the path
+    path_parts = current_root.parts
+    if 'trees' in path_parts:
+        # We're in a worktree (trees/<adw_id>/)
+        # Find the index of 'trees' and go up to the main project root
+        trees_index = path_parts.index('trees')
+        # Reconstruct path up to (but not including) 'trees'
+        main_project_root = Path(*path_parts[:trees_index])
+        specs_dir = main_project_root / "specs"
+        logger.info(f"Detected worktree. Specs directory: {specs_dir}")
+    else:
+        # We're in the main project
+        specs_dir = current_root / "specs"
+        logger.info(f"Detected main project. Specs directory: {specs_dir}")
+
+    return specs_dir
+
 def read_adw_state(adw_dir: Path) -> Dict[str, Any]:
     """
     Read and parse the adw_state.json file from an ADW directory.
@@ -255,30 +286,68 @@ async def get_adw_plan(adw_id: str):
 
     try:
         logger.info(f"Fetching plan for ADW ID: {adw_id}")
-        agents_dir = get_agents_directory()
-        adw_dir = agents_dir / adw_id
-        logger.info(f"Looking for ADW directory at: {adw_dir}")
 
-        if not adw_dir.exists():
-            logger.error(f"ADW directory not found: {adw_dir}")
+        # Get specs directory where plan files are stored
+        specs_dir = get_specs_directory()
+        logger.info(f"Searching for plan files in specs directory: {specs_dir}")
+
+        if not specs_dir.exists():
+            logger.error(f"Specs directory not found: {specs_dir}")
             raise HTTPException(
                 status_code=404,
-                detail=f"ADW ID '{adw_id}' not found at path: {adw_dir}"
+                detail=f"Specs directory not found at path: {specs_dir}"
             )
 
-        # Construct path to plan file
-        plan_file = adw_dir / "sdlc_planner" / "plan.md"
-        logger.info(f"Looking for plan file at: {plan_file}")
+        # Search for plan files matching the pattern: issue-*-adw-{adw_id}-sdlc_planner-*.md
+        pattern = f"issue-*-adw-{adw_id}-sdlc_planner-*.md"
+        matching_files = list(specs_dir.glob(pattern))
+        logger.info(f"Found {len(matching_files)} files matching pattern '{pattern}'")
 
-        if not plan_file.exists():
-            logger.error(f"Plan file not found: {plan_file}")
-            # List what exists in the ADW directory for debugging
+        # If multiple files found, use the most recently modified one
+        plan_file = None
+        if matching_files:
+            # Sort by modification time (most recent first)
+            matching_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+            plan_file = matching_files[0]
+            if len(matching_files) > 1:
+                logger.warning(f"Multiple plan files found for ADW ID {adw_id}, using most recent: {plan_file.name}")
+            else:
+                logger.info(f"Found plan file: {plan_file.name}")
+
+        # Fallback: If no plan file found by ADW ID, try to find by checking ADW state
+        if not plan_file:
+            logger.info(f"No plan file found by ADW ID pattern, attempting fallback search")
+
+            # Try to get issue number from ADW state
+            agents_dir = get_agents_directory()
+            adw_dir = agents_dir / adw_id
+
             if adw_dir.exists():
-                contents = [item.name for item in adw_dir.iterdir()]
-                logger.info(f"Contents of ADW directory: {contents}")
+                adw_state = read_adw_state(adw_dir)
+                if adw_state and 'issue_number' in adw_state:
+                    issue_number = adw_state['issue_number']
+                    logger.info(f"Found issue number {issue_number} from ADW state, searching for plan files")
+
+                    # Search by issue number pattern
+                    fallback_pattern = f"issue-{issue_number}-adw-*-sdlc_planner-*.md"
+                    fallback_files = list(specs_dir.glob(fallback_pattern))
+
+                    if fallback_files:
+                        # Sort by modification time and use most recent
+                        fallback_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+                        plan_file = fallback_files[0]
+                        logger.info(f"Found plan file via fallback search: {plan_file.name}")
+
+        # If still no plan file found, return 404
+        if not plan_file:
+            logger.error(f"No plan file found for ADW ID '{adw_id}'")
+            # List available plan files for debugging
+            all_plan_files = list(specs_dir.glob("issue-*-sdlc_planner-*.md"))
+            if all_plan_files:
+                logger.info(f"Available plan files in specs directory: {[f.name for f in all_plan_files[:5]]}")
             raise HTTPException(
                 status_code=404,
-                detail=f"Plan file not found for ADW ID '{adw_id}' at path: {plan_file}"
+                detail=f"Plan file not found for ADW ID '{adw_id}'. No matching files in specs directory."
             )
 
         # Read plan file content
@@ -294,7 +363,7 @@ async def get_adw_plan(adw_id: str):
             )
 
         # Return plan content and relative path
-        relative_plan_path = f"agents/{adw_id}/sdlc_planner/plan.md"
+        relative_plan_path = f"specs/{plan_file.name}"
         return {
             "plan_content": plan_content,
             "plan_file": relative_plan_path
