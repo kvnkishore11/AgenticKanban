@@ -21,11 +21,13 @@ import {
   Eye,
   Copy,
   GitPullRequest,
-  Activity
+  Activity,
+  ExternalLink
 } from 'lucide-react';
 import StageLogsViewer from './StageLogsViewer';
 import PlanViewer from './PlanViewer';
 import adwDiscoveryService from '../../services/api/adwDiscoveryService';
+import fileOperationsService from '../../services/api/fileOperationsService';
 import { useState } from 'react';
 
 const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
@@ -44,6 +46,8 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   const [planContent, setPlanContent] = useState(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState(null);
+  const [ideOpenLoading, setIdeOpenLoading] = useState(false);
+  const [ideOpenSuccess, setIdeOpenSuccess] = useState(false);
 
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
@@ -137,6 +141,48 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
       setPlanError(error.message || 'Failed to load plan file');
     } finally {
       setPlanLoading(false);
+    }
+  };
+
+  const handleOpenPlanFileInIde = async () => {
+    const planFile = task.metadata?.plan_file || workflowMetadata?.plan_file;
+    if (!planFile) {
+      console.error('No plan file path found');
+      return;
+    }
+
+    setIdeOpenLoading(true);
+    setIdeOpenSuccess(false);
+
+    try {
+      // The plan file path is relative to the project root
+      // The backend server runs from the server/ directory, so we need to prepend ../
+      const serverRelativePath = `../${planFile}`;
+
+      // Validate the file path and get the absolute path
+      const validation = await fileOperationsService.validateFilePath(serverRelativePath);
+
+      if (!validation.exists) {
+        console.error('Plan file does not exist:', planFile);
+        alert(`File not found: ${planFile}`);
+        return;
+      }
+
+      const absolutePath = validation.absolute_path;
+
+      // Open the file in IDE
+      const result = await fileOperationsService.openFileInIde(absolutePath, 1);
+
+      if (result.success) {
+        setIdeOpenSuccess(true);
+        // Reset success indicator after 2 seconds
+        setTimeout(() => setIdeOpenSuccess(false), 2000);
+      }
+    } catch (error) {
+      console.error('Failed to open file in IDE:', error);
+      alert(`Failed to open file in IDE: ${error.message}`);
+    } finally {
+      setIdeOpenLoading(false);
     }
   };
 
@@ -383,13 +429,29 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                     </div>
                   )}
 
-                  {/* Plan File Path */}
+                  {/* Plan File Path with Open in IDE button */}
                   {(task.metadata?.plan_file || workflowMetadata?.plan_file) && (
                     <div>
                       <label className="text-xs font-medium text-gray-500 block mb-1">Plan File</label>
-                      <div className="bg-white px-2 py-1 rounded border border-gray-200 text-xs font-mono truncate"
-                           title={task.metadata?.plan_file || workflowMetadata?.plan_file}>
-                        {task.metadata?.plan_file || workflowMetadata?.plan_file}
+                      <div className="flex items-center space-x-2">
+                        <div className="flex-1 bg-white px-2 py-1 rounded border border-gray-200 text-xs font-mono truncate"
+                             title={task.metadata?.plan_file || workflowMetadata?.plan_file}>
+                          {task.metadata?.plan_file || workflowMetadata?.plan_file}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleOpenPlanFileInIde}
+                          disabled={ideOpenLoading}
+                          className={`flex items-center justify-center space-x-1 px-2 py-1 rounded text-xs transition-colors whitespace-nowrap ${
+                            ideOpenSuccess
+                              ? 'bg-green-600 hover:bg-green-700 text-white'
+                              : 'bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white'
+                          }`}
+                          title="Open file in VS Code or Cursor"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          <span>{ideOpenLoading ? 'Opening...' : ideOpenSuccess ? 'Opened!' : 'Open in IDE'}</span>
+                        </button>
                       </div>
                     </div>
                   )}
