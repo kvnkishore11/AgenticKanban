@@ -42,17 +42,22 @@ class WebSocketService {
       reconnecting: []
     };
 
-    // Configuration - extract from VITE_BACKEND_URL (required)
-    // WebSocket server runs on VITE_BACKEND_URL port (separate from HTTP backend which runs on port 8001)
+    // Configuration - extract from environment variables
     const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    const websocketPort = import.meta.env.VITE_WEBSOCKET_PORT;
+    
     if (!backendUrl) {
       throw new Error('VITE_BACKEND_URL environment variable is required');
     }
+    
     const url = new URL(backendUrl);
-    const backendPort = parseInt(url.port);
+    
+    // Use VITE_WEBSOCKET_PORT if provided, otherwise fallback to VITE_BACKEND_URL port
+    const port = websocketPort ? parseInt(websocketPort) : parseInt(url.port);
+    
     this.config = {
       host: url.hostname,
-      port: backendPort, // WebSocket server port from VITE_BACKEND_URL
+      port: port, // Dynamic WebSocket server port
       protocol: 'ws',
       autoReconnect: true,
       maxReconnectAttempts: 20, // Updated to match instance variable
