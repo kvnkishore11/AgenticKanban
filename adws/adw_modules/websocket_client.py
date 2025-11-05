@@ -378,7 +378,7 @@ class WebSocketNotifier:
             self.logger.debug(f"WebSocket server not available at {self.server_url}")
             return False
         except requests.exceptions.Timeout:
-            self.logger.warning(f"Timeout sending agent state update to WebSocket server")
+            self.logger.warning("Timeout sending agent state update to WebSocket server")
             return False
         except Exception as e:
             self.logger.error(f"Error sending agent state update: {str(e)}")
