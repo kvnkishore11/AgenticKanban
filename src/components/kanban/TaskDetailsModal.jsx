@@ -138,6 +138,8 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
     const adwId = task.metadata?.adw_id || workflowMetadata?.adw_id;
     if (!adwId) {
       console.error('No ADW ID found for this task');
+      setPlanError('No ADW ID found for this task. Cannot view plan.');
+      setShowPlanModal(true);
       return;
     }
 
@@ -150,10 +152,33 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
       setPlanContent(data.plan_content);
     } catch (error) {
       console.error('Failed to fetch plan file:', error);
-      setPlanError(error.message || 'Failed to load plan file');
+      // Provide more detailed error message with ADW ID for better debugging
+      let errorMessage = 'Failed to load plan file';
+      if (error.message) {
+        if (error.message.includes('404') || error.message.includes('not found')) {
+          errorMessage = `Plan file not found for ADW ID: ${adwId}. The plan may not have been generated yet or the file may have been moved.`;
+        } else if (error.message.includes('500') || error.message.includes('Internal server error')) {
+          errorMessage = `Server error while loading plan for ADW ID: ${adwId}. Please try again or contact support.`;
+        } else {
+          errorMessage = `${error.message} (ADW ID: ${adwId})`;
+        }
+      }
+      setPlanError(errorMessage);
     } finally {
       setPlanLoading(false);
     }
+  };
+
+  const handleClosePlanModal = () => {
+    setShowPlanModal(false);
+    // Clear error state when closing to ensure clean state on reopen
+    setPlanError(null);
+    setPlanContent(null);
+  };
+
+  const handleRetryPlanLoad = () => {
+    // Retry loading the plan
+    handleViewPlan();
   };
 
   const handleEditClick = () => {
@@ -527,11 +552,8 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
         <PlanViewer
           planContent={planContent}
           adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
-          onClose={() => {
-            setShowPlanModal(false);
-            setPlanContent(null);
-            setPlanError(null);
-          }}
+          onClose={handleClosePlanModal}
+          onRetry={handleRetryPlanLoad}
           isOpen={showPlanModal}
           isLoading={planLoading}
           error={planError}

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { X, Copy, FileText } from 'lucide-react';
+import { X, Copy, FileText, RefreshCw } from 'lucide-react';
 
 /**
  * PlanViewer Component
@@ -11,6 +11,7 @@ const PlanViewer = ({
   planContent,
   adwId,
   onClose,
+  onRetry,
   isOpen,
   isLoading = false,
   error = null
@@ -108,6 +109,18 @@ const PlanViewer = ({
               <div className="text-center text-red-600">
                 <p className="font-semibold">Error loading plan</p>
                 <p className="text-sm mt-2 text-gray-600">{error}</p>
+                {onRetry && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRetry();
+                    }}
+                    className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Retry
+                  </button>
+                )}
               </div>
             </div>
           ) : !planContent ? (
