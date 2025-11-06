@@ -129,7 +129,7 @@ const KanbanCard = ({ task, onEdit }) => {
               className={`inline-flex items-center justify-center w-8 border rounded px-1.5 py-0.5 text-xs font-bold shadow-sm ${
                 isCurrentStage
                   ? 'bg-slate-800 border-slate-800 text-slate-50'
-                  : 'border-gray-400 text-gray-700'
+                  : 'border-gray-400 text-gray-900'
               }`}
             >
               {getStageAbbreviation(stage)}
@@ -176,13 +176,13 @@ const KanbanCard = ({ task, onEdit }) => {
             <div className="flex items-center space-x-2">
               <CheckCircle className="h-5 w-5 text-green-500" />
               <div>
-                <div className="text-sm font-bold text-gray-700">
+                <div className="text-sm font-bold text-gray-900">
                   ADW {task.metadata?.adw_id || `#${task.id}`}
                 </div>
-                <div className="text-xs font-semibold text-gray-500">Completed</div>
+                <div className="text-xs font-semibold text-gray-700">Completed</div>
               </div>
             </div>
-            <div className="text-xs text-gray-400">
+            <div className="text-xs text-gray-600">
               {formatTimeAgo(task.updatedAt)}
             </div>
           </div>
@@ -254,7 +254,7 @@ const KanbanCard = ({ task, onEdit }) => {
             <h4 className="text-sm font-bold text-gray-900 truncate">
               {task.metadata?.summary || task.title}
             </h4>
-            <div className="mt-1 flex items-center text-xs text-gray-500">
+            <div className="mt-1 flex items-center text-xs text-gray-700">
               <span className="truncate">#{task.id}</span>
               <span className="mx-1">•</span>
               {task.pipelineId?.startsWith('adw_') ? (
@@ -325,7 +325,7 @@ const KanbanCard = ({ task, onEdit }) => {
 
         {/* Description - Full input prompt visible */}
         {task.description && (
-          <div className="text-xs text-gray-600 mb-3 overflow-hidden">
+          <div className="text-xs text-gray-800 mb-3 overflow-hidden">
             <p className="whitespace-pre-wrap break-words line-clamp-3">
               {task.description}
             </p>
@@ -348,7 +348,7 @@ const KanbanCard = ({ task, onEdit }) => {
             <div className="status-icon">
               {getStatusIcon()}
             </div>
-            <div className="flex items-center text-xs text-gray-500">
+            <div className="flex items-center text-xs text-gray-700">
               <Clock className="h-3 w-3 mr-1" />
               <span>{formatTimeAgo(task.updatedAt)}</span>
             </div>
@@ -357,7 +357,7 @@ const KanbanCard = ({ task, onEdit }) => {
           {/* Workflow log indicators */}
           {workflowLogs && workflowLogs.length > 0 && (
             <div className="flex items-center space-x-2">
-              <div className="text-xs text-gray-400">
+              <div className="text-xs text-gray-600">
                 {workflowLogs.length} log{workflowLogs.length !== 1 ? 's' : ''}
               </div>
               {/* Show latest log type indicator */}
