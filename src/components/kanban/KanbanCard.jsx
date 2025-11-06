@@ -100,7 +100,7 @@ const KanbanCard = ({ task, onEdit }) => {
     const abbreviations = {
       'plan': 'P',
       'build': 'B',
-      'implement': 'I',
+      'implement': 'B',
       'test': 'T',
       'review': 'R',
       'document': 'D',
@@ -119,14 +119,21 @@ const KanbanCard = ({ task, onEdit }) => {
 
     return (
       <div className="flex items-center space-x-1">
-        {stages.map((stage, index) => (
-          <span key={index}>
-            {index > 0 && <span className="text-gray-400 mx-0.5">|</span>}
-            <span className="inline-block border border-gray-400 rounded px-1.5 py-0.5 text-xs font-bold shadow-sm">
+        {stages.map((stage, index) => {
+          const isCurrentStage = task.stage === stage;
+          return (
+            <span
+              key={index}
+              className={`inline-flex items-center justify-center w-8 border rounded px-1.5 py-0.5 text-xs font-bold shadow-sm ${
+                isCurrentStage
+                  ? 'bg-slate-800 border-slate-800 text-slate-50'
+                  : 'border-gray-400 text-gray-700'
+              }`}
+            >
               {getStageAbbreviation(stage)}
             </span>
-          </span>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -184,6 +191,9 @@ const KanbanCard = ({ task, onEdit }) => {
           <div className="adw-header mb-3 pb-2 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 flex-1 min-w-0">
+                <span className="text-xs font-bold text-gray-700">
+                  #{task.id}
+                </span>
                 <span className="text-xs font-mono font-bold bg-gray-100 px-2 py-1 rounded text-gray-800 truncate">
                   {task.metadata?.adw_id}
                 </span>
@@ -200,23 +210,38 @@ const KanbanCard = ({ task, onEdit }) => {
                 </button>
               </div>
 
-              {/* Trigger Workflow Button in Header */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleTriggerWorkflow();
-                }}
-                disabled={!websocketStatus.connected}
-                className={`flex items-center space-x-1 text-xs rounded px-2 py-1 ml-2 ${
-                  websocketStatus.connected
-                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
-                title={websocketStatus.connected ? 'Trigger Workflow' : 'WebSocket Disconnected'}
-              >
-                <Play className="h-3 w-3" />
-              </button>
+              <div className="flex items-center space-x-1">
+                {/* Expand Button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowExpandModal(true);
+                  }}
+                  className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
+                  title="Expand card"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </button>
+
+                {/* Trigger Workflow Button in Header */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTriggerWorkflow();
+                  }}
+                  disabled={!websocketStatus.connected}
+                  className={`flex items-center space-x-1 text-xs rounded px-2 py-1 ${
+                    websocketStatus.connected
+                      ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                  title={websocketStatus.connected ? 'Trigger Workflow' : 'WebSocket Disconnected'}
+                >
+                  <Play className="h-3 w-3" />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -253,19 +278,6 @@ const KanbanCard = ({ task, onEdit }) => {
           </div>
 
           <div className="flex items-center space-x-1 ml-2">
-            {/* Expand Button */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowExpandModal(true);
-              }}
-              className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
-              title="Expand card"
-            >
-              <Maximize2 className="h-4 w-4" />
-            </button>
-
             {/* Menu Button */}
             <button
               type="button"
