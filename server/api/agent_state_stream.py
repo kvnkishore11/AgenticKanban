@@ -73,6 +73,41 @@ class ToolExecutionRequest(BaseModel):
     error: Optional[str] = Field(None, description="Error message if failed")
 
 
+class WorkflowPhaseTransitionRequest(BaseModel):
+    """Request model for workflow phase transitions."""
+    adw_id: str = Field(..., description="ADW workflow identifier")
+    phase_from: Optional[str] = Field(None, description="Previous phase name")
+    phase_to: str = Field(..., description="New phase name")
+    workflow_name: Optional[str] = Field(None, description="Workflow name")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+
+
+class AgentOutputChunkRequest(BaseModel):
+    """Request model for streaming raw output chunks."""
+    adw_id: str = Field(..., description="ADW workflow identifier")
+    agent_role: str = Field(..., description="Agent role (planner, implementor, tester, reviewer, documenter)")
+    content: str = Field(..., description="Content chunk from raw_output.jsonl")
+    line_number: Optional[int] = Field(None, description="Line number in the file")
+    total_lines: Optional[int] = Field(None, description="Total lines in the file")
+    is_complete: bool = Field(default=False, description="Whether this is the last chunk")
+
+
+class ScreenshotAvailableRequest(BaseModel):
+    """Request model for screenshot availability notifications."""
+    adw_id: str = Field(..., description="ADW workflow identifier")
+    screenshot_path: str = Field(..., description="Path to screenshot file (relative to agents/{adw_id})")
+    screenshot_type: str = Field(default="review", description="Screenshot type (review, error, comparison)")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Optional metadata")
+
+
+class SpecCreatedRequest(BaseModel):
+    """Request model for spec creation notifications."""
+    adw_id: str = Field(..., description="ADW workflow identifier")
+    spec_path: str = Field(..., description="Path to spec file (relative to repository root)")
+    spec_type: str = Field(default="plan", description="Spec type (plan, patch, review)")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Optional metadata")
+
+
 # ===== API Endpoints =====
 
 @router.post("/agent-state-update")
@@ -423,4 +458,163 @@ async def get_agent_state_snapshot(adw_id: str):
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error: {str(e)}"
+        )
+
+
+@router.post("/workflow-phase-transition")
+async def receive_workflow_phase_transition(request: Request, transition: WorkflowPhaseTransitionRequest):
+    """
+    Receive and broadcast workflow phase transition events.
+
+    Args:
+        request: FastAPI request
+        transition: Phase transition payload
+
+    Returns:
+        Success confirmation
+    """
+    try:
+        ws_manager = request.app.state.ws_manager
+
+        await ws_manager.broadcast_workflow_phase_transition(
+            adw_id=transition.adw_id,
+            phase_from=transition.phase_from,
+            phase_to=transition.phase_to,
+            workflow_name=transition.workflow_name,
+            metadata=transition.metadata
+        )
+
+        logger.info(f"Broadcasted phase transition for {transition.adw_id}: {transition.phase_from} → {transition.phase_to}")
+
+        return {
+            "status": "success",
+            "message": "Phase transition broadcasted",
+            "adw_id": transition.adw_id,
+            "phase_to": transition.phase_to
+        }
+
+    except Exception as e:
+        logger.error(f"Error broadcasting phase transition: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to broadcast phase transition: {str(e)}"
+        )
+
+
+@router.post("/agent-output-chunk")
+async def receive_agent_output_chunk(request: Request, chunk: AgentOutputChunkRequest):
+    """
+    Receive and broadcast agent output chunks from raw_output.jsonl.
+
+    Args:
+        request: FastAPI request
+        chunk: Output chunk payload
+
+    Returns:
+        Success confirmation
+    """
+    try:
+        ws_manager = request.app.state.ws_manager
+
+        await ws_manager.broadcast_agent_output_chunk(
+            adw_id=chunk.adw_id,
+            agent_role=chunk.agent_role,
+            content=chunk.content,
+            line_number=chunk.line_number,
+            total_lines=chunk.total_lines,
+            is_complete=chunk.is_complete
+        )
+
+        logger.debug(f"Broadcasted output chunk for {chunk.adw_id}/{chunk.agent_role}")
+
+        return {
+            "status": "success",
+            "message": "Output chunk broadcasted",
+            "adw_id": chunk.adw_id,
+            "agent_role": chunk.agent_role
+        }
+
+    except Exception as e:
+        logger.error(f"Error broadcasting output chunk: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to broadcast output chunk: {str(e)}"
+        )
+
+
+@router.post("/screenshot-available")
+async def receive_screenshot_available(request: Request, screenshot: ScreenshotAvailableRequest):
+    """
+    Receive and broadcast screenshot availability notifications.
+
+    Args:
+        request: FastAPI request
+        screenshot: Screenshot notification payload
+
+    Returns:
+        Success confirmation
+    """
+    try:
+        ws_manager = request.app.state.ws_manager
+
+        await ws_manager.broadcast_screenshot_available(
+            adw_id=screenshot.adw_id,
+            screenshot_path=screenshot.screenshot_path,
+            screenshot_type=screenshot.screenshot_type,
+            metadata=screenshot.metadata
+        )
+
+        logger.info(f"Broadcasted screenshot availability for {screenshot.adw_id}: {screenshot.screenshot_path}")
+
+        return {
+            "status": "success",
+            "message": "Screenshot notification broadcasted",
+            "adw_id": screenshot.adw_id,
+            "screenshot_path": screenshot.screenshot_path
+        }
+
+    except Exception as e:
+        logger.error(f"Error broadcasting screenshot notification: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to broadcast screenshot notification: {str(e)}"
+        )
+
+
+@router.post("/spec-created")
+async def receive_spec_created(request: Request, spec: SpecCreatedRequest):
+    """
+    Receive and broadcast spec creation notifications.
+
+    Args:
+        request: FastAPI request
+        spec: Spec creation payload
+
+    Returns:
+        Success confirmation
+    """
+    try:
+        ws_manager = request.app.state.ws_manager
+
+        await ws_manager.broadcast_spec_created(
+            adw_id=spec.adw_id,
+            spec_path=spec.spec_path,
+            spec_type=spec.spec_type,
+            metadata=spec.metadata
+        )
+
+        logger.info(f"Broadcasted spec creation for {spec.adw_id}: {spec.spec_path}")
+
+        return {
+            "status": "success",
+            "message": "Spec creation broadcasted",
+            "adw_id": spec.adw_id,
+            "spec_path": spec.spec_path
+        }
+
+    except Exception as e:
+        logger.error(f"Error broadcasting spec creation: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to broadcast spec creation: {str(e)}"
         )

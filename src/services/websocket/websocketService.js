@@ -49,7 +49,13 @@ class WebSocketService {
       tool_use_post: [],
       file_changed: [],
       text_block: [],
-      summary_update: []
+      summary_update: [],
+      // Enhanced agent directory streaming events
+      heartbeat: [],
+      workflow_phase_transition: [],
+      agent_output_chunk: [],
+      screenshot_available: [],
+      spec_created: []
     };
 
     // Configuration - extract from environment variables
@@ -442,6 +448,31 @@ class WebSocketService {
       case 'connection_ack':
         // Handle connection acknowledgment from server
         console.log('WebSocket connection acknowledged:', data);
+        break;
+      // Enhanced agent directory streaming events
+      case 'heartbeat':
+        // Update connection metrics from heartbeat
+        if (data && data.timestamp) {
+          const now = Date.now();
+          const serverTime = new Date(data.timestamp).getTime();
+          this.connectionMetrics.lastLatency = Math.abs(now - serverTime);
+        }
+        this.emit('heartbeat', data);
+        break;
+      case 'workflow_phase_transition':
+        console.log('Phase transition:', data.phase_from, '→', data.phase_to);
+        this.emit('workflow_phase_transition', data);
+        break;
+      case 'agent_output_chunk':
+        this.emit('agent_output_chunk', data);
+        break;
+      case 'screenshot_available':
+        console.log('Screenshot available:', data.screenshot_path);
+        this.emit('screenshot_available', data);
+        break;
+      case 'spec_created':
+        console.log('Spec created:', data.spec_path);
+        this.emit('spec_created', data);
         break;
       default:
         console.warn('Unknown message type:', type);

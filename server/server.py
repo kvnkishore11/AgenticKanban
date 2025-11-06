@@ -3,10 +3,16 @@
 FastAPI server for ADW management and workflow automation.
 """
 import os
+import json
+import logging
 import uvicorn
+from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -64,31 +70,90 @@ async def health():
     return {"status": "healthy"}
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, user_agent: str = None):
     """
     WebSocket endpoint for real-time event broadcasting.
     Clients connect here to receive live updates about workflow execution.
+    Supports ping/pong for connection health monitoring and ADW subscriptions.
     """
     connection_id = None
     try:
+        # Extract client metadata
+        client_info = {
+            "user_agent": websocket.headers.get("user-agent", "Unknown"),
+            "remote_address": websocket.client.host if websocket.client else None,
+        }
+
         # Accept connection and register with manager
-        connection_id = await ws_manager.connect(websocket)
+        connection_id = await ws_manager.connect(websocket, client_info)
 
         # Keep connection alive and listen for messages
         while True:
             try:
-                # Receive messages from client (for ping/pong, etc.)
+                # Receive messages from client (for ping/pong, subscriptions, etc.)
                 data = await websocket.receive_text()
-                # Echo back for now (can be extended for client commands)
-                # Client messages are currently just for keepalive
+
+                # Parse client message
+                try:
+                    message = json.loads(data)
+                    message_type = message.get("type")
+
+                    if message_type == "ping":
+                        # Respond to ping with pong
+                        await websocket.send_json({
+                            "type": "pong",
+                            "data": {
+                                "timestamp": datetime.utcnow().isoformat() + "Z"
+                            }
+                        })
+                    elif message_type == "subscribe":
+                        # Subscribe to specific ADW ID
+                        adw_id = message.get("adw_id")
+                        if adw_id:
+                            ws_manager.subscribe_to_adw(connection_id, adw_id)
+                            await websocket.send_json({
+                                "type": "subscription_ack",
+                                "data": {
+                                    "adw_id": adw_id,
+                                    "status": "subscribed",
+                                    "timestamp": datetime.utcnow().isoformat() + "Z"
+                                }
+                            })
+                    elif message_type == "unsubscribe":
+                        # Unsubscribe from specific ADW ID
+                        adw_id = message.get("adw_id")
+                        if adw_id:
+                            ws_manager.unsubscribe_from_adw(connection_id, adw_id)
+                            await websocket.send_json({
+                                "type": "subscription_ack",
+                                "data": {
+                                    "adw_id": adw_id,
+                                    "status": "unsubscribed",
+                                    "timestamp": datetime.utcnow().isoformat() + "Z"
+                                }
+                            })
+                    else:
+                        # Unknown message type
+                        logger.warning(f"Unknown message type from client {connection_id}: {message_type}")
+
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid JSON from client {connection_id}: {data}")
+                except Exception as e:
+                    logger.error(f"Error processing message from client {connection_id}: {e}")
+                    await ws_manager.send_error_to_client(
+                        connection_id,
+                        "message_processing_error",
+                        f"Error processing message: {str(e)}"
+                    )
+
             except WebSocketDisconnect:
                 break
             except Exception as e:
-                print(f"Error receiving WebSocket message: {e}")
+                logger.error(f"Error receiving WebSocket message: {e}")
                 break
 
     except Exception as e:
-        print(f"WebSocket connection error: {e}")
+        logger.error(f"WebSocket connection error: {e}")
     finally:
         # Clean up connection
         if connection_id:

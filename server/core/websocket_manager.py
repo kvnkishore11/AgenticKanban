@@ -9,12 +9,26 @@ Event Types:
 - system_log: System-level log messages
 - agent_summary_update: Agent status and progress summaries
 - chat_stream: Real-time chat/output streaming
+- thinking_block: Claude Code thinking blocks
+- tool_use_pre/post: Pre and post tool execution events
+- file_changed: File operation notifications
+- text_block: Claude text responses
+- summary_update: AI-generated summaries
+- workflow_phase_transition: Phase transitions (plan → build → test → review → document)
+- agent_output_chunk: Raw output streaming from agents/{adw_id} directories
+- screenshot_available: Screenshot availability notifications
+- spec_created: Specification file creation notifications
+- heartbeat: Connection health monitoring
 
 Features:
-- Connection management with metadata tracking
+- Connection management with metadata tracking (user agent, remote address)
 - Broadcast methods for different event types
 - Structured event payloads with timestamps
 - Error handling and connection cleanup
+- Heartbeat mechanism for connection health monitoring
+- ADW-specific subscriptions for targeted broadcasting
+- Client-specific messaging and error delivery
+- Connection metadata tracking and subscription management
 """
 
 import asyncio
@@ -47,7 +61,7 @@ class WebSocketManager:
 
         Args:
             websocket: FastAPI WebSocket instance
-            client_info: Optional metadata about the client (user_id, session_id, etc.)
+            client_info: Optional metadata about the client (user_agent, remote_address, etc.)
 
         Returns:
             connection_id: Unique identifier for this connection
@@ -63,6 +77,8 @@ class WebSocketManager:
             'connected_at': datetime.utcnow().isoformat() + 'Z',
             'client_info': client_info or {},
             'last_activity': datetime.utcnow().isoformat() + 'Z'
+            # Note: 'subscribed_adw_ids' is added dynamically via subscribe_to_adw()
+            # When not present, connection receives all events (broadcast to all)
         }
 
         self.active_connections.append(connection_data)
@@ -517,3 +533,257 @@ class WebSocketManager:
         }
 
         await self._broadcast(event)
+
+    # ===== Enhanced Agent Directory Streaming Methods =====
+
+    async def broadcast_heartbeat(self):
+        """
+        Broadcast a heartbeat/ping event for connection health monitoring.
+
+        This method sends periodic heartbeat events to all connected clients
+        to maintain connection health and detect stale connections.
+        """
+        event = {
+            'type': 'heartbeat',
+            'data': {
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'active_connections': len(self.active_connections),
+                'server_status': 'healthy'
+            }
+        }
+
+        await self._broadcast(event)
+        logger.debug(f"Broadcasted heartbeat to {len(self.active_connections)} connections")
+
+    async def broadcast_workflow_phase_transition(
+        self,
+        adw_id: str,
+        phase_from: Optional[str],
+        phase_to: str,
+        workflow_name: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Broadcast a workflow phase transition event (plan → build → test → review → document).
+
+        Args:
+            adw_id: ADW workflow identifier
+            phase_from: Previous phase name (None if starting)
+            phase_to: New phase name
+            workflow_name: Optional workflow name (e.g., 'adw_sdlc_iso')
+            metadata: Optional metadata about the transition
+        """
+        event = {
+            'type': 'workflow_phase_transition',
+            'data': {
+                'adw_id': adw_id,
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'phase_from': phase_from,
+                'phase_to': phase_to,
+                'workflow_name': workflow_name,
+                'metadata': metadata or {}
+            }
+        }
+
+        await self._broadcast(event)
+        logger.info(f"Broadcasted phase transition for {adw_id}: {phase_from} → {phase_to}")
+
+    async def broadcast_agent_output_chunk(
+        self,
+        adw_id: str,
+        agent_role: str,
+        content: str,
+        line_number: Optional[int] = None,
+        total_lines: Optional[int] = None,
+        is_complete: bool = False
+    ):
+        """
+        Broadcast a chunk from agent's raw_output.jsonl file.
+
+        Args:
+            adw_id: ADW workflow identifier
+            agent_role: Agent role (planner, implementor, tester, reviewer, documenter)
+            content: Content chunk from raw_output.jsonl
+            line_number: Optional line number in the file
+            total_lines: Optional total lines in the file
+            is_complete: Whether this is the last chunk
+        """
+        event = {
+            'type': 'agent_output_chunk',
+            'data': {
+                'adw_id': adw_id,
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'agent_role': agent_role,
+                'content': content,
+                'line_number': line_number,
+                'total_lines': total_lines,
+                'is_complete': is_complete
+            }
+        }
+
+        await self._broadcast(event)
+
+    async def broadcast_screenshot_available(
+        self,
+        adw_id: str,
+        screenshot_path: str,
+        screenshot_type: str = 'review',
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Broadcast a notification that a screenshot is available.
+
+        Args:
+            adw_id: ADW workflow identifier
+            screenshot_path: Path to the screenshot file (relative to agents/{adw_id})
+            screenshot_type: Type of screenshot (review, error, comparison)
+            metadata: Optional metadata (dimensions, file size, etc.)
+        """
+        event = {
+            'type': 'screenshot_available',
+            'data': {
+                'adw_id': adw_id,
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'screenshot_path': screenshot_path,
+                'screenshot_type': screenshot_type,
+                'metadata': metadata or {}
+            }
+        }
+
+        await self._broadcast(event)
+        logger.info(f"Broadcasted screenshot availability for {adw_id}: {screenshot_path}")
+
+    async def broadcast_spec_created(
+        self,
+        adw_id: str,
+        spec_path: str,
+        spec_type: str = 'plan',
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Broadcast a notification that a specification file has been created.
+
+        Args:
+            adw_id: ADW workflow identifier
+            spec_path: Path to the spec file (relative to repository root)
+            spec_type: Type of spec (plan, patch, review)
+            metadata: Optional metadata (file size, line count, etc.)
+        """
+        event = {
+            'type': 'spec_created',
+            'data': {
+                'adw_id': adw_id,
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'spec_path': spec_path,
+                'spec_type': spec_type,
+                'metadata': metadata or {}
+            }
+        }
+
+        await self._broadcast(event)
+        logger.info(f"Broadcasted spec creation for {adw_id}: {spec_path}")
+
+    # ===== Enhanced Connection Management =====
+
+    def subscribe_to_adw(self, connection_id: str, adw_id: str):
+        """
+        Subscribe a connection to receive events for a specific ADW ID.
+
+        Args:
+            connection_id: Connection identifier
+            adw_id: ADW workflow identifier to subscribe to
+        """
+        for connection in self.active_connections:
+            if connection['id'] == connection_id:
+                if 'subscribed_adw_ids' not in connection:
+                    connection['subscribed_adw_ids'] = set()
+                connection['subscribed_adw_ids'].add(adw_id)
+                logger.info(f"Connection {connection_id} subscribed to ADW {adw_id}")
+                return True
+        logger.warning(f"Connection {connection_id} not found for ADW subscription")
+        return False
+
+    def unsubscribe_from_adw(self, connection_id: str, adw_id: str):
+        """
+        Unsubscribe a connection from receiving events for a specific ADW ID.
+
+        Args:
+            connection_id: Connection identifier
+            adw_id: ADW workflow identifier to unsubscribe from
+        """
+        for connection in self.active_connections:
+            if connection['id'] == connection_id:
+                if 'subscribed_adw_ids' in connection and adw_id in connection['subscribed_adw_ids']:
+                    connection['subscribed_adw_ids'].remove(adw_id)
+                    logger.info(f"Connection {connection_id} unsubscribed from ADW {adw_id}")
+                return True
+        return False
+
+    def get_subscribers(self, adw_id: str) -> List[Dict[str, Any]]:
+        """
+        Get all connections subscribed to a specific ADW ID.
+
+        Args:
+            adw_id: ADW workflow identifier
+
+        Returns:
+            List of connection data dictionaries subscribed to the ADW
+        """
+        subscribers = []
+        for connection in self.active_connections:
+            # If connection has no subscriptions, they receive all events
+            if 'subscribed_adw_ids' not in connection:
+                subscribers.append(connection)
+            # If connection is subscribed to this ADW, include them
+            elif adw_id in connection['subscribed_adw_ids']:
+                subscribers.append(connection)
+        return subscribers
+
+    async def send_to_client_by_id(self, connection_id: str, event: Dict[str, Any]) -> bool:
+        """
+        Send an event to a specific client connection.
+
+        Args:
+            connection_id: Connection identifier
+            event: Event to send
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        for connection in self.active_connections:
+            if connection['id'] == connection_id:
+                return await self._send_to_connection(connection, event)
+        logger.warning(f"Connection {connection_id} not found for direct message")
+        return False
+
+    async def send_error_to_client(
+        self,
+        connection_id: str,
+        error_code: str,
+        error_message: str,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Send an error message to a specific client.
+
+        Args:
+            connection_id: Connection identifier
+            error_code: Error code identifier
+            error_message: Human-readable error message
+            details: Optional error details
+        """
+        event = {
+            'type': 'error',
+            'data': {
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'error_code': error_code,
+                'error_message': error_message,
+                'details': details or {}
+            }
+        }
+
+        success = await self.send_to_client_by_id(connection_id, event)
+        if success:
+            logger.info(f"Sent error to client {connection_id}: {error_code}")
+        else:
+            logger.error(f"Failed to send error to client {connection_id}")

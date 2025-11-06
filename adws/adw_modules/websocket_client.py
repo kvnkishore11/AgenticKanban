@@ -535,3 +535,337 @@ class WebSocketNotifier:
         }
 
         return self.send_agent_state_update("text_block", data)
+
+    # ===== Enhanced Agent Directory Streaming Methods =====
+
+    def send_workflow_phase_transition(
+        self,
+        phase_from: Optional[str],
+        phase_to: str,
+        workflow_name: Optional[str] = None,
+        metadata: Optional[dict] = None,
+        timeout: int = 2
+    ) -> bool:
+        """
+        Send a workflow phase transition notification.
+
+        Args:
+            phase_from: Previous phase name (None if starting)
+            phase_to: New phase name
+            workflow_name: Optional workflow name
+            metadata: Optional metadata about the transition
+            timeout: Request timeout in seconds
+
+        Returns:
+            True if sent successfully
+        """
+        if not self.enabled:
+            return False
+
+        try:
+            endpoint = f"{self.server_url}/api/workflow-phase-transition"
+            payload = {
+                "adw_id": self.adw_id,
+                "phase_from": phase_from,
+                "phase_to": phase_to,
+                "workflow_name": workflow_name,
+                "metadata": metadata or {}
+            }
+
+            response = requests.post(
+                endpoint,
+                json=payload,
+                timeout=timeout,
+                headers={"Content-Type": "application/json"}
+            )
+
+            if response.status_code == 200:
+                self.logger.info(f"Sent phase transition: {phase_from} → {phase_to}")
+                return True
+            else:
+                self.logger.warning(
+                    f"Failed to send phase transition: HTTP {response.status_code}"
+                )
+                return False
+
+        except requests.exceptions.ConnectionError:
+            self.logger.debug("WebSocket server not available")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error sending phase transition: {str(e)}")
+            return False
+
+    def send_agent_output_chunk(
+        self,
+        agent_role: str,
+        content: str,
+        line_number: Optional[int] = None,
+        total_lines: Optional[int] = None,
+        is_complete: bool = False,
+        timeout: int = 2
+    ) -> bool:
+        """
+        Send a chunk from agent's raw_output.jsonl file.
+
+        Args:
+            agent_role: Agent role (planner, implementor, tester, reviewer, documenter)
+            content: Content chunk from raw_output.jsonl
+            line_number: Optional line number in the file
+            total_lines: Optional total lines in the file
+            is_complete: Whether this is the last chunk
+            timeout: Request timeout in seconds
+
+        Returns:
+            True if sent successfully
+        """
+        if not self.enabled:
+            return False
+
+        try:
+            endpoint = f"{self.server_url}/api/agent-output-chunk"
+            payload = {
+                "adw_id": self.adw_id,
+                "agent_role": agent_role,
+                "content": content,
+                "line_number": line_number,
+                "total_lines": total_lines,
+                "is_complete": is_complete
+            }
+
+            response = requests.post(
+                endpoint,
+                json=payload,
+                timeout=timeout,
+                headers={"Content-Type": "application/json"}
+            )
+
+            if response.status_code == 200:
+                self.logger.debug(f"Sent output chunk for {agent_role}")
+                return True
+            else:
+                self.logger.warning(
+                    f"Failed to send output chunk: HTTP {response.status_code}"
+                )
+                return False
+
+        except requests.exceptions.ConnectionError:
+            self.logger.debug("WebSocket server not available")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error sending output chunk: {str(e)}")
+            return False
+
+    def send_screenshot_available(
+        self,
+        screenshot_path: str,
+        screenshot_type: str = "review",
+        metadata: Optional[dict] = None,
+        timeout: int = 2
+    ) -> bool:
+        """
+        Send a screenshot availability notification.
+
+        Args:
+            screenshot_path: Path to screenshot file (relative to agents/{adw_id})
+            screenshot_type: Type of screenshot (review, error, comparison)
+            metadata: Optional metadata
+            timeout: Request timeout in seconds
+
+        Returns:
+            True if sent successfully
+        """
+        if not self.enabled:
+            return False
+
+        try:
+            endpoint = f"{self.server_url}/api/screenshot-available"
+            payload = {
+                "adw_id": self.adw_id,
+                "screenshot_path": screenshot_path,
+                "screenshot_type": screenshot_type,
+                "metadata": metadata or {}
+            }
+
+            response = requests.post(
+                endpoint,
+                json=payload,
+                timeout=timeout,
+                headers={"Content-Type": "application/json"}
+            )
+
+            if response.status_code == 200:
+                self.logger.info(f"Sent screenshot notification: {screenshot_path}")
+                return True
+            else:
+                self.logger.warning(
+                    f"Failed to send screenshot notification: HTTP {response.status_code}"
+                )
+                return False
+
+        except requests.exceptions.ConnectionError:
+            self.logger.debug("WebSocket server not available")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error sending screenshot notification: {str(e)}")
+            return False
+
+    def send_spec_created(
+        self,
+        spec_path: str,
+        spec_type: str = "plan",
+        metadata: Optional[dict] = None,
+        timeout: int = 2
+    ) -> bool:
+        """
+        Send a spec creation notification.
+
+        Args:
+            spec_path: Path to spec file (relative to repository root)
+            spec_type: Type of spec (plan, patch, review)
+            metadata: Optional metadata
+            timeout: Request timeout in seconds
+
+        Returns:
+            True if sent successfully
+        """
+        if not self.enabled:
+            return False
+
+        try:
+            endpoint = f"{self.server_url}/api/spec-created"
+            payload = {
+                "adw_id": self.adw_id,
+                "spec_path": spec_path,
+                "spec_type": spec_type,
+                "metadata": metadata or {}
+            }
+
+            response = requests.post(
+                endpoint,
+                json=payload,
+                timeout=timeout,
+                headers={"Content-Type": "application/json"}
+            )
+
+            if response.status_code == 200:
+                self.logger.info(f"Sent spec creation notification: {spec_path}")
+                return True
+            else:
+                self.logger.warning(
+                    f"Failed to send spec creation notification: HTTP {response.status_code}"
+                )
+                return False
+
+        except requests.exceptions.ConnectionError:
+            self.logger.debug("WebSocket server not available")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error sending spec creation notification: {str(e)}")
+            return False
+
+    # ===== Helper Methods for Reading Agent Directory =====
+
+    def _read_raw_output_jsonl(
+        self,
+        agent_role: str,
+        agents_base_dir: str = "../../agents"
+    ):
+        """
+        Tail raw_output.jsonl files and yield new lines.
+
+        Args:
+            agent_role: Agent role (planner, implementor, tester, reviewer, documenter)
+            agents_base_dir: Base directory for agents
+
+        Yields:
+            Lines from raw_output.jsonl file
+        """
+        import os
+
+        jsonl_path = os.path.join(
+            agents_base_dir,
+            self.adw_id,
+            f"sdlc_{agent_role}",
+            "raw_output.jsonl"
+        )
+
+        if not os.path.exists(jsonl_path):
+            self.logger.debug(f"raw_output.jsonl not found: {jsonl_path}")
+            return
+
+        try:
+            with open(jsonl_path, "r") as f:
+                # Read existing content
+                for line in f:
+                    yield line.strip()
+        except Exception as e:
+            self.logger.error(f"Error reading {jsonl_path}: {str(e)}")
+
+    def _check_for_screenshots(
+        self,
+        agents_base_dir: str = "../../agents"
+    ):
+        """
+        Check for screenshots in reviewer/review_img/ directory.
+
+        Args:
+            agents_base_dir: Base directory for agents
+
+        Returns:
+            List of screenshot paths
+        """
+        import os
+        import glob
+
+        screenshots_dir = os.path.join(
+            agents_base_dir,
+            self.adw_id,
+            "sdlc_reviewer",
+            "review_img"
+        )
+
+        if not os.path.exists(screenshots_dir):
+            return []
+
+        try:
+            # Find all image files
+            patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif"]
+            screenshots = []
+            for pattern in patterns:
+                screenshots.extend(
+                    glob.glob(os.path.join(screenshots_dir, pattern))
+                )
+            return screenshots
+        except Exception as e:
+            self.logger.error(f"Error checking for screenshots: {str(e)}")
+            return []
+
+    def _check_for_spec(
+        self,
+        spec_dir: str = "specs"
+    ):
+        """
+        Check for plan spec file.
+
+        Args:
+            spec_dir: Directory containing specs
+
+        Returns:
+            Path to spec file if found, None otherwise
+        """
+        import os
+        import glob
+
+        if not os.path.exists(spec_dir):
+            return None
+
+        try:
+            # Look for spec files with this ADW ID
+            pattern = os.path.join(spec_dir, f"*{self.adw_id}*.md")
+            specs = glob.glob(pattern)
+            if specs:
+                return specs[0]  # Return first match
+            return None
+        except Exception as e:
+            self.logger.error(f"Error checking for spec: {str(e)}")
+            return None
