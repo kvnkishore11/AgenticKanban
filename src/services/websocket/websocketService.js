@@ -418,8 +418,16 @@ class WebSocketService {
         this.emit('pong', message);
         break;
       case 'workflow_log':
-        console.log('[WebSocket Service] Emitting workflow_log event:', data);
+        console.log('[WebSocketService] ===== WORKFLOW_LOG RECEIVED =====');
+        console.log('[WebSocketService] workflow_log data:', JSON.stringify(data, null, 2));
+        console.log('[WebSocketService] adw_id:', data?.adw_id);
+        console.log('[WebSocketService] workflow_name:', data?.workflow_name);
+        console.log('[WebSocketService] level:', data?.level);
+        console.log('[WebSocketService] message:', data?.message);
+        console.log('[WebSocketService] Emitting workflow_log event to registered listeners');
+        console.log('[WebSocketService] Number of listeners for workflow_log:', this.listenerCount('workflow_log'));
         this.emit('workflow_log', data);
+        console.log('[WebSocketService] workflow_log event emitted successfully');
         break;
       // Agent state streaming events
       case 'agent_summary_update':
@@ -859,6 +867,11 @@ class WebSocketService {
         console.error('Error in event listener:', error);
       }
     });
+  }
+
+  listenerCount(event) {
+    if (!this.eventListeners[event]) return 0;
+    return this.eventListeners[event].length;
   }
 
   /**

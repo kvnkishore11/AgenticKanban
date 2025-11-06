@@ -1386,7 +1386,8 @@ export const useKanbanStore = create()(
 
         // Handle workflow log entries from WebSocket
         handleWorkflowLog: (logEntry) => {
-          console.log('[KanbanStore] handleWorkflowLog received:', logEntry);
+          console.log('[KanbanStore] ===== HANDLE WORKFLOW LOG =====');
+          console.log('[KanbanStore] handleWorkflowLog received:', JSON.stringify(logEntry, null, 2));
 
           // Check for duplicate messages
           if (get().isDuplicateMessage('workflow_log', logEntry)) {
@@ -1396,20 +1397,41 @@ export const useKanbanStore = create()(
 
           const { adw_id } = logEntry;
 
-          console.log('[KanbanStore] Processing new log entry:', logEntry);
+          console.log('[KanbanStore] Processing new log entry with adw_id:', adw_id);
+          console.log('[KanbanStore] Log entry details:', {
+            adw_id: logEntry.adw_id,
+            workflow_name: logEntry.workflow_name,
+            level: logEntry.level,
+            message: logEntry.message?.substring(0, 100),
+            timestamp: logEntry.timestamp
+          });
 
           // Find the task associated with this workflow
           const { tasks } = get();
+          console.log('[KanbanStore] Total tasks in store:', tasks.length);
           console.log('[KanbanStore] Searching for task with adw_id:', adw_id);
-          console.log('[KanbanStore] All tasks and their adw_ids:', tasks.map(t => ({ id: t.id, title: t.title, adw_id: t.metadata?.adw_id })));
+          console.log('[KanbanStore] All tasks and their adw_ids:', tasks.map(t => ({
+            id: t.id,
+            title: t.title,
+            adw_id: t.metadata?.adw_id,
+            stage: t.stage
+          })));
 
           const task = tasks.find(t => t.metadata?.adw_id === adw_id);
 
           if (task) {
-            console.log('[KanbanStore] Found task for log entry:', { taskId: task.id, taskTitle: task.title, adw_id: task.metadata?.adw_id });
+            console.log('[KanbanStore] ✅ FOUND task for log entry:', {
+              taskId: task.id,
+              taskTitle: task.title,
+              adw_id: task.metadata?.adw_id,
+              currentStage: task.stage
+            });
+            console.log('[KanbanStore] Calling appendWorkflowLog for taskId:', task.id);
             get().appendWorkflowLog(task.id, logEntry);
           } else {
-            console.warn('[KanbanStore] No task found for log entry with adw_id:', adw_id, 'Available tasks:', tasks.length);
+            console.error('[KanbanStore] ❌ NO TASK FOUND for log entry with adw_id:', adw_id);
+            console.error('[KanbanStore] Available task adw_ids:', tasks.map(t => t.metadata?.adw_id).filter(Boolean));
+            console.error('[KanbanStore] Total tasks in store:', tasks.length);
           }
         },
 
@@ -1622,13 +1644,17 @@ export const useKanbanStore = create()(
           const { tasks } = get();
           const taskExists = tasks.some(t => t.id === taskId);
 
+          console.log('[KanbanStore] appendWorkflowLog called for taskId:', taskId);
+          console.log('[KanbanStore] Task exists:', taskExists);
+
           if (!taskExists) {
-            console.error('[KanbanStore] Task not found for taskId:', taskId, 'Available task IDs:', tasks.map(t => t.id));
+            console.error('[KanbanStore] ❌ Task not found for taskId:', taskId, 'Available task IDs:', tasks.map(t => t.id));
             // Still store the log in case task is added later
           }
 
           set((state) => {
             const currentLogs = state.taskWorkflowLogs[taskId] || [];
+            const previousLogCount = currentLogs.length;
             const newLogs = [...currentLogs, {
               ...logEntry,
               id: `${taskId}-${Date.now()}-${Math.random()}`,
@@ -1638,7 +1664,13 @@ export const useKanbanStore = create()(
             // Keep last 500 logs per task to prevent memory issues
             const limitedLogs = newLogs.slice(-500);
 
-            console.log('[KanbanStore] Appended log to store. Total logs for task:', limitedLogs.length);
+            console.log('[KanbanStore] ✅ Appended log to store. Previous logs:', previousLogCount, '→ New logs:', limitedLogs.length);
+            console.log('[KanbanStore] Log entry stored:', {
+              taskId,
+              logId: limitedLogs[limitedLogs.length - 1].id,
+              level: logEntry.level,
+              message: logEntry.message?.substring(0, 100)
+            });
 
             return {
               taskWorkflowLogs: {

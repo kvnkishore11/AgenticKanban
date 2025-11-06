@@ -40,6 +40,19 @@ const WorkflowLogViewer = ({
   // Ensure logs is always an array, even if null/undefined is explicitly passed
   const safeLogs = Array.isArray(logs) ? logs : [];
 
+  // Log when component receives logs prop
+  useEffect(() => {
+    console.log('[WorkflowLogViewer] ===== LOGS PROP CHANGED =====');
+    console.log('[WorkflowLogViewer] taskId:', taskId);
+    console.log('[WorkflowLogViewer] adwId:', adwId);
+    console.log('[WorkflowLogViewer] logs.length:', safeLogs.length);
+    console.log('[WorkflowLogViewer] websocketConnected:', websocketConnected);
+    console.log('[WorkflowLogViewer] logs array:', safeLogs);
+    if (safeLogs.length > 0) {
+      console.log('[WorkflowLogViewer] Sample log entry:', safeLogs[0]);
+    }
+  }, [logs, taskId, adwId, websocketConnected]);
+
   // Auto-detect if detailed view should be used based on presence of rich log data
   const hasRichLogData = safeLogs.some(log =>
     log.entry_type || log.tool_name || log.usage || log.raw_data

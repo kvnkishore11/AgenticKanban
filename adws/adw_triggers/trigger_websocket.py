@@ -1506,7 +1506,10 @@ async def receive_workflow_update(request_data: dict):
         message_type = request_data.get("type")
         data = request_data.get("data", {})
 
+        print(f"[WebSocket Server] Received request: type={message_type}, data_keys={list(data.keys()) if data else 'None'}")
+
         if not message_type or not data:
+            print(f"[WebSocket Server] ERROR: Missing type or data - type={message_type}, data={data}")
             return JSONResponse(
                 status_code=400,
                 content={"error": "Missing 'type' or 'data' in request"}
@@ -1517,7 +1520,9 @@ async def receive_workflow_update(request_data: dict):
             required_fields = ["adw_id", "workflow_name", "status", "message", "timestamp"]
         elif message_type == "workflow_log":
             required_fields = ["adw_id", "workflow_name", "message", "level", "timestamp"]
+            print(f"[WebSocket Server] workflow_log received: adw_id={data.get('adw_id')}, workflow={data.get('workflow_name')}, level={data.get('level')}, message={data.get('message')[:100] if data.get('message') else 'None'}...")
         else:
+            print(f"[WebSocket Server] ERROR: Unknown message type: {message_type}")
             return JSONResponse(
                 status_code=400,
                 content={"error": f"Unknown message type: {message_type}"}
@@ -1526,6 +1531,7 @@ async def receive_workflow_update(request_data: dict):
         # Check for required fields
         missing_fields = [field for field in required_fields if field not in data]
         if missing_fields:
+            print(f"[WebSocket Server] ERROR: Missing required fields for {message_type}: {', '.join(missing_fields)}")
             return JSONResponse(
                 status_code=400,
                 content={"error": f"Missing required fields: {', '.join(missing_fields)}"}
@@ -1533,12 +1539,14 @@ async def receive_workflow_update(request_data: dict):
 
         # Broadcast message to all connected WebSocket clients with session deduplication
         # to prevent duplicate logs when multiple tabs are open
-        await manager.broadcast({
+        broadcast_message = {
             "type": message_type,
             "data": data
-        }, deduplicate_by_session=True)
+        }
+        print(f"[WebSocket Server] Broadcasting {message_type} to {len(manager.active_connections)} connections (deduplicate_by_session=True)")
+        await manager.broadcast(broadcast_message, deduplicate_by_session=True)
 
-        print(f"Broadcasted {message_type} for ADW {data.get('adw_id')} - {data.get('workflow_name')}")
+        print(f"[WebSocket Server] Successfully broadcasted {message_type} for ADW {data.get('adw_id')} - {data.get('workflow_name')}")
 
         return JSONResponse(
             status_code=200,
