@@ -16,7 +16,14 @@ export default defineConfig(({ mode }) => {
       watch: {
         // Ignore .env files to prevent server restarts during worktree setup
         // This stabilizes WebSocket connections by avoiding unnecessary restarts
-        ignored: ['**/.env*', '**/server/.env*']
+        // Ignore worktree directories and config files to prevent reloads from ADW workflow operations
+        ignored: [
+          '**/.env*',
+          '**/server/.env*',
+          '**/trees/**',
+          '**/.mcp.json',
+          '**/playwright-mcp-config.json'
+        ]
       }
     },
     envPrefix: 'VITE_',
