@@ -666,29 +666,54 @@ class WebSocketService {
    * Trigger workflow for a kanban task
    */
   async triggerWorkflowForTask(task, workflowType, options = {}) {
+    // Validate inputs
+    if (!task) {
+      throw new Error('Task is required to trigger workflow');
+    }
+    if (!workflowType) {
+      throw new Error('Workflow type is required');
+    }
+
+    // Build issue_json with all task data
+    const issue_json = {
+      title: task.title || `Task ${task.id}`,
+      body: task.description || '',
+      number: task.id,
+      images: task.images || [], // Include images with their annotations
+      metadata: task.metadata || {}, // Include task metadata
+      stage: task.stage || 'backlog', // Include current stage
+      workItemType: task.workItemType || null, // Include work item type
+    };
+
+    // Add patch_request to issue_json if provided
+    if (options.patch_request) {
+      issue_json.patch_request = options.patch_request;
+    }
+
     const request = {
       workflow_type: workflowType,
       adw_id: options.adw_id || null,
       issue_number: options.issue_number || null,
       issue_type: task.workItemType || null,
-      issue_json: {
-        title: task.title || `Task ${task.id}`,
-        body: task.description || '',
-        number: task.id,
-        images: task.images || [], // Include images with their annotations
-        patch_request: options.patch_request || null // Include explicit patch request if provided
-      },
+      issue_json: issue_json,
       model_set: options.model_set || 'base',
       trigger_reason: `Kanban task: ${task.title || task.description.substring(0, 50)}`
     };
 
+    console.log('[WebSocketService] Triggering workflow with request:', JSON.stringify(request, null, 2));
+
     try {
       const response = await this.triggerWorkflow(request);
-      console.log('Workflow triggered successfully:', response);
+      console.log('[WebSocketService] Workflow triggered successfully:', response);
       return response;
     } catch (error) {
-      console.error('Failed to trigger workflow for task:', error);
-      throw error;
+      console.error('[WebSocketService] Failed to trigger workflow for task:', error);
+      // Enhance error message with more context
+      const enhancedError = new Error(
+        `Failed to trigger ${workflowType} workflow: ${error.message || 'Unknown error'}`
+      );
+      enhancedError.originalError = error;
+      throw enhancedError;
     }
   }
 

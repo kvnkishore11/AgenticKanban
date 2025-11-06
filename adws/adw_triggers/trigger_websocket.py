@@ -479,6 +479,7 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
         state = ADWState.load(request.adw_id)
         if state:
             # Update model_set and issue_type if state exists
+            print(f"Loading existing ADW state for ID: {request.adw_id}")
             update_data = {
                 "issue_number": request.issue_number,
                 "model_set": request.model_set
@@ -498,6 +499,9 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
             state.update(**update_data)
         else:
             # Create new state if it doesn't exist
+            # This can happen for entry-point workflows like adw_patch_iso
+            print(f"Creating new ADW state for provided ID: {request.adw_id}")
+            print(f"Note: This is valid for entry-point workflows like adw_patch_iso")
             state = ADWState(request.adw_id)
             update_data = {
                 "adw_id": request.adw_id,

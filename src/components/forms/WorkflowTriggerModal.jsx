@@ -13,7 +13,7 @@ import { useState, useEffect } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import { X, Play, AlertCircle, Info, Hash } from 'lucide-react';
 import AdwIdInput from '../ui/AdwIdInput';
-import { isAdwIdRequired, getWorkflowDescription } from '../../utils/adwValidation';
+import { isAdwIdRequired, getWorkflowDescription, validateAdwId, supportsAdwId } from '../../utils/adwValidation';
 
 const WorkflowTriggerModal = ({ task, onClose }) => {
   const {
@@ -150,10 +150,20 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
       validationErrors.push('Please select a workflow type');
     }
 
+    // Validate ADW ID is required for dependent workflows
     if (isAdwIdRequired(workflowType) && !adwId) {
       validationErrors.push('ADW ID is required for this workflow type');
     }
 
+    // Validate ADW ID format if provided
+    if (adwId && adwId.trim()) {
+      const adwValidation = validateAdwId(adwId.trim(), isAdwIdRequired(workflowType));
+      if (!adwValidation.isValid) {
+        validationErrors.push(adwValidation.error);
+      }
+    }
+
+    // Check WebSocket connection
     if (!websocketStatus.connected) {
       validationErrors.push('WebSocket connection required. Please check connection.');
     }
@@ -172,7 +182,7 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
         issue_number: issueNumber || String(task.id),
       };
 
-      // Only include ADW ID if provided
+      // Only include ADW ID if provided and valid
       if (adwId && adwId.trim()) {
         options.adw_id = adwId.trim();
       }
@@ -182,11 +192,14 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
         options.patch_request = patchRequest.trim();
       }
 
+      console.log('[WorkflowTriggerModal] Triggering workflow with options:', options);
       await triggerWorkflowForTask(task.id, options);
       onClose();
     } catch (error) {
-      console.error('Failed to trigger workflow:', error);
-      setErrors([error.message || 'Failed to trigger workflow']);
+      console.error('[WorkflowTriggerModal] Failed to trigger workflow:', error);
+      // Extract meaningful error message
+      const errorMessage = error.message || error.toString() || 'Failed to trigger workflow. Please try again.';
+      setErrors([errorMessage]);
     } finally {
       setIsTriggering(false);
     }

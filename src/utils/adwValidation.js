@@ -16,6 +16,9 @@ const DEPENDENT_WORKFLOWS = [
 ];
 
 // Entry point workflows that accept optional ADW ID (can create new worktrees)
+// Note: adw_patch_iso can work with OR without an existing ADW ID
+// - With ADW ID: Patches an existing worktree
+// - Without ADW ID: Creates new worktree for the patch
 const ENTRY_POINT_WORKFLOWS = [
   'adw_plan_iso',
   'adw_patch_iso',

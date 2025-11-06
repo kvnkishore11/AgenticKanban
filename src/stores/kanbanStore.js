@@ -1118,12 +1118,16 @@ export const useKanbanStore = create()(
           }
 
           try {
-            console.log('[WORKFLOW] Starting workflow trigger for task:', taskId);
+            console.log('[WORKFLOW] Starting workflow trigger for task:', taskId, 'with options:', options);
             set({ isLoading: true }, false, 'triggerWorkflowForTask');
 
             // Determine workflow type based on task's current stage and queued stages
             const workflowType = options.workflowType ||
               websocketService.getWorkflowTypeForStage(task.stage, task.queuedStages);
+
+            if (!workflowType) {
+              throw new Error('Workflow type is required. Please select a workflow type.');
+            }
 
             // Determine model set based on work item type
             const modelSet = options.modelSet ||
@@ -1135,6 +1139,8 @@ export const useKanbanStore = create()(
               model_set: modelSet,
               ...options
             };
+
+            console.log('[WORKFLOW] Triggering workflow:', workflowType, 'with options:', triggerOptions);
 
             // Trigger workflow via WebSocket
             const response = await websocketService.triggerWorkflowForTask(task, workflowType, triggerOptions);
