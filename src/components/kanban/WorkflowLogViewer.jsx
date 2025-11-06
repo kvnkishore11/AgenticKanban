@@ -32,7 +32,10 @@ const WorkflowLogViewer = ({
   showTimestamps = true,
   autoScroll = true,
   logsSource = 'all', // 'all' | 'plan' | 'build' | 'test' | 'review' | 'document'
-  detailedView // Enable detailed log entry view, auto-detect if not specified
+  detailedView, // Enable detailed log entry view, auto-detect if not specified
+  taskId, // Task ID for debugging
+  adwId, // ADW ID for debugging
+  websocketConnected // WebSocket connection status
 }) => {
   // Ensure logs is always an array, even if null/undefined is explicitly passed
   const safeLogs = Array.isArray(logs) ? logs : [];
@@ -315,8 +318,37 @@ const WorkflowLogViewer = ({
             style={{ maxHeight }}
           >
             {filteredLogs.length === 0 ? (
-              <div className="p-4 text-center text-gray-400">
-                {safeLogs.length === 0 ? 'No logs yet' : 'No logs match the current filter'}
+              <div className="p-6 text-center space-y-3">
+                <div className="flex justify-center">
+                  <Info className="h-8 w-8 text-gray-300" />
+                </div>
+                {safeLogs.length === 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-base font-medium text-gray-600">No logs yet</div>
+                    <div className="text-xs text-gray-500 space-y-1">
+                      {adwId ? (
+                        <>
+                          <div>Waiting for workflow logs...</div>
+                          <div className="font-mono bg-gray-50 px-2 py-1 rounded inline-block">
+                            Task ID: {taskId || 'unknown'}
+                          </div>
+                          <div className="font-mono bg-gray-50 px-2 py-1 rounded inline-block ml-2">
+                            ADW ID: {adwId}
+                          </div>
+                          <div className={`mt-2 px-2 py-1 rounded inline-block ${
+                            websocketConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            WebSocket: {websocketConnected ? 'Connected' : 'Disconnected'}
+                          </div>
+                        </>
+                      ) : (
+                        <div>No workflow triggered yet. Trigger a workflow to see logs.</div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-base text-gray-600">No logs match the current filter</div>
+                )}
               </div>
             ) : useDetailedView ? (
               // Detailed view with DetailedLogEntry component

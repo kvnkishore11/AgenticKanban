@@ -1617,6 +1617,16 @@ export const useKanbanStore = create()(
         // Append log entry to task
         appendWorkflowLog: (taskId, logEntry) => {
           console.log('[KanbanStore] appendWorkflowLog called for taskId:', taskId, 'logEntry:', logEntry);
+
+          // Validate that task exists
+          const { tasks } = get();
+          const taskExists = tasks.some(t => t.id === taskId);
+
+          if (!taskExists) {
+            console.error('[KanbanStore] Task not found for taskId:', taskId, 'Available task IDs:', tasks.map(t => t.id));
+            // Still store the log in case task is added later
+          }
+
           set((state) => {
             const currentLogs = state.taskWorkflowLogs[taskId] || [];
             const newLogs = [...currentLogs, {
@@ -1669,8 +1679,44 @@ export const useKanbanStore = create()(
 
         // Get workflow logs for task
         getWorkflowLogsForTask: (taskId) => {
-          const { taskWorkflowLogs } = get();
-          return taskWorkflowLogs[taskId] || [];
+          const { taskWorkflowLogs, tasks } = get();
+
+          console.log('[KanbanStore] getWorkflowLogsForTask called for taskId:', taskId);
+
+          // First try direct lookup by task ID
+          if (taskWorkflowLogs[taskId] && taskWorkflowLogs[taskId].length > 0) {
+            console.log('[KanbanStore] Found logs by taskId:', taskId, 'count:', taskWorkflowLogs[taskId].length);
+            return taskWorkflowLogs[taskId];
+          }
+
+          // Fallback: Find task by ID to get its ADW ID, then search for logs by ADW ID
+          const task = tasks.find(t => t.id === taskId);
+          if (task?.metadata?.adw_id) {
+            console.log('[KanbanStore] Task found with adw_id:', task.metadata.adw_id, 'searching for logs by ADW ID');
+
+            // Search through all logs to find any with matching ADW ID
+            for (const [storedTaskId, logs] of Object.entries(taskWorkflowLogs)) {
+              if (logs.length > 0 && logs[0].adw_id === task.metadata.adw_id) {
+                console.log('[KanbanStore] Found logs stored under different taskId:', storedTaskId, 'count:', logs.length, 'moving to current taskId');
+
+                // Move logs to current task ID for future lookups
+                set((state) => {
+                  const updatedLogs = { ...state.taskWorkflowLogs };
+                  updatedLogs[taskId] = logs;
+                  // Optionally remove from old taskId to prevent duplicates
+                  if (storedTaskId !== taskId) {
+                    delete updatedLogs[storedTaskId];
+                  }
+                  return { taskWorkflowLogs: updatedLogs };
+                }, false, 'migrateWorkflowLogs');
+
+                return logs;
+              }
+            }
+          }
+
+          console.log('[KanbanStore] No logs found for taskId:', taskId);
+          return [];
         },
 
         // Get workflow progress for task

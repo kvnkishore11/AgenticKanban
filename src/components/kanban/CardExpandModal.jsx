@@ -57,7 +57,15 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   const pipeline = getPipelineById(task.pipelineId);
   const websocketStatus = getWebSocketStatus();
 
-  console.log('[CardExpandModal] Rendering with workflowLogs.length:', workflowLogs.length, 'adw_id:', task.metadata?.adw_id, 'logs:', workflowLogs);
+  console.log('[CardExpandModal] Rendering with:', {
+    taskId: task.id,
+    taskTitle: task.title,
+    adw_id: task.metadata?.adw_id,
+    workflowLogsLength: workflowLogs.length,
+    websocketConnected: websocketStatus.connected,
+    hasMetadata: !!workflowMetadata,
+    logs: workflowLogs
+  });
 
   // Handle escape key to close modal
   useEffect(() => {
@@ -508,8 +516,16 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                   />
                 </div>
               ) : (
-                <div className="text-sm text-gray-500 text-center py-8">
-                  No logs available yet
+                <div className="text-sm text-gray-600 text-center py-8 space-y-2">
+                  <div className="font-medium">No logs available yet</div>
+                  <div className="text-xs text-gray-500">
+                    {task.metadata?.adw_id ?
+                      'Workflow not started. Trigger a workflow to see logs.' :
+                      'No workflow associated with this task yet.'}
+                  </div>
+                  <div className="text-xs font-mono text-gray-400">
+                    Task ID: {task.id}
+                  </div>
                 </div>
               )}
             </div>

@@ -47,7 +47,10 @@ const StageLogsViewer = ({
     fetchStageLogsForTask,
     getStageLogsForTask,
     clearWorkflowLogsForTask,
+    getWebSocketStatus,
   } = useKanbanStore();
+
+  const websocketStatus = getWebSocketStatus();
 
   // Available stages for tabs
   const stages = ['all', 'plan', 'build', 'test', 'review', 'document', 'agent-state'];
@@ -298,6 +301,9 @@ const StageLogsViewer = ({
             autoScroll={autoScroll}
             logsSource={activeTab}
             detailedView={detailedView}
+            taskId={taskId}
+            adwId={adwId}
+            websocketConnected={websocketStatus.connected}
           />
         ) : activeTab !== 'agent-state' && !isLoading && !hasError && !isEmpty && (
           <WorkflowLogViewer
@@ -309,6 +315,9 @@ const StageLogsViewer = ({
             autoScroll={false}
             logsSource={activeTab}
             detailedView={detailedView}
+            taskId={taskId}
+            adwId={adwId}
+            websocketConnected={websocketStatus.connected}
           />
         )}
 
