@@ -34,21 +34,24 @@ const WorkflowLogViewer = ({
   logsSource = 'all', // 'all' | 'plan' | 'build' | 'test' | 'review' | 'document'
   detailedView = false // Enable detailed log entry view
 }) => {
+  // Ensure logs is always an array, even if null/undefined is explicitly passed
+  const safeLogs = Array.isArray(logs) ? logs : [];
+
   const [isExpanded, setIsExpanded] = useState(true);
   const [filterLevel, setFilterLevel] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAutoScroll, setIsAutoScroll] = useState(autoScroll);
   const logContainerRef = useRef(null);
-  const prevLogsLengthRef = useRef(logs.length);
+  const prevLogsLengthRef = useRef(safeLogs.length);
 
   // Auto-scroll to top when new logs arrive (since logs are displayed in reverse order)
   useEffect(() => {
-    if (isAutoScroll && logContainerRef.current && logs.length > prevLogsLengthRef.current) {
+    if (isAutoScroll && logContainerRef.current && safeLogs.length > prevLogsLengthRef.current) {
       // Scroll to top where new logs appear (reversed order)
       logContainerRef.current.scrollTop = 0;
     }
-    prevLogsLengthRef.current = logs.length;
-  }, [logs, isAutoScroll]);
+    prevLogsLengthRef.current = safeLogs.length;
+  }, [safeLogs, isAutoScroll]);
 
   // Get icon for log level
   const getLogLevelIcon = (level) => {
@@ -95,7 +98,7 @@ const WorkflowLogViewer = ({
 
   // Filter logs based on level and search query
   // Display logs in reverse chronological order (newest first) as requested by user
-  const filteredLogs = logs.filter(log => {
+  const filteredLogs = safeLogs.filter(log => {
     const levelMatch = filterLevel === 'all' || log.level?.toUpperCase() === filterLevel.toUpperCase();
     const searchMatch = !searchQuery ||
       log.message?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -253,7 +256,7 @@ const WorkflowLogViewer = ({
           )}
 
           {/* Clear logs */}
-          {onClear && logs.length > 0 && (
+          {onClear && safeLogs.length > 0 && (
             <button
               onClick={onClear}
               className="p-1 hover:bg-red-100 rounded transition-colors"
@@ -307,7 +310,7 @@ const WorkflowLogViewer = ({
           >
             {filteredLogs.length === 0 ? (
               <div className="p-4 text-center text-gray-400">
-                {logs.length === 0 ? 'No logs yet' : 'No logs match the current filter'}
+                {safeLogs.length === 0 ? 'No logs yet' : 'No logs match the current filter'}
               </div>
             ) : detailedView ? (
               // Detailed view with DetailedLogEntry component

@@ -123,9 +123,9 @@ const StageLogsViewer = ({
 
   // Convert stage logs to format expected by WorkflowLogViewer
   const formatStageLogsForViewer = (stageData) => {
-    if (!stageData || !stageData.logs) return [];
-
-    return stageData.logs.map((log, index) => ({
+    if (!stageData?.logs) return [];
+    // Ensure logs is always treated as an array
+    return Array.isArray(stageData.logs) ? stageData.logs.map((log, index) => ({
       id: `${taskId}-${activeTab}-${index}`,
       timestamp: log.timestamp,
       level: log.level || 'INFO',
@@ -133,7 +133,7 @@ const StageLogsViewer = ({
       current_step: log.current_step,
       details: log.details,
       raw_data: log.raw_data,
-    }));
+    })) : [];
   };
 
   // Get logs to display based on active tab
@@ -167,10 +167,11 @@ const StageLogsViewer = ({
   const hasError = activeTab !== 'all' && activeTab !== 'agent-state' && stageData?.error;
 
   // Show empty state for stage with no logs
-  // Check if actual logs exist instead of relying solely on flags
+  // Only consider it empty if we've actually fetched the data and it's empty
+  // This prevents treating "not yet loaded" as "empty"
   const isEmpty = activeTab !== 'all' &&
     activeTab !== 'agent-state' &&
-    !stageData?.loading &&
+    stageData?.fetchedAt && // Only consider empty if we've fetched data
     (!stageData?.logs || stageData.logs.length === 0);
 
   return (
@@ -284,15 +285,26 @@ const StageLogsViewer = ({
           <AgentStateViewer adwId={adwId} />
         )}
 
-        {/* Logs Viewer */}
-        {!isLoading && !hasError && activeTab !== 'agent-state' && (activeTab === 'all' || !isEmpty) && (
+        {/* Logs Viewer - Always show for 'all' tab, conditionally for others */}
+        {activeTab === 'all' ? (
           <WorkflowLogViewer
             logs={getLogsToDisplay()}
             title={getLogViewerTitle()}
             maxHeight={maxHeight}
-            onClear={activeTab === 'all' ? handleClearLogs : undefined}
+            onClear={handleClearLogs}
             showTimestamps={showTimestamps}
-            autoScroll={activeTab === 'all' ? autoScroll : false}
+            autoScroll={autoScroll}
+            logsSource={activeTab}
+            detailedView={detailedView}
+          />
+        ) : activeTab !== 'agent-state' && !isLoading && !hasError && !isEmpty && (
+          <WorkflowLogViewer
+            logs={getLogsToDisplay()}
+            title={getLogViewerTitle()}
+            maxHeight={maxHeight}
+            onClear={undefined}
+            showTimestamps={showTimestamps}
+            autoScroll={false}
             logsSource={activeTab}
             detailedView={detailedView}
           />
