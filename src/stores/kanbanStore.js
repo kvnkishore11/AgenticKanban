@@ -928,10 +928,15 @@ export const useKanbanStore = create()(
 
             // Set up event listeners
             websocketService._storeListeners.onConnect = () => {
+              // Clear the deduplication cache on reconnection to prevent stale fingerprints
+              // from blocking new messages that may have been sent during disconnection
+              const freshMap = new Map();
+              console.log('[KanbanStore] WebSocket reconnected: Clearing processedMessages cache');
               set({
                 websocketConnected: true,
                 websocketConnecting: false,
-                websocketError: null
+                websocketError: null,
+                processedMessages: freshMap
               }, false, 'websocketConnected');
             };
             websocketService.on('connect', websocketService._storeListeners.onConnect);
@@ -1208,23 +1213,35 @@ export const useKanbanStore = create()(
         // Helper function to generate message fingerprint for deduplication
         getMessageFingerprint: (messageType, data) => {
           // Create a unique fingerprint based on message characteristics
+          // NOTE: timestamp is intentionally excluded because it makes every message unique,
+          // defeating the purpose of deduplication. Only content-based fields are included.
           const adw_id = data.adw_id || '';
-          const timestamp = data.timestamp || '';
           const status = data.status || '';
           const level = data.level || '';
           const message = data.message || '';
           const progress = data.progress_percent !== undefined ? data.progress_percent : '';
           const step = data.current_step || '';
 
-          // Combine fields to create unique fingerprint
-          const fingerprint = `${messageType}:${adw_id}:${timestamp}:${status}${level}:${progress}:${step}:${message}`;
+          // Combine fields to create unique fingerprint (without timestamp)
+          const fingerprint = `${messageType}:${adw_id}:${status}${level}:${progress}:${step}:${message}`;
           return fingerprint;
         },
 
         // Helper function to check and record message for deduplication
         isDuplicateMessage: (messageType, data) => {
           const fingerprint = get().getMessageFingerprint(messageType, data);
-          const { processedMessages, messageDeduplicationMaxSize, messageDeduplicationTTL, tasks } = get();
+          let { processedMessages, messageDeduplicationMaxSize, messageDeduplicationTTL, tasks } = get();
+
+          // Defensive check: Ensure processedMessages is a Map instance
+          // This prevents crashes if the Map becomes corrupted (e.g., from localStorage serialization)
+          if (!(processedMessages instanceof Map)) {
+            console.error('[Deduplication] processedMessages is not a Map! Type:', typeof processedMessages);
+            console.error('[Deduplication] Recreating Map to recover from corruption');
+            processedMessages = new Map();
+            set({ processedMessages }, false, 'recreateProcessedMessagesMap');
+            // Allow this message through since we can't verify if it's a duplicate
+            return false;
+          }
 
           // Check if message was already processed
           if (processedMessages.has(fingerprint)) {
@@ -1270,6 +1287,7 @@ export const useKanbanStore = create()(
 
           // Cleanup old entries if cache is too large
           if (processedMessages.size > messageDeduplicationMaxSize) {
+            console.warn(`[Deduplication] Cache size (${processedMessages.size}) exceeded max size (${messageDeduplicationMaxSize})`);
             // Remove oldest entries (first 20% of max size)
             const entriesToRemove = Math.floor(messageDeduplicationMaxSize * 0.2);
             const iterator = processedMessages.keys();
@@ -2803,7 +2821,18 @@ export const useKanbanStore = create()(
           taskWorkflowProgress: state.taskWorkflowProgress,
           taskWorkflowMetadata: state.taskWorkflowMetadata,
           taskWorkflowLogs: state.taskWorkflowLogs,
+          // NOTE: processedMessages is intentionally excluded from persistence
+          // because Map objects don't serialize properly in localStorage
         }),
+        onRehydrateStorage: () => (state) => {
+          // Reset processedMessages to a fresh Map after rehydration
+          // This prevents Map corruption from localStorage serialization
+          // and clears stale fingerprints that could block new messages
+          if (state) {
+            state.processedMessages = new Map();
+            console.log('[KanbanStore] Rehydration: Reset processedMessages to new Map');
+          }
+        },
       }
     ),
     {
