@@ -1145,12 +1145,38 @@ export const useKanbanStore = create()(
             // Trigger workflow via WebSocket
             const response = await websocketService.triggerWorkflowForTask(task, workflowType, triggerOptions);
 
-            // Immediately move task to the workflow's initial stage if in backlog
+            console.log('[WORKFLOW] Received response with ADW ID:', response.adw_id);
+            console.log('[WORKFLOW] Immediately updating task with ADW ID to prevent log matching race condition');
+
+            // CRITICAL: Update task with ADW ID IMMEDIATELY to prevent race condition
+            // where logs arrive before the task has been updated with the ADW ID.
+            // This must happen BEFORE moving the task or tracking the workflow.
             const initialStage = getInitialStageForWorkflow(response.workflow_name);
-            if (initialStage && task.stage === 'backlog') {
-              console.log(`[Workflow] Auto-moving task from backlog to ${initialStage} stage for workflow: ${response.workflow_name}`);
-              get().moveTaskToStage(taskId, initialStage);
-            }
+            const shouldMoveStage = initialStage && task.stage === 'backlog';
+
+            // Atomic update: set ADW ID and optionally move stage in a single operation
+            set((state) => ({
+              tasks: state.tasks.map(t =>
+                t.id === taskId
+                  ? {
+                      ...t,
+                      stage: shouldMoveStage ? initialStage : t.stage,
+                      substage: shouldMoveStage ? null : t.substage,
+                      progress: shouldMoveStage ? 0 : t.progress,
+                      metadata: {
+                        ...t.metadata,
+                        adw_id: response.adw_id,
+                        workflow_name: response.workflow_name,
+                        workflow_status: 'started',
+                        logs_path: response.logs_path,
+                      },
+                      updatedAt: new Date().toISOString()
+                    }
+                  : t
+              ),
+            }), false, 'setAdwIdAndMoveStage');
+
+            console.log('[WORKFLOW] Task updated with ADW ID:', response.adw_id, 'stage:', shouldMoveStage ? initialStage : task.stage);
 
             // Track the active workflow
             get().trackActiveWorkflow(response.adw_id, {
@@ -1159,17 +1185,6 @@ export const useKanbanStore = create()(
               status: 'started',
               logsPath: response.logs_path,
               startedAt: new Date().toISOString(),
-            });
-
-            // Update task with ADW information
-            get().updateTask(taskId, {
-              metadata: {
-                ...task.metadata,
-                adw_id: response.adw_id,
-                workflow_name: response.workflow_name,
-                workflow_status: 'started',
-                logs_path: response.logs_path,
-              }
             });
 
             set({ isLoading: false }, false, 'triggerWorkflowForTaskSuccess');
