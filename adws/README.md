@@ -384,7 +384,7 @@ uv run adw_merge_worktree.py a1b2c3d4 rebase    # Rebase merge
 4. Merges the feature branch using specified strategy
 5. Detects and resolves merge conflicts with Claude Code
 6. Runs validation tests (pytest) to ensure clean merge
-7. Pushes merged changes to origin/main
+7. Pushes merged changes to remote main
 8. Cleans up worktree directory
 9. Deletes remote branch
 10. Updates ADW state with merge status

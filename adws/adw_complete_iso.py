@@ -16,7 +16,7 @@ Workflow:
    - Fetch latest from origin
    - Checkout main
    - Merge feature branch
-   - Push to origin/main
+   - Push to remote main
 4. Remove the worktree after successful merge
 5. Mark the workflow as completed in state
 6. Post completion message to issue

@@ -53,9 +53,9 @@ def create_worktree(adw_id: str, branch_name: str, logger: logging.Logger) -> Tu
     if fetch_result.returncode != 0:
         logger.warning(f"Failed to fetch from origin: {fetch_result.stderr}")
     
-    # Create the worktree using git, branching from origin/main
+    # Create the worktree using git, branching from main
     # Use -b to create the branch as part of worktree creation
-    cmd = ["git", "worktree", "add", "-b", branch_name, worktree_path, "origin/main"]
+    cmd = ["git", "worktree", "add", "-b", branch_name, worktree_path, "main"]
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=project_root)
     
     if result.returncode != 0:

@@ -23,7 +23,7 @@ Workflow:
 7. If conflicts occur, invoke Claude Code for resolution
 8. Restore config files to main repository paths (fixes worktree-specific paths)
 9. Run validation tests to ensure merge is clean
-10. Push merged changes to origin/main
+10. Push merged changes to remote main
 11. Clean up worktree after successful merge
 12. Optionally delete remote branch
 13. Update ADW state with merge status

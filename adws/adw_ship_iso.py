@@ -16,7 +16,7 @@ Workflow:
    - Fetch latest from origin
    - Checkout main
    - Merge feature branch
-   - Push to origin/main
+   - Push to remote main
 4. Post success message to issue
 
 This workflow REQUIRES that all previous workflows have been run and that

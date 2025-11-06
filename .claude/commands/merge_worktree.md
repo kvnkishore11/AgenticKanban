@@ -47,7 +47,7 @@ The script will:
    After resolving, run tests to validate the merge."
    ```
 8. Run validation tests (pytest) to ensure merge is clean
-9. Push merged changes to origin/main
+9. Push merged changes to remote main
 10. Clean up worktree using `worktree_ops.remove_worktree()`
 11. Optionally delete remote branch
 12. Update ADW state or archive it

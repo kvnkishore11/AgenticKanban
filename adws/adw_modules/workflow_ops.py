@@ -804,7 +804,7 @@ def find_spec_file(state: ADWState, logger: logging.Logger) -> Optional[str]:
     # Otherwise, try to find it from git diff
     logger.info("Looking for spec file in git diff")
     result = subprocess.run(
-        ["git", "diff", "origin/main", "--name-only"],
+        ["git", "diff", "main", "--name-only"],
         capture_output=True,
         text=True,
         cwd=worktree_path,

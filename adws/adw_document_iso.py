@@ -59,7 +59,7 @@ DOCS_PATH = "app_docs/"
 
 
 def check_for_changes(logger: logging.Logger, cwd: Optional[str] = None) -> bool:
-    """Check if there are any changes between current branch and origin/main.
+    """Check if there are any changes between current branch and main.
 
     Args:
         logger: Logger instance
@@ -69,9 +69,9 @@ def check_for_changes(logger: logging.Logger, cwd: Optional[str] = None) -> bool
         bool: True if changes exist, False if no changes
     """
     try:
-        # Check for changes against origin/main
+        # Check for changes against main
         result = subprocess.run(
-            ["git", "diff", "origin/main", "--stat"],
+            ["git", "diff", "main", "--stat"],
             capture_output=True,
             text=True,
             check=True,
@@ -82,7 +82,7 @@ def check_for_changes(logger: logging.Logger, cwd: Optional[str] = None) -> bool
         has_changes = bool(result.stdout.strip())
 
         if not has_changes:
-            logger.info("No changes detected between current branch and origin/main")
+            logger.info("No changes detected between current branch and main")
         else:
             logger.info(f"Found changes:\n{result.stdout}")
 
@@ -375,7 +375,7 @@ def main():
             format_issue_message(
                 adw_id,
                 "ops",
-                "ℹ️ No changes detected between current branch and origin/main - skipping documentation",
+                "ℹ️ No changes detected between current branch and main - skipping documentation",
             ),
         )
         return

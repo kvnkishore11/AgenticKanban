@@ -12,7 +12,7 @@ review_image_dir: `<absolute path to codebase>/agents/<adw_id>/<agent_name>/revi
 ## Instructions
 
 - Check current git branch using `git branch` to understand context
-- Run `git diff origin/main` to see all changes made in current branch. Continue even if there are no changes related to the spec file.
+- Run `git diff main` to see all changes made in current branch. Continue even if there are no changes related to the spec file.
 - Find the spec file by looking for specs/*.md files in the diff that match the current branch name
 - Read the identified spec file to understand requirements
 - IMPORTANT: If the work can be validated by UI validation then (if not skip the section):

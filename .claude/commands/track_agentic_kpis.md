@@ -33,7 +33,7 @@ IMPORTANT: Use Python to calculate the exact count value:
 - If file doesn't exist, use 0
 
 #### Calculate Diff Statistics
-- Run: `git diff origin/main --shortstat`
+- Run: `git diff main --shortstat`
 - Parse output to extract:
   - Files changed
   - Lines added

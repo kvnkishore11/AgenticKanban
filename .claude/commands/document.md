@@ -11,9 +11,9 @@ documentation_screenshots_dir: $3 if provided, otherwise leave it blank
 ## Instructions
 
 ### 1. Analyze Changes
-- Run `git diff origin/main --stat` to see files changed and lines modified
-- Run `git diff origin/main --name-only` to get the list of changed files
-- For significant changes (>50 lines), run `git diff origin/main <file>` on specific files to understand the implementation details
+- Run `git diff main --stat` to see files changed and lines modified
+- Run `git diff main --name-only` to get the list of changed files
+- For significant changes (>50 lines), run `git diff main <file>` on specific files to understand the implementation details
 
 ### 2. Read Specification (if provided)
 - If `spec_path` is provided, read the specification file to understand:
