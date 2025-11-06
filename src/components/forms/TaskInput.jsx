@@ -12,7 +12,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import { WORK_ITEM_TYPES, QUEUEABLE_STAGES, SDLC_STAGES } from '../../constants/workItems';
-import { X, Plus, Image as ImageIcon, Clipboard } from 'lucide-react';
+import { X, Plus, Image as ImageIcon, Clipboard, GitMerge } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useClipboard } from '../../hooks/useClipboard';
 import AdwIdInput from '../ui/AdwIdInput';
@@ -175,6 +175,21 @@ const TaskInput = () => {
         return [...SDLC_STAGES, ...nonSdlcStages];
       });
     }
+  };
+
+  // Check if merge workflow is selected
+  const isMergeSelected = queuedStages.includes('adw_merge_worktree');
+
+  const handleMergeToggle = () => {
+    setQueuedStages(prev => {
+      if (prev.includes('adw_merge_worktree')) {
+        // Remove merge workflow if already selected
+        return prev.filter(stage => stage !== 'adw_merge_worktree');
+      } else {
+        // Add merge workflow
+        return [...prev, 'adw_merge_worktree'];
+      }
+    });
   };
 
   const handleSubmit = (e) => {
@@ -344,21 +359,44 @@ const TaskInput = () => {
               Select the stages this task should progress through
             </p>
 
-            {/* Full SDLC Quick Selection */}
+            {/* Quick Selection Row: SDLC and Merge */}
             <div className="mb-4">
-              <button
-                type="button"
-                onClick={handleFullSdlcToggle}
-                className={`px-4 py-2 rounded-lg border-2 font-medium transition-all ${
-                  isFullSdlcSelected
-                    ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                {isFullSdlcSelected ? '✓ SDLC Selected' : 'SDLC'}
-              </button>
-              <p className="text-xs text-gray-500 mt-1">
-                Quickly select all SDLC stages: Plan, Implement, Test, Review, Document
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleFullSdlcToggle}
+                  className={`px-4 py-2 rounded-lg border-2 font-medium transition-all ${
+                    isFullSdlcSelected
+                      ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                  }`}
+                  aria-label="Toggle all SDLC stages"
+                  title="Quickly select all SDLC stages: Plan, Implement, Test, Review, Document"
+                >
+                  {isFullSdlcSelected ? '✓ SDLC Selected' : 'SDLC'}
+                </button>
+
+                <div className="border-l border-gray-300 h-10"></div>
+
+                <button
+                  type="button"
+                  onClick={handleMergeToggle}
+                  className={`px-4 py-2 rounded-lg border-2 font-medium transition-all flex items-center gap-2 ${
+                    isMergeSelected
+                      ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                  }`}
+                  aria-label="Toggle merge workflow"
+                  title="Add merge worktree workflow to queued stages"
+                >
+                  <GitMerge size={16} />
+                  {isMergeSelected ? '✓ Merge' : 'Merge'}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                <span className="font-medium">SDLC:</span> Quickly select all SDLC stages (Plan, Implement, Test, Review, Document)
+                {' | '}
+                <span className="font-medium">Merge:</span> Add merge worktree workflow
               </p>
             </div>
 
