@@ -20,6 +20,7 @@ Environment Requirements:
 import argparse
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -38,6 +39,8 @@ from adw_modules.utils import make_adw_id, setup_logger, get_safe_subprocess_env
 from adw_modules.workflow_ops import AVAILABLE_ADW_WORKFLOWS
 from adw_modules.state import ADWState
 from adw_modules.discovery import discover_all_adws, get_adw_metadata
+from adw_modules import worktree_ops
+from adw_modules.websocket_client import WebSocketNotifier
 from adw_triggers.websocket_models import (
     WorkflowTriggerRequest,
     WorkflowTriggerResponse,
@@ -395,6 +398,58 @@ def validate_workflow_request(request_data: dict) -> tuple[Optional[WorkflowTrig
         return None, f"Invalid request format: {str(e)}"
 
 
+def is_workflow_restart(ticket: TicketNotification) -> bool:
+    """Detect if this is a workflow restart (triggered from non-backlog stage).
+
+    Args:
+        ticket: TicketNotification object containing stage information
+
+    Returns:
+        True if this is a restart (stage is not backlog), False otherwise
+    """
+    # Valid non-backlog stages that indicate a restart
+    non_backlog_stages = {"plan", "build", "test", "review", "document", "errored"}
+
+    # Check if stage exists and is not backlog
+    if ticket.stage and ticket.stage.lower() in non_backlog_stages:
+        return True
+
+    return False
+
+
+def cleanup_old_adw_resources(old_adw_id: str, logger) -> None:
+    """Clean up old ADW resources (worktree and agent directory).
+
+    Args:
+        old_adw_id: The old ADW ID to clean up
+        logger: Logger instance for logging cleanup actions
+    """
+    logger.info(f"Starting cleanup of old ADW resources for: {old_adw_id}")
+
+    # Clean up old worktree
+    try:
+        success, error_msg = worktree_ops.remove_worktree(old_adw_id, logger)
+        if success:
+            logger.info(f"Successfully removed old worktree for ADW ID: {old_adw_id}")
+        else:
+            logger.warning(f"Failed to remove old worktree for {old_adw_id}: {error_msg}")
+    except Exception as e:
+        logger.warning(f"Exception during worktree cleanup for {old_adw_id}: {e}")
+
+    # Clean up old agent directory
+    try:
+        agent_dir = os.path.join("agents", old_adw_id)
+        if os.path.exists(agent_dir):
+            shutil.rmtree(agent_dir)
+            logger.info(f"Successfully removed old agent directory: {agent_dir}")
+        else:
+            logger.info(f"Agent directory does not exist (already cleaned?): {agent_dir}")
+    except Exception as e:
+        logger.warning(f"Failed to remove old agent directory for {old_adw_id}: {e}")
+
+    logger.info(f"Completed cleanup of old ADW resources for: {old_adw_id}")
+
+
 async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket) -> WorkflowTriggerResponse:
     """Trigger an ADW workflow and return response."""
     global total_workflows_triggered
@@ -475,6 +530,35 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
         f"adw_id={adw_id}, model_set={request.model_set}, data_source={data_source}"
     )
 
+    # Detect workflow restart and handle cleanup
+    is_restart = False
+    old_adw_id = None
+    if request.issue_json:
+        # Check if stage indicates a restart (non-backlog stage)
+        current_stage = request.issue_json.get("stage")
+        non_backlog_stages = {"plan", "build", "test", "review", "document", "errored"}
+
+        if current_stage and current_stage.lower() in non_backlog_stages:
+            is_restart = True
+
+            # Try to extract old ADW ID from metadata
+            metadata = request.issue_json.get("metadata", {})
+            old_adw_id = metadata.get("adw_id") if metadata else None
+
+            if old_adw_id and old_adw_id != adw_id:
+                logger.info(
+                    f"Workflow restart detected: current_stage={current_stage}, "
+                    f"old_adw_id={old_adw_id}, new_adw_id={adw_id}"
+                )
+
+                # Clean up old ADW resources
+                cleanup_old_adw_resources(old_adw_id, logger)
+            else:
+                logger.info(
+                    f"Workflow restart detected but no valid old_adw_id found "
+                    f"(old_adw_id={old_adw_id}, new_adw_id={adw_id})"
+                )
+
     # Send status update: workflow started
     await send_status_update(
         adw_id,
@@ -539,12 +623,55 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
             websocket
         )
 
+        # Force stage transition to plan if this is a restart
+        if is_restart:
+            logger.info("Forcing stage transition to 'plan' for workflow restart")
+
+            # Create WebSocketNotifier for stage transition
+            try:
+                notifier = WebSocketNotifier(adw_id)
+
+                # Determine the from_stage
+                from_stage = "backlog"
+                if request.issue_json and request.issue_json.get("stage"):
+                    from_stage = request.issue_json.get("stage")
+
+                # Send stage transition notification
+                transition_msg = f"Workflow restarted - transitioning from {from_stage} to plan"
+                if old_adw_id:
+                    transition_msg += f" (cleaned up old ADW: {old_adw_id})"
+
+                notifier.notify_stage_transition(
+                    workflow_name=request.workflow_type,
+                    from_stage=from_stage,
+                    to_stage="plan",
+                    message=transition_msg
+                )
+
+                logger.info(f"Stage transition notification sent: {from_stage} -> plan")
+
+                # Also send a WebSocket update about the restart
+                await send_status_update(
+                    adw_id,
+                    request.workflow_type,
+                    "in_progress",
+                    transition_msg,
+                    websocket,
+                    current_step="Stage: plan"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send stage transition notification: {e}")
+
         # Return success response
+        response_msg = f"ADW {request.workflow_type} triggered successfully"
+        if is_restart:
+            response_msg += " (workflow restarted, transitioned to plan stage)"
+
         return WorkflowTriggerResponse(
             status="accepted",
             adw_id=adw_id,
             workflow_name=request.workflow_type,
-            message=f"ADW {request.workflow_type} triggered successfully",
+            message=response_msg,
             logs_path=logs_path
         )
 
@@ -605,17 +732,43 @@ async def handle_ticket_notification(notification_data: dict, websocket: WebSock
         # Log the received notification
         print(f"Received ticket notification: {notification.title} (ID: {notification.id})")
 
-        # Here you could add additional processing like:
-        # - Storing the ticket in a database
-        # - Triggering specific workflows based on ticket type
-        # - Sending notifications to other systems
-        # - Updating project management tools
+        # Check if this is a workflow restart
+        is_restart = is_workflow_restart(notification)
+
+        # Handle workflow restart cleanup if needed
+        if is_restart and notification.old_adw_id:
+            # Set up logger for cleanup operations
+            cleanup_logger = setup_logger(notification.old_adw_id, "restart_cleanup")
+
+            # Log restart detection
+            cleanup_logger.info(
+                f"Workflow restart detected for ticket {notification.id}. "
+                f"Current stage: {notification.stage}. Old ADW ID: {notification.old_adw_id}"
+            )
+            print(f"Workflow restart detected - cleaning up old ADW ID: {notification.old_adw_id}")
+
+            # Clean up old ADW resources
+            cleanup_old_adw_resources(notification.old_adw_id, cleanup_logger)
+
+            # Send status update about the restart
+            await send_status_update(
+                notification.old_adw_id,
+                "restart_cleanup",
+                "completed",
+                "Cleaned up old ADW resources for restart",
+                websocket
+            )
 
         # For now, we just acknowledge receipt
+        # In the future, this could trigger workflows automatically based on ticket type
+        response_message = f"Ticket notification '{notification.title}' received successfully"
+        if is_restart and notification.old_adw_id:
+            response_message += f" (restart detected, cleaned up old ADW: {notification.old_adw_id})"
+
         response = TicketNotificationResponse(
             status="received",
             ticket_id=notification.id,
-            message=f"Ticket notification '{notification.title}' received successfully",
+            message=response_message,
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
 

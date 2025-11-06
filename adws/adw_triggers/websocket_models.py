@@ -72,6 +72,7 @@ class TicketNotification(BaseModel):
     createdAt: Optional[str] = None  # Creation timestamp
     images: Optional[list] = None  # Associated images
     metadata: Optional[dict] = None  # Additional metadata
+    old_adw_id: Optional[str] = None  # Previous ADW ID for workflow restarts
 
 
     @validator('id', pre=True)
