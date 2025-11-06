@@ -460,7 +460,7 @@ const WebSocketStatusIndicator = ({
                 </div>
                 <div>
                   <span className="text-gray-500">Port:</span>
-                  <span className="ml-1 font-mono">{status.serverStatus.config.port || 8002}</span>
+                  <span className="ml-1 font-mono">{status.serverStatus.config.port || 8500}</span>
                 </div>
                 <div>
                   <span className="text-gray-500">Protocol:</span>
