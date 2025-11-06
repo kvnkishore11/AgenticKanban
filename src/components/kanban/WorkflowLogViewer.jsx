@@ -17,6 +17,12 @@ import DetailedLogEntry from './DetailedLogEntry';
  * WorkflowLogViewer Component
  * Displays real-time workflow logs in a beautified, scrollable format
  * with filtering, auto-scroll, and syntax highlighting capabilities
+ *
+ * Log Ordering:
+ * - Logs are displayed in reverse chronological order (newest first at the top)
+ * - This provides better UX as users can see the latest updates immediately
+ * - Auto-scroll scrolls to the top when new logs arrive
+ * - Exported logs maintain chronological order (oldest first) for offline analysis
  */
 const WorkflowLogViewer = ({
   logs = [],
@@ -35,10 +41,11 @@ const WorkflowLogViewer = ({
   const logContainerRef = useRef(null);
   const prevLogsLengthRef = useRef(logs.length);
 
-  // Auto-scroll to bottom when new logs arrive
+  // Auto-scroll to top when new logs arrive (since logs are displayed in reverse order)
   useEffect(() => {
     if (isAutoScroll && logContainerRef.current && logs.length > prevLogsLengthRef.current) {
-      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+      // Scroll to top where new logs appear (reversed order)
+      logContainerRef.current.scrollTop = 0;
     }
     prevLogsLengthRef.current = logs.length;
   }, [logs, isAutoScroll]);
@@ -87,26 +94,31 @@ const WorkflowLogViewer = ({
   };
 
   // Filter logs based on level and search query
+  // Display logs in reverse chronological order (newest first) as requested by user
   const filteredLogs = logs.filter(log => {
     const levelMatch = filterLevel === 'all' || log.level?.toUpperCase() === filterLevel.toUpperCase();
     const searchMatch = !searchQuery ||
       log.message?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       log.current_step?.toLowerCase().includes(searchQuery.toLowerCase());
     return levelMatch && searchMatch;
-  });
+  }).reverse(); // Reverse to show newest logs at the top
 
   // Export logs (text or JSON format)
   const handleExportLogs = (format = 'text') => {
     let content, mimeType, extension;
 
+    // Export logs in chronological order (oldest first) for better readability
+    // even though UI displays them reversed
+    const exportLogs = [...filteredLogs].reverse();
+
     if (format === 'json') {
       // Export as JSON with full structure
-      content = JSON.stringify(filteredLogs, null, 2);
+      content = JSON.stringify(exportLogs, null, 2);
       mimeType = 'application/json';
       extension = 'json';
     } else {
       // Export as formatted text
-      const logText = filteredLogs.map(log => {
+      const logText = exportLogs.map(log => {
         const timestamp = showTimestamps ? `[${formatTimestamp(log.timestamp)}] ` : '';
         const level = log.level ? `[${log.level}] ` : '';
         const step = log.current_step ? `[${log.current_step}] ` : '';
@@ -138,11 +150,12 @@ const WorkflowLogViewer = ({
   const handleScroll = () => {
     if (!logContainerRef.current) return;
 
-    const { scrollTop, scrollHeight, clientHeight } = logContainerRef.current;
-    const isAtBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 10;
+    const { scrollTop } = logContainerRef.current;
+    // Since logs are reversed, new logs appear at the top
+    const isAtTop = scrollTop < 10;
 
-    // Only auto-scroll if user is at the bottom
-    setIsAutoScroll(isAtBottom);
+    // Only auto-scroll if user is at the top (where new logs appear)
+    setIsAutoScroll(isAtTop);
   };
 
   // Get logs source badge
