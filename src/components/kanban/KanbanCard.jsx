@@ -26,7 +26,8 @@ import {
   GitPullRequest,
   Maximize2,
   Pause,
-  AlertCircle
+  AlertCircle,
+  Copy
 } from 'lucide-react';
 import CardExpandModal from './CardExpandModal';
 
@@ -35,7 +36,8 @@ const KanbanCard = ({ task, onEdit }) => {
     deleteTask,
     getPipelineById,
     getWebSocketStatus,
-    triggerWorkflowForTask
+    triggerWorkflowForTask,
+    getWorkflowProgressForTask
   } = useKanbanStore();
 
   const [showMenu, setShowMenu] = useState(false);
@@ -43,6 +45,7 @@ const KanbanCard = ({ task, onEdit }) => {
 
   const pipeline = getPipelineById(task.pipelineId);
   const websocketStatus = getWebSocketStatus();
+  const workflowProgress = getWorkflowProgressForTask(task.id);
 
   // Format dynamic pipeline names for display
   const formatPipelineName = (pipelineId) => {
@@ -90,6 +93,42 @@ const KanbanCard = ({ task, onEdit }) => {
 
     const diffInDays = Math.floor(diffInHours / 24);
     return `${diffInDays}d ago`;
+  };
+
+  // Get stage abbreviation for compact badge display
+  const getStageAbbreviation = (stage) => {
+    const abbreviations = {
+      'plan': 'P',
+      'build': 'B',
+      'implement': 'I',
+      'test': 'T',
+      'review': 'R',
+      'document': 'D',
+      'pr': 'PR'
+    };
+    return abbreviations[stage.toLowerCase()] || stage.charAt(0).toUpperCase();
+  };
+
+  // Render stage badges for ADW pipelines
+  const renderStageBadges = (pipelineId) => {
+    if (!pipelineId || !pipelineId.startsWith('adw_')) {
+      return null;
+    }
+
+    const stages = pipelineId.replace('adw_', '').split('_');
+
+    return (
+      <div className="flex items-center space-x-1">
+        {stages.map((stage, index) => (
+          <span key={index}>
+            {index > 0 && <span className="text-gray-400 mx-0.5">|</span>}
+            <span className="inline-block border border-gray-400 rounded px-1.5 py-0.5 text-xs font-bold shadow-sm">
+              {getStageAbbreviation(stage)}
+            </span>
+          </span>
+        ))}
+      </div>
+    );
   };
 
   const handleCardClick = () => {
@@ -145,7 +184,6 @@ const KanbanCard = ({ task, onEdit }) => {
           <div className="adw-header mb-3 pb-2 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 flex-1 min-w-0">
-                <span className="text-xs font-bold text-gray-700">ADW ID:</span>
                 <span className="text-xs font-mono font-bold bg-gray-100 px-2 py-1 rounded text-gray-800 truncate">
                   {task.metadata?.adw_id}
                 </span>
@@ -155,10 +193,10 @@ const KanbanCard = ({ task, onEdit }) => {
                     e.stopPropagation();
                     navigator.clipboard.writeText(task.metadata?.adw_id);
                   }}
-                  className="text-blue-600 hover:text-blue-800 text-xs"
+                  className="p-1 hover:bg-gray-200 rounded transition-colors"
                   title="Copy ADW ID"
                 >
-                  Copy
+                  <Copy className="h-3 w-3 text-gray-600" />
                 </button>
               </div>
 
@@ -187,12 +225,16 @@ const KanbanCard = ({ task, onEdit }) => {
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
             <h4 className="text-sm font-bold text-gray-900 truncate">
-              {task.title}
+              {task.metadata?.summary || task.title}
             </h4>
             <div className="mt-1 flex items-center text-xs text-gray-500">
               <span className="truncate">#{task.id}</span>
               <span className="mx-1">•</span>
-              <span>{formatPipelineName(task.pipelineId)}</span>
+              {task.pipelineId?.startsWith('adw_') ? (
+                renderStageBadges(task.pipelineId)
+              ) : (
+                <span>{formatPipelineName(task.pipelineId)}</span>
+              )}
               {/* Workflow completion badge */}
               {task.metadata?.workflow_name && task.metadata?.workflow_complete && (
                 <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
@@ -273,6 +315,16 @@ const KanbanCard = ({ task, onEdit }) => {
             <p className="whitespace-pre-wrap break-words line-clamp-3">
               {task.description}
             </p>
+          </div>
+        )}
+
+        {/* Current Substage Display */}
+        {workflowProgress?.currentStep && task.stage !== 'completed' && task.stage !== 'errored' && (
+          <div className="mb-3 flex items-center text-xs bg-blue-50 text-blue-700 px-2 py-1.5 rounded">
+            <Activity className="h-3 w-3 mr-1.5 flex-shrink-0" />
+            <span className="truncate">
+              <span className="font-medium">Currently:</span> {workflowProgress.currentStep}
+            </span>
           </div>
         )}
 
