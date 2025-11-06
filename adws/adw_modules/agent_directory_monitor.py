@@ -45,7 +45,7 @@ import time
 from pathlib import Path
 from typing import Optional, Dict, Any, Set
 from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler, FileModifiedEvent, FileCreatedEvent
+from watchdog.events import FileSystemEventHandler
 
 
 class AgentDirectoryMonitor:
@@ -107,7 +107,7 @@ class AgentDirectoryMonitor:
             else:
                 # If no loop, run it
                 loop.run_until_complete(coro)
-        except Exception as e:
+        except Exception:
             # If that fails, create new loop
             try:
                 asyncio.run(coro)

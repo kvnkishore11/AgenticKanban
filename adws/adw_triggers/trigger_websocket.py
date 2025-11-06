@@ -1193,7 +1193,6 @@ async def receive_workflow_phase_transition(request_data: dict):
     """
     try:
         adw_id = request_data.get("adw_id")
-        phase_from = request_data.get("phase_from")
         phase_to = request_data.get("phase_to")
 
         if not adw_id or not phase_to:
