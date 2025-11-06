@@ -1688,16 +1688,22 @@ export const useKanbanStore = create()(
             throw new Error('Task is missing ADW ID');
           }
 
-          if (!issue_number) {
-            throw new Error('Task is missing issue number');
-          }
+          // Note: issue_number is optional for merge workflow
+          // The workflow can work with or without it
 
           try {
             set({ isLoading: true }, false, 'triggerMergeWorkflow');
 
-            // Call merge service to trigger merge worktree workflow
-            const mergeService = (await import('../services/api/adwService')).default;
-            const response = await mergeService.triggerMerge(adw_id, issue_number);
+            // Trigger merge workflow via WebSocket
+            const response = await websocketService.triggerWorkflowForTask(
+              task,
+              'adw_merge_worktree',
+              {
+                adw_id,
+                issue_number,
+                model_set: 'base'
+              }
+            );
 
             if (response.success) {
               // Update task metadata to indicate merge is in progress

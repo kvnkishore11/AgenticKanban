@@ -67,6 +67,7 @@ DEPENDENT_WORKFLOWS = [
     "adw_review_iso",
     "adw_document_iso",
     "adw_ship_iso",
+    "adw_merge_worktree",  # Requires existing worktree to merge
 ]
 
 # Workflows that require issue_number as a mandatory parameter

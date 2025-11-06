@@ -105,10 +105,19 @@ def read_adw_state(adw_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-@router.post("/merge/trigger", response_model=MergeTriggerResponse)
+@router.post("/merge/trigger", response_model=MergeTriggerResponse, deprecated=True)
 async def trigger_merge(request: MergeTriggerRequest):
     """
-    Trigger merge workflow for an ADW ID.
+    [DEPRECATED] Trigger merge workflow for an ADW ID.
+
+    ⚠️ DEPRECATION NOTICE:
+    This REST API endpoint is deprecated as of 2025-01-05.
+    Please use the WebSocket trigger system instead:
+      - Connect to WebSocket server (adw_triggers/trigger_websocket.py)
+      - Send message: { type: "trigger_workflow", data: { workflow_type: "adw_merge_worktree", adw_id: "<id>", ... } }
+      - The "adw_merge_worktree" workflow is now registered in AVAILABLE_ADW_WORKFLOWS
+
+    This endpoint will be removed in a future version.
 
     This endpoint triggers the adw_merge_worktree.py workflow which:
     1. Merges the branch to main using git operations
