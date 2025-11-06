@@ -94,11 +94,6 @@ const KanbanBoard = () => {
 
   return (
     <div className="w-full">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Kanban Board</h2>
-        <p className="text-gray-600 font-medium">Manage your ADW tasks across the development pipeline</p>
-      </div>
-
       <div className="kanban-board-grid kanban-scroll">
         {/* Backlog Stage */}
         {backlogStage && (() => {
