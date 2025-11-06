@@ -992,6 +992,70 @@ export const useKanbanStore = create()(
             };
             websocketService.on('stage_transition', websocketService._storeListeners.onStageTransition);
 
+            // Rich log event handlers
+            websocketService._storeListeners.onAgentLog = (data) => {
+              try {
+                get().handleAgentLog(data);
+              } catch (error) {
+                console.error('[KanbanStore] Error handling agent log:', error);
+              }
+            };
+            websocketService.on('agent_log', websocketService._storeListeners.onAgentLog);
+
+            websocketService._storeListeners.onThinkingBlock = (data) => {
+              try {
+                get().handleThinkingBlock(data);
+              } catch (error) {
+                console.error('[KanbanStore] Error handling thinking block:', error);
+              }
+            };
+            websocketService.on('thinking_block', websocketService._storeListeners.onThinkingBlock);
+
+            websocketService._storeListeners.onToolUsePre = (data) => {
+              try {
+                get().handleToolUsePre(data);
+              } catch (error) {
+                console.error('[KanbanStore] Error handling tool use pre:', error);
+              }
+            };
+            websocketService.on('tool_use_pre', websocketService._storeListeners.onToolUsePre);
+
+            websocketService._storeListeners.onToolUsePost = (data) => {
+              try {
+                get().handleToolUsePost(data);
+              } catch (error) {
+                console.error('[KanbanStore] Error handling tool use post:', error);
+              }
+            };
+            websocketService.on('tool_use_post', websocketService._storeListeners.onToolUsePost);
+
+            websocketService._storeListeners.onTextBlock = (data) => {
+              try {
+                get().handleTextBlock(data);
+              } catch (error) {
+                console.error('[KanbanStore] Error handling text block:', error);
+              }
+            };
+            websocketService.on('text_block', websocketService._storeListeners.onTextBlock);
+
+            websocketService._storeListeners.onFileChanged = (data) => {
+              try {
+                get().handleFileChanged(data);
+              } catch (error) {
+                console.error('[KanbanStore] Error handling file changed:', error);
+              }
+            };
+            websocketService.on('file_changed', websocketService._storeListeners.onFileChanged);
+
+            websocketService._storeListeners.onAgentSummaryUpdate = (data) => {
+              try {
+                get().handleAgentSummaryUpdate(data);
+              } catch (error) {
+                console.error('[KanbanStore] Error handling agent summary update:', error);
+              }
+            };
+            websocketService.on('agent_summary_update', websocketService._storeListeners.onAgentSummaryUpdate);
+
             // Mark listeners as registered
             websocketService._storeListenersRegistered = true;
 
@@ -1019,6 +1083,15 @@ export const useKanbanStore = create()(
             websocketService.off('workflow_log', websocketService._storeListeners.onWorkflowLog);
             websocketService.off('trigger_response', websocketService._storeListeners.onTriggerResponse);
             websocketService.off('stage_transition', websocketService._storeListeners.onStageTransition);
+
+            // Rich log event listeners
+            websocketService.off('agent_log', websocketService._storeListeners.onAgentLog);
+            websocketService.off('thinking_block', websocketService._storeListeners.onThinkingBlock);
+            websocketService.off('tool_use_pre', websocketService._storeListeners.onToolUsePre);
+            websocketService.off('tool_use_post', websocketService._storeListeners.onToolUsePost);
+            websocketService.off('text_block', websocketService._storeListeners.onTextBlock);
+            websocketService.off('file_changed', websocketService._storeListeners.onFileChanged);
+            websocketService.off('agent_summary_update', websocketService._storeListeners.onAgentSummaryUpdate);
 
             // Clear listener references
             websocketService._storeListeners = null;
@@ -1389,6 +1462,155 @@ export const useKanbanStore = create()(
             }
           } else {
             console.warn('[WebSocket] No task found for stage transition with adw_id:', adw_id);
+          }
+        },
+
+        // Handle agent_log events
+        handleAgentLog: (data) => {
+          const { adw_id, level, message, timestamp, session_id, model } = data;
+          const { tasks } = get();
+          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+
+          if (task) {
+            const enrichedLog = {
+              entry_type: level === 'ERROR' ? 'system' : 'system',
+              subtype: level?.toLowerCase() || 'info',
+              message: message || 'Agent log entry',
+              timestamp: timestamp || new Date().toISOString(),
+              session_id,
+              model,
+              raw_data: data,
+              adw_id,
+            };
+            get().appendWorkflowLog(task.id, enrichedLog);
+          }
+        },
+
+        // Handle thinking_block events
+        handleThinkingBlock: (data) => {
+          const { adw_id, content, timestamp, session_id, model } = data;
+          const { tasks } = get();
+          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+
+          if (task) {
+            const enrichedLog = {
+              entry_type: 'assistant',
+              subtype: 'thinking',
+              message: content || 'Thinking...',
+              timestamp: timestamp || new Date().toISOString(),
+              session_id,
+              model,
+              raw_data: data,
+              adw_id,
+            };
+            get().appendWorkflowLog(task.id, enrichedLog);
+          }
+        },
+
+        // Handle tool_use_pre events
+        handleToolUsePre: (data) => {
+          const { adw_id, tool_name, tool_input, timestamp, session_id, model } = data;
+          const { tasks } = get();
+          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+
+          if (task) {
+            const enrichedLog = {
+              entry_type: 'assistant',
+              subtype: 'tool_call',
+              message: `Calling tool: ${tool_name}`,
+              tool_name,
+              tool_input,
+              timestamp: timestamp || new Date().toISOString(),
+              session_id,
+              model,
+              raw_data: data,
+              adw_id,
+            };
+            get().appendWorkflowLog(task.id, enrichedLog);
+          }
+        },
+
+        // Handle tool_use_post events
+        handleToolUsePost: (data) => {
+          const { adw_id, tool_name, usage, timestamp, session_id, model, stop_reason } = data;
+          const { tasks } = get();
+          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+
+          if (task) {
+            const enrichedLog = {
+              entry_type: 'result',
+              subtype: 'tool_result',
+              message: `Tool result: ${tool_name}`,
+              tool_name,
+              usage,
+              stop_reason,
+              timestamp: timestamp || new Date().toISOString(),
+              session_id,
+              model,
+              raw_data: data,
+              adw_id,
+            };
+            get().appendWorkflowLog(task.id, enrichedLog);
+          }
+        },
+
+        // Handle text_block events
+        handleTextBlock: (data) => {
+          const { adw_id, content, timestamp, session_id, model } = data;
+          const { tasks } = get();
+          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+
+          if (task) {
+            const enrichedLog = {
+              entry_type: 'assistant',
+              subtype: 'text',
+              message: content || 'Text output',
+              timestamp: timestamp || new Date().toISOString(),
+              session_id,
+              model,
+              raw_data: data,
+              adw_id,
+            };
+            get().appendWorkflowLog(task.id, enrichedLog);
+          }
+        },
+
+        // Handle file_changed events
+        handleFileChanged: (data) => {
+          const { adw_id, file_path, change_type, timestamp } = data;
+          const { tasks } = get();
+          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+
+          if (task) {
+            const enrichedLog = {
+              entry_type: 'system',
+              subtype: 'file_operation',
+              message: `File ${change_type || 'changed'}: ${file_path}`,
+              timestamp: timestamp || new Date().toISOString(),
+              raw_data: data,
+              adw_id,
+            };
+            get().appendWorkflowLog(task.id, enrichedLog);
+          }
+        },
+
+        // Handle agent_summary_update events
+        handleAgentSummaryUpdate: (data) => {
+          const { adw_id, summary, timestamp, current_step } = data;
+          const { tasks } = get();
+          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+
+          if (task) {
+            const enrichedLog = {
+              entry_type: 'system',
+              subtype: 'summary',
+              message: summary || 'Agent summary update',
+              current_step,
+              timestamp: timestamp || new Date().toISOString(),
+              raw_data: data,
+              adw_id,
+            };
+            get().appendWorkflowLog(task.id, enrichedLog);
           }
         },
 

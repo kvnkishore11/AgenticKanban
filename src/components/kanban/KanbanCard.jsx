@@ -37,7 +37,8 @@ const KanbanCard = ({ task, onEdit }) => {
     getPipelineById,
     getWebSocketStatus,
     triggerWorkflowForTask,
-    getWorkflowProgressForTask
+    getWorkflowProgressForTask,
+    getWorkflowLogsForTask
   } = useKanbanStore();
 
   const [showMenu, setShowMenu] = useState(false);
@@ -46,6 +47,7 @@ const KanbanCard = ({ task, onEdit }) => {
   const pipeline = getPipelineById(task.pipelineId);
   const websocketStatus = getWebSocketStatus();
   const workflowProgress = getWorkflowProgressForTask(task.id);
+  const workflowLogs = getWorkflowLogsForTask(task.id);
 
   // Format dynamic pipeline names for display
   const formatPipelineName = (pipelineId) => {
@@ -352,9 +354,31 @@ const KanbanCard = ({ task, onEdit }) => {
             </div>
           </div>
 
-          {task.logs && task.logs.length > 0 && (
-            <div className="text-xs text-gray-400">
-              {task.logs.length} log{task.logs.length !== 1 ? 's' : ''}
+          {/* Workflow log indicators */}
+          {workflowLogs && workflowLogs.length > 0 && (
+            <div className="flex items-center space-x-2">
+              <div className="text-xs text-gray-400">
+                {workflowLogs.length} log{workflowLogs.length !== 1 ? 's' : ''}
+              </div>
+              {/* Show latest log type indicator */}
+              {(() => {
+                const latestLog = workflowLogs[workflowLogs.length - 1];
+                if (latestLog?.entry_type) {
+                  const typeColors = {
+                    system: 'bg-purple-100 text-purple-700 border-purple-300',
+                    assistant: 'bg-blue-100 text-blue-700 border-blue-300',
+                    user: 'bg-green-100 text-green-700 border-green-300',
+                    result: 'bg-amber-100 text-amber-700 border-amber-300',
+                  };
+                  const colorClass = typeColors[latestLog.entry_type] || 'bg-gray-100 text-gray-700 border-gray-300';
+                  return (
+                    <span className={`px-1.5 py-0.5 text-xs rounded border ${colorClass}`}>
+                      {latestLog.entry_type}
+                    </span>
+                  );
+                }
+                return null;
+              })()}
             </div>
           )}
         </div>

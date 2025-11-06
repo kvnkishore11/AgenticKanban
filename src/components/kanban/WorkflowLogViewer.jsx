@@ -32,10 +32,16 @@ const WorkflowLogViewer = ({
   showTimestamps = true,
   autoScroll = true,
   logsSource = 'all', // 'all' | 'plan' | 'build' | 'test' | 'review' | 'document'
-  detailedView = false // Enable detailed log entry view
+  detailedView // Enable detailed log entry view, auto-detect if not specified
 }) => {
   // Ensure logs is always an array, even if null/undefined is explicitly passed
   const safeLogs = Array.isArray(logs) ? logs : [];
+
+  // Auto-detect if detailed view should be used based on presence of rich log data
+  const hasRichLogData = safeLogs.some(log =>
+    log.entry_type || log.tool_name || log.usage || log.raw_data
+  );
+  const useDetailedView = detailedView !== undefined ? detailedView : hasRichLogData;
 
   const [isExpanded, setIsExpanded] = useState(true);
   const [filterLevel, setFilterLevel] = useState('all');
@@ -312,7 +318,7 @@ const WorkflowLogViewer = ({
               <div className="p-4 text-center text-gray-400">
                 {safeLogs.length === 0 ? 'No logs yet' : 'No logs match the current filter'}
               </div>
-            ) : detailedView ? (
+            ) : useDetailedView ? (
               // Detailed view with DetailedLogEntry component
               <div className="divide-y divide-gray-100">
                 {filteredLogs.map((log, index) => (

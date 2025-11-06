@@ -56,9 +56,10 @@ const StageLogsViewer = ({
   const [activeTab, setActiveTab] = useState('all');
 
   // State for detailed view toggle (stored in localStorage)
+  // Default to true to show rich log data
   const [detailedView, setDetailedView] = useState(() => {
     const saved = localStorage.getItem('stageLogsDetailedView');
-    return saved === 'true';
+    return saved !== null ? saved === 'true' : true;
   });
 
   // Get real-time logs for "All" tab
