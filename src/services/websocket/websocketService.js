@@ -474,6 +474,46 @@ class WebSocketService {
         console.log('Spec created:', data.spec_path);
         this.emit('spec_created', data);
         break;
+      // Agent management message types
+      case 'agent_created':
+        this.emit('agent_created', data);
+        break;
+      case 'agent_updated':
+        this.emit('agent_updated', data);
+        break;
+      case 'agent_deleted':
+        this.emit('agent_deleted', data);
+        break;
+      case 'agent_status_change':
+        this.emit('agent_status_change', data);
+        break;
+      // Orchestrator and system message types
+      case 'orchestrator_updated':
+        this.emit('orchestrator_updated', data);
+        break;
+      case 'system_log':
+        this.emit('system_log', data);
+        break;
+      // Session and subscription message types
+      case 'session_registered':
+        this.emit('session_registered', data);
+        break;
+      case 'ticket_notification_response':
+        this.emit('ticket_notification_response', data);
+        break;
+      case 'subscription_ack':
+        this.emit('subscription_ack', data);
+        break;
+      // Chat-related message types (future-proofing)
+      case 'chat_message':
+        this.emit('chat_message', data);
+        break;
+      case 'chat_stream':
+        this.emit('chat_stream', data);
+        break;
+      case 'typing_indicator':
+        this.emit('typing_indicator', data);
+        break;
       default:
         console.warn('Unknown message type:', type);
     }
