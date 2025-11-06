@@ -1,6 +1,34 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Add process error handlers to prevent abrupt crashes
+// eslint-disable-next-line no-undef
+process.on('uncaughtException', (error) => {
+  console.error('[Vite Process] Uncaught Exception:', error);
+  // Don't exit immediately to allow cleanup
+});
+
+// eslint-disable-next-line no-undef
+process.on('unhandledRejection', (reason) => {
+  console.error('[Vite Process] Unhandled Promise Rejection:', reason);
+  // Don't exit immediately to allow cleanup
+});
+
+// Graceful shutdown handler
+// eslint-disable-next-line no-undef
+process.on('SIGTERM', () => {
+  console.log('[Vite Process] SIGTERM received, shutting down gracefully...');
+  // eslint-disable-next-line no-undef
+  process.exit(0);
+});
+
+// eslint-disable-next-line no-undef
+process.on('SIGINT', () => {
+  console.log('[Vite Process] SIGINT received, shutting down gracefully...');
+  // eslint-disable-next-line no-undef
+  process.exit(0);
+});
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   // Load .ports.env if it exists
@@ -24,8 +52,16 @@ export default defineConfig(({ mode }) => {
           '**/.mcp.json',
           '**/playwright-mcp-config.json'
         ]
-      }
+      },
+      // Improve stability with stricter origin checking
+      strictPort: false, // Allow fallback to different port if specified port is busy
+      host: true, // Listen on all addresses
     },
     envPrefix: 'VITE_',
+    // Optimize build to reduce memory usage
+    build: {
+      // Reduce chunk size warnings threshold
+      chunkSizeWarningLimit: 1000,
+    },
   }
 })

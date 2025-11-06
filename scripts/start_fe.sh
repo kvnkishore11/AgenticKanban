@@ -47,6 +47,64 @@ pkill -f "vite" 2>/dev/null && echo -e "${GREEN}✓ Killed lingering vite proces
 # Change to project root directory
 cd "$PROJECT_ROOT"
 
-# Start the frontend server
-echo -e "${BLUE}Starting Vite dev server...${NC}"
-npm run dev
+# Auto-restart configuration
+MAX_RESTART_ATTEMPTS=5
+RESTART_DELAY=3
+restart_count=0
+last_restart_time=0
+
+# Function to start the dev server with monitoring
+start_dev_server() {
+    echo -e "${BLUE}Starting Vite dev server (Attempt $((restart_count + 1))/${MAX_RESTART_ATTEMPTS})...${NC}"
+    npm run dev &
+    DEV_SERVER_PID=$!
+    echo -e "${GREEN}✓ Dev server started with PID: $DEV_SERVER_PID${NC}"
+}
+
+# Function to check if process is running
+is_process_running() {
+    kill -0 $DEV_SERVER_PID 2>/dev/null
+    return $?
+}
+
+# Trap signals for graceful shutdown
+trap 'echo -e "${YELLOW}Shutting down dev server...${NC}"; kill $DEV_SERVER_PID 2>/dev/null; exit 0' SIGINT SIGTERM
+
+# Start the dev server initially
+start_dev_server
+
+# Monitor the process and auto-restart if it crashes
+while true; do
+    sleep 5
+
+    # Check if the process is still running
+    if ! is_process_running; then
+        current_time=$(date +%s)
+        time_since_last_restart=$((current_time - last_restart_time))
+
+        # Reset restart count if it's been more than 60 seconds since last restart
+        if [ $time_since_last_restart -gt 60 ]; then
+            restart_count=0
+        fi
+
+        echo -e "${RED}✗ Dev server process stopped unexpectedly!${NC}"
+
+        # Check if we've exceeded max restart attempts
+        if [ $restart_count -ge $MAX_RESTART_ATTEMPTS ]; then
+            echo -e "${RED}Error: Max restart attempts ($MAX_RESTART_ATTEMPTS) reached. Exiting.${NC}"
+            exit 1
+        fi
+
+        restart_count=$((restart_count + 1))
+        last_restart_time=$current_time
+
+        echo -e "${YELLOW}Waiting ${RESTART_DELAY} seconds before restarting...${NC}"
+        sleep $RESTART_DELAY
+
+        # Clean up any lingering processes
+        pkill -f "vite" 2>/dev/null
+
+        # Restart the server
+        start_dev_server
+    fi
+done

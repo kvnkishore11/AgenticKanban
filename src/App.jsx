@@ -38,16 +38,30 @@ function App() {
 
   useEffect(() => {
     // Initialize the application
-    console.log('AgenticKanban initialized');
+    console.log('[App] AgenticKanban initialized');
 
     // Initialize WebSocket connection only once
     if (!wsInitialized.current) {
       wsInitialized.current = true;
       initializeWebSocket().catch(error => {
-        console.error('Failed to initialize WebSocket:', error);
+        console.error('[App] Failed to initialize WebSocket:', error);
       });
     }
-  }, []);
+
+    // Cleanup function to properly cleanup WebSocket on unmount
+    return () => {
+      console.log('[App] Cleaning up on unmount');
+      // Import and cleanup WebSocket service
+      import('./services/websocket/websocketService.js').then(module => {
+        const websocketService = module.default;
+        if (websocketService) {
+          websocketService.cleanup();
+        }
+      }).catch(err => {
+        console.error('[App] Failed to cleanup WebSocket service:', err);
+      });
+    };
+  }, [initializeWebSocket]);
 
   return (
     <ErrorBoundary>
