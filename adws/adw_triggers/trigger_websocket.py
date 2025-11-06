@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run
 # /// script
-# dependencies = ["fastapi", "uvicorn", "python-dotenv", "websockets", "requests"]
+# dependencies = ["fastapi", "uvicorn", "python-dotenv", "websockets", "requests", "watchdog"]
 # ///
 
 """
@@ -26,7 +26,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime
-from typing import Set, Optional
+from typing import Set, Optional, Dict
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -41,6 +41,8 @@ from adw_modules.state import ADWState
 from adw_modules.discovery import discover_all_adws, get_adw_metadata
 from adw_modules import worktree_ops
 from adw_modules.websocket_client import WebSocketNotifier
+from adw_modules.websocket_manager import get_websocket_manager
+from adw_modules.agent_directory_monitor import AgentDirectoryMonitor
 from adw_triggers.websocket_models import (
     WorkflowTriggerRequest,
     WorkflowTriggerResponse,
@@ -93,6 +95,7 @@ WORKFLOWS_REQUIRING_ISSUE_NUMBER = [
 active_connections: Set[WebSocket] = set()
 total_workflows_triggered = 0
 server_start_time = time.time()
+active_monitors: Dict[str, AgentDirectoryMonitor] = {}  # Track active directory monitors by adw_id
 
 # Create FastAPI app
 app = FastAPI(
@@ -355,6 +358,18 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+
+# Sync the new WebSocketManager with the old ConnectionManager connections
+# This ensures both managers can broadcast to the same clients
+def sync_websocket_managers():
+    """Sync active connections between old and new managers."""
+    ws_manager = get_websocket_manager()
+    # Share the connection set so both managers broadcast to the same clients
+    ws_manager.active_connections = manager.active_connections
+    ws_manager.connection_metadata = manager.connection_metadata
+
+# Call sync after manager is created
+sync_websocket_managers()
 
 
 def validate_workflow_request(request_data: dict) -> tuple[Optional[WorkflowTriggerRequest], Optional[str]]:
@@ -624,6 +639,9 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
             websocket
         )
 
+        # Start agent directory monitoring for real-time updates
+        start_agent_directory_monitoring(adw_id)
+
         # Force stage transition to plan if this is a restart
         if is_restart:
             logger.info("Forcing stage transition to 'plan' for workflow restart")
@@ -696,6 +714,61 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
             logs_path="",
             error=str(e)
         )
+
+
+def start_agent_directory_monitoring(adw_id: str) -> Optional[AgentDirectoryMonitor]:
+    """
+    Start monitoring agent directory for real-time changes.
+
+    Args:
+        adw_id: ADW ID to monitor
+
+    Returns:
+        AgentDirectoryMonitor instance or None if failed
+    """
+    global active_monitors
+
+    # Check if already monitoring
+    if adw_id in active_monitors:
+        print(f"Already monitoring ADW {adw_id}")
+        return active_monitors[adw_id]
+
+    try:
+        # Get WebSocket manager
+        ws_manager = get_websocket_manager()
+
+        # Create and start monitor
+        monitor = AgentDirectoryMonitor(adw_id=adw_id, websocket_manager=ws_manager)
+        monitor.start_monitoring()
+
+        # Track monitor
+        active_monitors[adw_id] = monitor
+        print(f"Started directory monitoring for ADW {adw_id}")
+
+        return monitor
+
+    except Exception as e:
+        print(f"Failed to start directory monitoring for {adw_id}: {e}")
+        return None
+
+
+def cleanup_monitor(adw_id: str):
+    """
+    Stop and cleanup monitor for a specific ADW ID.
+
+    Args:
+        adw_id: ADW ID to cleanup
+    """
+    global active_monitors
+
+    if adw_id in active_monitors:
+        try:
+            monitor = active_monitors[adw_id]
+            monitor.stop_monitoring()
+            del active_monitors[adw_id]
+            print(f"Cleaned up directory monitor for ADW {adw_id}")
+        except Exception as e:
+            print(f"Error cleaning up monitor for {adw_id}: {e}")
 
 
 async def send_status_update(
@@ -806,7 +879,14 @@ async def handle_ticket_notification(notification_data: dict, websocket: WebSock
 @app.websocket("/ws/trigger")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for receiving workflow trigger requests."""
-    await manager.connect(websocket)
+    print(f"[WebSocket] New connection attempt from {websocket.client}")
+
+    try:
+        await manager.connect(websocket)
+        print(f"[WebSocket] Connection accepted, total connections: {len(manager.active_connections)}")
+    except Exception as e:
+        print(f"[WebSocket] Connection failed during accept: {e}")
+        raise
 
     try:
         while True:
@@ -991,6 +1071,307 @@ async def websocket_endpoint(websocket: WebSocket):
         error_details = traceback.format_exc()
         print(f"WebSocket connection error: {error_details}")
         manager.disconnect(websocket)
+
+
+@app.post("/api/agent-state-update")
+async def receive_agent_state_update(request_data: dict):
+    """
+    HTTP endpoint for receiving granular agent state updates.
+
+    Expected message format:
+    {
+        "adw_id": "...",
+        "event_type": "state_change" | "log_entry" | "file_operation" | "thinking" | "tool_execution_pre" | "tool_execution_post" | "text_block",
+        "data": {
+            // Event-specific payload
+        },
+        "timestamp": "..."
+    }
+    """
+    try:
+        adw_id = request_data.get("adw_id")
+        event_type = request_data.get("event_type")
+        data = request_data.get("data", {})
+
+        if not adw_id or not event_type:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Missing 'adw_id' or 'event_type' in request"}
+            )
+
+        # Get WebSocket manager
+        ws_manager = get_websocket_manager()
+
+        # Route to appropriate broadcast method based on event type
+        if event_type == "state_change":
+            await ws_manager.broadcast_agent_updated(adw_id, data)
+        elif event_type == "log_entry":
+            await ws_manager.broadcast_agent_log({
+                "adw_id": adw_id,
+                **data
+            })
+        elif event_type == "file_operation":
+            await ws_manager.broadcast_file_changed(
+                adw_id=adw_id,
+                file_path=data.get("file_path", ""),
+                operation=data.get("operation", "modify"),
+                diff=data.get("diff"),
+                summary=data.get("summary"),
+                lines_added=data.get("lines_added", 0),
+                lines_removed=data.get("lines_removed", 0)
+            )
+        elif event_type == "thinking":
+            await ws_manager.broadcast_thinking_block(
+                adw_id=adw_id,
+                content=data.get("content", ""),
+                reasoning_type=data.get("reasoning_type"),
+                duration_ms=data.get("duration_ms"),
+                sequence=data.get("sequence")
+            )
+        elif event_type == "tool_execution_pre":
+            await ws_manager.broadcast_tool_use_pre(
+                adw_id=adw_id,
+                tool_name=data.get("tool_name", ""),
+                tool_input=data.get("input"),
+                tool_use_id=data.get("tool_use_id")
+            )
+        elif event_type == "tool_execution_post":
+            await ws_manager.broadcast_tool_use_post(
+                adw_id=adw_id,
+                tool_name=data.get("tool_name", ""),
+                tool_output=data.get("output"),
+                status=data.get("status", "success"),
+                error=data.get("error"),
+                tool_use_id=data.get("tool_use_id"),
+                duration_ms=data.get("duration_ms")
+            )
+        elif event_type == "text_block":
+            await ws_manager.broadcast_text_block(
+                adw_id=adw_id,
+                content=data.get("content", ""),
+                sequence=data.get("sequence")
+            )
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Unknown event type: {event_type}"}
+            )
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "message": "Agent state update broadcasted",
+                "adw_id": adw_id,
+                "event_type": event_type
+            }
+        )
+
+    except Exception as e:
+        print(f"Error processing agent state update: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to process agent state update: {str(e)}"}
+        )
+
+
+@app.post("/api/workflow-phase-transition")
+async def receive_workflow_phase_transition(request_data: dict):
+    """
+    HTTP endpoint for receiving workflow phase transition notifications.
+
+    Expected message format:
+    {
+        "adw_id": "...",
+        "phase_from": "...",
+        "phase_to": "...",
+        "workflow_name": "...",
+        "metadata": {}
+    }
+    """
+    try:
+        adw_id = request_data.get("adw_id")
+        phase_from = request_data.get("phase_from")
+        phase_to = request_data.get("phase_to")
+
+        if not adw_id or not phase_to:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Missing required fields: adw_id, phase_to"}
+            )
+
+        # Get WebSocket manager and broadcast
+        ws_manager = get_websocket_manager()
+        await ws_manager.broadcast({
+            "type": "workflow_phase_transition",
+            "data": request_data
+        })
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "message": "Phase transition broadcasted",
+                "adw_id": adw_id
+            }
+        )
+
+    except Exception as e:
+        print(f"Error processing phase transition: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to process phase transition: {str(e)}"}
+        )
+
+
+@app.post("/api/agent-output-chunk")
+async def receive_agent_output_chunk(request_data: dict):
+    """
+    HTTP endpoint for receiving agent output chunks from raw_output.jsonl.
+
+    Expected message format:
+    {
+        "adw_id": "...",
+        "agent_role": "planner" | "implementor" | "tester" | "reviewer" | "documenter",
+        "content": "...",
+        "line_number": 1,
+        "total_lines": 10,
+        "is_complete": false
+    }
+    """
+    try:
+        adw_id = request_data.get("adw_id")
+        agent_role = request_data.get("agent_role")
+        content = request_data.get("content")
+
+        if not adw_id or not agent_role or not content:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Missing required fields: adw_id, agent_role, content"}
+            )
+
+        # Get WebSocket manager and broadcast
+        ws_manager = get_websocket_manager()
+        await ws_manager.broadcast({
+            "type": "agent_output_chunk",
+            "data": request_data
+        })
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "message": "Agent output chunk broadcasted",
+                "adw_id": adw_id
+            }
+        )
+
+    except Exception as e:
+        print(f"Error processing agent output chunk: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to process agent output chunk: {str(e)}"}
+        )
+
+
+@app.post("/api/screenshot-available")
+async def receive_screenshot_available(request_data: dict):
+    """
+    HTTP endpoint for receiving screenshot availability notifications.
+
+    Expected message format:
+    {
+        "adw_id": "...",
+        "screenshot_path": "...",
+        "screenshot_type": "review" | "error" | "comparison",
+        "metadata": {}
+    }
+    """
+    try:
+        adw_id = request_data.get("adw_id")
+        screenshot_path = request_data.get("screenshot_path")
+
+        if not adw_id or not screenshot_path:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Missing required fields: adw_id, screenshot_path"}
+            )
+
+        # Get WebSocket manager and broadcast
+        ws_manager = get_websocket_manager()
+        await ws_manager.broadcast_screenshot_available(
+            adw_id=adw_id,
+            screenshot_path=screenshot_path,
+            screenshot_type=request_data.get("screenshot_type", "review"),
+            metadata=request_data.get("metadata", {})
+        )
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "message": "Screenshot notification broadcasted",
+                "adw_id": adw_id
+            }
+        )
+
+    except Exception as e:
+        print(f"Error processing screenshot notification: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to process screenshot notification: {str(e)}"}
+        )
+
+
+@app.post("/api/spec-created")
+async def receive_spec_created(request_data: dict):
+    """
+    HTTP endpoint for receiving spec creation notifications.
+
+    Expected message format:
+    {
+        "adw_id": "...",
+        "spec_path": "...",
+        "spec_type": "plan" | "patch" | "review",
+        "metadata": {}
+    }
+    """
+    try:
+        adw_id = request_data.get("adw_id")
+        spec_path = request_data.get("spec_path")
+
+        if not adw_id or not spec_path:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Missing required fields: adw_id, spec_path"}
+            )
+
+        # Get WebSocket manager and broadcast
+        ws_manager = get_websocket_manager()
+        await ws_manager.broadcast_spec_created(
+            adw_id=adw_id,
+            spec_path=spec_path,
+            spec_type=request_data.get("spec_type", "plan"),
+            metadata=request_data.get("metadata", {})
+        )
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "message": "Spec creation notification broadcasted",
+                "adw_id": adw_id
+            }
+        )
+
+    except Exception as e:
+        print(f"Error processing spec creation notification: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to process spec creation notification: {str(e)}"}
+        )
 
 
 @app.get("/health")
