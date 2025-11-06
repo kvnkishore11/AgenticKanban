@@ -76,3 +76,14 @@ This prompt helps you determine what documentation you should read based on the 
     - When working with Kanban board merge completion visual indicators
     - When tasks are disappearing from the board after merge operations
     - When working with the "Ready to Merge" stage functionality
+
+- app_docs/feature-6d3b1dfd-websocket-logs-debugging.md
+  - Conditions:
+    - When troubleshooting WebSocket log flow from backend to frontend
+    - When workflow logs are not appearing in Kanban cards
+    - When implementing or debugging real-time log display
+    - When working with task-log association via adw_id
+    - When investigating WebSocket message broadcasting or listener registration
+    - When logs are being sent but not displayed in the UI
+    - When working with WorkflowLogViewer or StageLogsViewer components
+    - When debugging KanbanStore's handleWorkflowLog or appendWorkflowLog functions
