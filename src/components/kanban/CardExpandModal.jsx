@@ -57,6 +57,8 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   const pipeline = getPipelineById(task.pipelineId);
   const websocketStatus = getWebSocketStatus();
 
+  console.log('[CardExpandModal] Rendering with workflowLogs.length:', workflowLogs.length, 'adw_id:', task.metadata?.adw_id, 'logs:', workflowLogs);
+
   // Handle escape key to close modal
   useEffect(() => {
     const handleEscape = (e) => {
@@ -493,7 +495,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
               </div>
 
               {/* Enhanced Logs Viewer with tabs */}
-              {workflowLogs.length > 0 || task.metadata?.adw_id ? (
+              {task.metadata?.adw_id ? (
                 <div onClick={(e) => e.stopPropagation()}>
                   <StageLogsViewer
                     taskId={task.id}

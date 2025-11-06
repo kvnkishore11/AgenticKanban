@@ -1313,23 +1313,30 @@ export const useKanbanStore = create()(
 
         // Handle workflow log entries from WebSocket
         handleWorkflowLog: (logEntry) => {
+          console.log('[KanbanStore] handleWorkflowLog received:', logEntry);
+
           // Check for duplicate messages
           if (get().isDuplicateMessage('workflow_log', logEntry)) {
+            console.log('[KanbanStore] Duplicate log entry detected, skipping:', logEntry);
             return; // Skip processing duplicate
           }
 
           const { adw_id } = logEntry;
 
-          console.log('[WebSocket] Processing new log entry:', logEntry);
+          console.log('[KanbanStore] Processing new log entry:', logEntry);
 
           // Find the task associated with this workflow
           const { tasks } = get();
+          console.log('[KanbanStore] Searching for task with adw_id:', adw_id);
+          console.log('[KanbanStore] All tasks and their adw_ids:', tasks.map(t => ({ id: t.id, title: t.title, adw_id: t.metadata?.adw_id })));
+
           const task = tasks.find(t => t.metadata?.adw_id === adw_id);
 
           if (task) {
+            console.log('[KanbanStore] Found task for log entry:', { taskId: task.id, taskTitle: task.title, adw_id: task.metadata?.adw_id });
             get().appendWorkflowLog(task.id, logEntry);
           } else {
-            console.warn('[WebSocket] No task found for log entry with adw_id:', adw_id);
+            console.warn('[KanbanStore] No task found for log entry with adw_id:', adw_id, 'Available tasks:', tasks.length);
           }
         },
 
@@ -1387,6 +1394,7 @@ export const useKanbanStore = create()(
 
         // Append log entry to task
         appendWorkflowLog: (taskId, logEntry) => {
+          console.log('[KanbanStore] appendWorkflowLog called for taskId:', taskId, 'logEntry:', logEntry);
           set((state) => {
             const currentLogs = state.taskWorkflowLogs[taskId] || [];
             const newLogs = [...currentLogs, {
@@ -1397,6 +1405,8 @@ export const useKanbanStore = create()(
 
             // Keep last 500 logs per task to prevent memory issues
             const limitedLogs = newLogs.slice(-500);
+
+            console.log('[KanbanStore] Appended log to store. Total logs for task:', limitedLogs.length);
 
             return {
               taskWorkflowLogs: {

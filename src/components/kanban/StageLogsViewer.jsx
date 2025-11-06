@@ -63,6 +63,7 @@ const StageLogsViewer = ({
 
   // Get real-time logs for "All" tab
   const allLogs = getWorkflowLogsForTask(taskId);
+  console.log('[StageLogsViewer] Retrieved allLogs for taskId:', taskId, 'count:', allLogs.length, 'logs:', allLogs);
 
   // Get stage-specific logs for the active tab
   const stageData = activeTab !== 'all' && activeTab !== 'agent-state'

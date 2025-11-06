@@ -418,6 +418,7 @@ class WebSocketService {
         this.emit('pong', message);
         break;
       case 'workflow_log':
+        console.log('[WebSocket Service] Emitting workflow_log event:', data);
         this.emit('workflow_log', data);
         break;
       // Agent state streaming events
