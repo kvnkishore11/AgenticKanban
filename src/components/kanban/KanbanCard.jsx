@@ -128,10 +128,10 @@ const KanbanCard = ({ task, onEdit }) => {
             <div className="flex items-center space-x-2">
               <CheckCircle className="h-5 w-5 text-green-500" />
               <div>
-                <div className="text-sm font-medium text-gray-700">
+                <div className="text-sm font-bold text-gray-700">
                   ADW {task.metadata?.adw_id || `#${task.id}`}
                 </div>
-                <div className="text-xs text-gray-500">Completed</div>
+                <div className="text-xs font-semibold text-gray-500">Completed</div>
               </div>
             </div>
             <div className="text-xs text-gray-400">
@@ -145,8 +145,8 @@ const KanbanCard = ({ task, onEdit }) => {
           <div className="adw-header mb-3 pb-2 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 flex-1 min-w-0">
-                <span className="text-xs font-semibold text-gray-700">ADW ID:</span>
-                <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-800 truncate">
+                <span className="text-xs font-bold text-gray-700">ADW ID:</span>
+                <span className="text-xs font-mono font-bold bg-gray-100 px-2 py-1 rounded text-gray-800 truncate">
                   {task.metadata?.adw_id}
                 </span>
                 <button
@@ -186,7 +186,7 @@ const KanbanCard = ({ task, onEdit }) => {
         {/* Card Header */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
-            <h4 className="text-sm font-medium text-gray-900 truncate">
+            <h4 className="text-sm font-bold text-gray-900 truncate">
               {task.title}
             </h4>
             <div className="mt-1 flex items-center text-xs text-gray-500">

@@ -125,9 +125,9 @@ html {
 .kanban-column {
   background: white;
   border-radius: 8px;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   border: 1px solid #e2e8f0;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -135,18 +135,20 @@ html {
 }
 
 .kanban-column:hover {
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  transform: translateY(-1px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.1), 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
 }
 
 .kanban-column-header {
-  padding: 0.75rem;
-  border-bottom: 1px solid #e2e8f0;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  padding: 0.875rem 0.75rem;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.08);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%);
   border-radius: 8px 8px 0 0;
   position: sticky;
   top: 0;
   z-index: 10;
+  box-shadow: 0 2px 8px -1px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
 }
 
 .kanban-column-body {
@@ -161,8 +163,8 @@ html {
   background: white;
   border-radius: 8px;
   border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 8px 10px -5px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   position: relative;
   overflow: hidden;
@@ -171,10 +173,12 @@ html {
 
 /* ADW Header Styling */
 .adw-header {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border-radius: 4px 4px 0 0;
+  background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+  border-radius: 6px 6px 0 0;
   padding: 0.5rem;
   margin: -1rem -1rem 0.75rem -1rem;
+  box-shadow: 0 2px 4px -1px rgba(59, 130, 246, 0.1);
+  border-bottom: 2px solid #93c5fd;
 }
 
 .adw-header button {
@@ -183,6 +187,7 @@ html {
 
 .adw-header button:hover:not(:disabled) {
   transform: scale(1.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .adw-header button:disabled {
@@ -196,16 +201,16 @@ html {
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  height: 4px;
+  background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.3s ease;
 }
 
 .kanban-card:hover:not(.selected) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  border-color: #c7d2fe;
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.08), 0 20px 25px -8px rgba(59, 130, 246, 0.1);
+  border-color: #93c5fd;
 }
 
 .kanban-card:hover:not(.selected)::before {
@@ -214,8 +219,8 @@ html {
 
 .kanban-card.selected {
   border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 8px 25px -5px rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2), 0 12px 28px -5px rgba(0, 0, 0, 0.15), 0 8px 16px -4px rgba(59, 130, 246, 0.2);
+  transform: translateY(-2px);
 }
 
 .kanban-card.selected::before {
@@ -230,15 +235,17 @@ html {
 /* Button enhancements */
 .btn-primary {
   background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
+  font-weight: 700;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .btn-primary:hover {
   background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.5), 0 4px 6px -2px rgba(59, 130, 246, 0.3);
 }
 
 .btn-primary:active {
@@ -247,14 +254,16 @@ html {
 
 .btn-secondary {
   background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid #cbd5e1;
+  font-weight: 700;
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .btn-secondary:hover {
   background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 /* Header enhancements */
@@ -314,53 +323,77 @@ html {
   }
 }
 
-/* Stage-specific color schemes */
+/* Stage-specific color schemes with vibrant, distinct colors */
 .stage-backlog {
-  --stage-color: #6b7280;
-  --stage-bg: #f9fafb;
-  --stage-border: #e5e7eb;
+  --stage-color: #4b5563;
+  --stage-bg: #f3f4f6;
+  --stage-border: #d1d5db;
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  border-left: 4px solid #6b7280;
 }
 
 .stage-plan {
-  --stage-color: #3b82f6;
-  --stage-bg: #eff6ff;
-  --stage-border: #dbeafe;
+  --stage-color: #2563eb;
+  --stage-bg: #dbeafe;
+  --stage-border: #93c5fd;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-left: 4px solid #3b82f6;
 }
 
 .stage-build {
-  --stage-color: #f59e0b;
-  --stage-bg: #fffbeb;
-  --stage-border: #fed7aa;
+  --stage-color: #d97706;
+  --stage-bg: #fef3c7;
+  --stage-border: #fbbf24;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-left: 4px solid #f59e0b;
 }
 
 .stage-test {
-  --stage-color: #10b981;
-  --stage-bg: #ecfdf5;
-  --stage-border: #a7f3d0;
+  --stage-color: #059669;
+  --stage-bg: #d1fae5;
+  --stage-border: #6ee7b7;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-left: 4px solid #10b981;
 }
 
 .stage-review {
-  --stage-color: #8b5cf6;
-  --stage-bg: #f5f3ff;
-  --stage-border: #ddd6fe;
+  --stage-color: #7c3aed;
+  --stage-bg: #ede9fe;
+  --stage-border: #c4b5fd;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  border-left: 4px solid #8b5cf6;
 }
 
 .stage-document {
-  --stage-color: #6366f1;
-  --stage-bg: #eef2ff;
-  --stage-border: #c7d2fe;
+  --stage-color: #4f46e5;
+  --stage-bg: #e0e7ff;
+  --stage-border: #a5b4fc;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  border-left: 4px solid #6366f1;
 }
 
 .stage-pr {
-  --stage-color: #ec4899;
-  --stage-bg: #fdf2f8;
-  --stage-border: #fbcfe8;
+  --stage-color: #db2777;
+  --stage-bg: #fce7f3;
+  --stage-border: #f9a8d4;
+  background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);
+  border-left: 4px solid #ec4899;
+}
+
+.stage-ready-to-merge {
+  --stage-color: #059669;
+  --stage-bg: #d1fae5;
+  --stage-border: #6ee7b7;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-left: 4px solid #10b981;
 }
 
 .stage-errored {
-  --stage-color: #ef4444;
-  --stage-bg: #fef2f2;
-  --stage-border: #fecaca;
+  --stage-color: #dc2626;
+  --stage-bg: #fee2e2;
+  --stage-border: #fca5a5;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-left: 4px solid #ef4444;
 }
 
 /* Responsive typography */
