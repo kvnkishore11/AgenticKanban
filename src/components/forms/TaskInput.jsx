@@ -16,8 +16,7 @@ import { X, Plus, Image as ImageIcon, Clipboard, GitMerge } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useClipboard } from '../../hooks/useClipboard';
 import AdwIdInput from '../ui/AdwIdInput';
-import MDEditor from '@uiw/react-md-editor';
-import '@uiw/react-md-editor/markdown-editor.css';
+import RichTextEditor, { htmlToPlainText } from '../ui/RichTextEditor';
 
 const TaskInput = () => {
   const {
@@ -189,7 +188,7 @@ const TaskInput = () => {
 
     const taskData = {
       title: title.trim(),
-      description: description.trim(),
+      description: htmlToPlainText(description).trim(),
       workItemType,
       queuedStages,
       customAdwId: customAdwId.trim(),
@@ -418,20 +417,11 @@ const TaskInput = () => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Description *
             </label>
-            <div data-color-mode="light">
-              <MDEditor
-                value={description}
-                onChange={setDescription}
-                height={350}
-                preview="edit"
-                textareaProps={{
-                  placeholder: "Describe what needs to be done...\n\nYou can use markdown formatting:\n- **bold** or *italic*\n- Lists with bullets or numbers\n- `code blocks`\n- And more!"
-                }}
-              />
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
-              Rich text editor with markdown support - use the toolbar for formatting options
-            </p>
+            <RichTextEditor
+              value={description}
+              onChange={setDescription}
+              placeholder="Describe what needs to be done..."
+            />
           </div>
 
           {/* Image Upload */}

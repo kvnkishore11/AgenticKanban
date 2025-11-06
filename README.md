@@ -51,7 +51,7 @@ For detailed architecture information, see [ARCHITECTURE.md](ARCHITECTURE.md).
 - **TypeScript** - Type checking
 - **Lucide React** - Icons
 - **CodeMirror** - Code editor component
-- **React Markdown** - Markdown rendering
+- **TipTap** - WYSIWYG rich text editor for task descriptions
 
 ### Backend
 - **FastAPI** - Python web framework
