@@ -16,14 +16,14 @@ import { X, Plus, Image as ImageIcon, Clipboard, GitMerge } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useClipboard } from '../../hooks/useClipboard';
 import AdwIdInput from '../ui/AdwIdInput';
+import MDEditor from '@uiw/react-md-editor';
+import '@uiw/react-md-editor/markdown-editor.css';
 
 const TaskInput = () => {
   const {
     createTask,
     toggleTaskInput,
     validateTask,
-    selectedProject,
-    projectNotificationEnabled,
   } = useKanbanStore();
 
   const [title, setTitle] = useState('');
@@ -38,9 +38,6 @@ const TaskInput = () => {
   const [pasteSuccess, setPasteSuccess] = useState(false);
   const [clipboardError, setClipboardError] = useState('');
   const modalRef = useRef(null);
-
-  // Notification preference state
-  const [enableNotifications, setEnableNotifications] = useState(true);
 
   // Clipboard support for image paste
   const {
@@ -67,11 +64,6 @@ const TaskInput = () => {
       return cleanup;
     }
   }, [clipboardSupported, setupPasteListener]);
-
-  // Set notification preference based on global setting
-  useEffect(() => {
-    setEnableNotifications(projectNotificationEnabled && selectedProject?.id);
-  }, [selectedProject, projectNotificationEnabled]);
 
   // Image upload with react-dropzone
   const onDrop = (acceptedFiles) => {
@@ -204,11 +196,7 @@ const TaskInput = () => {
       images: images.map(img => ({
         ...img,
         annotations: imageAnnotations[img.id] || []
-      })),
-      notificationPreferences: {
-        enabled: enableNotifications && selectedProject?.id && projectNotificationEnabled,
-        projectId: selectedProject?.id
-      }
+      }))
     };
 
     const validation = validateTask(taskData);
@@ -430,37 +418,21 @@ const TaskInput = () => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Description *
             </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe what needs to be done..."
-              rows={6}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical"
-            />
+            <div data-color-mode="light">
+              <MDEditor
+                value={description}
+                onChange={setDescription}
+                height={350}
+                preview="edit"
+                textareaProps={{
+                  placeholder: "Describe what needs to be done...\n\nYou can use markdown formatting:\n- **bold** or *italic*\n- Lists with bullets or numbers\n- `code blocks`\n- And more!"
+                }}
+              />
+            </div>
             <p className="mt-1 text-xs text-gray-500">
-              Plain text description of the task requirements
+              Rich text editor with markdown support - use the toolbar for formatting options
             </p>
           </div>
-
-          {/* Notification Settings */}
-          {selectedProject && projectNotificationEnabled && (
-            <div className="bg-gray-50 rounded-lg p-4">
-              <label className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  checked={enableNotifications}
-                  onChange={(e) => setEnableNotifications(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700">
-                  Send notification to {selectedProject.name} when task is created
-                </span>
-              </label>
-              <p className="mt-2 text-xs text-gray-500">
-                Configure notification settings in project settings
-              </p>
-            </div>
-          )}
 
           {/* Image Upload */}
           <div>
