@@ -190,13 +190,13 @@ const KanbanCard = ({ task, onEdit }) => {
           <>
         {/* ADW Header - Display ADW ID and Trigger Button at the top */}
         {task.metadata?.adw_id && (
-          <div className="adw-header mb-3 pb-2 border-b border-gray-200">
+          <div className="adw-header mb-3 pb-2 border-b border-gray-600">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 flex-1 min-w-0">
-                <span className="text-xs font-bold text-gray-700">
+                <span className="text-xs font-bold text-white">
                   #{task.id}
                 </span>
-                <span className="text-xs font-mono font-bold bg-gray-100 px-2 py-1 rounded text-gray-800 truncate">
+                <span className="text-xs font-mono font-bold bg-slate-700 px-2 py-1 rounded text-white truncate">
                   {task.metadata?.adw_id}
                 </span>
                 <button
@@ -205,10 +205,10 @@ const KanbanCard = ({ task, onEdit }) => {
                     e.stopPropagation();
                     navigator.clipboard.writeText(task.metadata?.adw_id);
                   }}
-                  className="p-1 hover:bg-gray-200 rounded transition-colors"
+                  className="p-1 hover:bg-gray-700 rounded transition-colors"
                   title="Copy ADW ID"
                 >
-                  <Copy className="h-3 w-3 text-gray-600" />
+                  <Copy className="h-3 w-3 text-white" />
                 </button>
               </div>
 
@@ -220,7 +220,7 @@ const KanbanCard = ({ task, onEdit }) => {
                     e.stopPropagation();
                     setShowExpandModal(true);
                   }}
-                  className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
+                  className="p-1 text-gray-300 hover:text-blue-400 rounded transition-colors"
                   title="Expand card"
                 >
                   <Maximize2 className="h-4 w-4" />
@@ -237,7 +237,7 @@ const KanbanCard = ({ task, onEdit }) => {
                   className={`flex items-center space-x-1 text-xs rounded px-2 py-1 ${
                     websocketStatus.connected
                       ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                   }`}
                   title={websocketStatus.connected ? 'Trigger Workflow' : 'WebSocket Disconnected'}
                 >

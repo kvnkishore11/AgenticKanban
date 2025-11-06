@@ -114,12 +114,12 @@ const KanbanBoard = () => {
             >
               {/* Stage Header */}
               <div className="kanban-column-header">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-center">
                   <div className="flex items-center space-x-2">
-                    <StageIcon className={`h-5 w-5 ${getStageIconColorClasses(backlogStage.color)}`} />
-                    <h3 className="font-bold text-gray-900">{backlogStage.name}</h3>
+                    <StageIcon className="h-5 w-5 text-white" />
+                    <h3 className="font-bold text-white">{backlogStage.name}</h3>
                   </div>
-                  <div className={`px-2 py-1 rounded-full text-xs font-bold ${
+                  <div className={`ml-2 px-2 py-1 rounded-full text-xs font-bold ${
                     stageTasks.length > 0
                       ? 'bg-primary-100 text-primary-800'
                       : 'bg-gray-100 text-gray-600'
@@ -169,12 +169,12 @@ const KanbanBoard = () => {
             >
               {/* Stage Header */}
               <div className="kanban-column-header">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-center">
                   <div className="flex items-center space-x-2">
-                    <StageIcon className={`h-5 w-5 ${getStageIconColorClasses(stage.color)}`} />
-                    <h3 className="font-bold text-gray-900">{stage.name}</h3>
+                    <StageIcon className="h-5 w-5 text-white" />
+                    <h3 className="font-bold text-white">{stage.name}</h3>
                   </div>
-                  <div className={`px-2 py-1 rounded-full text-xs font-bold ${
+                  <div className={`ml-2 px-2 py-1 rounded-full text-xs font-bold ${
                     stageTasks.length > 0
                       ? 'bg-primary-100 text-primary-800'
                       : 'bg-gray-100 text-gray-600'
@@ -220,12 +220,12 @@ const KanbanBoard = () => {
             >
               {/* Stage Header */}
               <div className="kanban-column-header">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-center">
                   <div className="flex items-center space-x-2">
-                    <StageIcon className={`h-5 w-5 ${getStageIconColorClasses(stage.color)}`} />
-                    <h3 className="font-bold text-gray-900">{stage.name}</h3>
+                    <StageIcon className="h-5 w-5 text-white" />
+                    <h3 className="font-bold text-white">{stage.name}</h3>
                   </div>
-                  <div className={`px-2 py-1 rounded-full text-xs font-bold ${
+                  <div className={`ml-2 px-2 py-1 rounded-full text-xs font-bold ${
                     stageTasks.length > 0
                       ? 'bg-primary-100 text-primary-800'
                       : 'bg-gray-100 text-gray-600'
