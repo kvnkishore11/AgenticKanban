@@ -501,7 +501,7 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
             # Create new state if it doesn't exist
             # This can happen for entry-point workflows like adw_patch_iso
             print(f"Creating new ADW state for provided ID: {request.adw_id}")
-            print(f"Note: This is valid for entry-point workflows like adw_patch_iso")
+            print("Note: This is valid for entry-point workflows like adw_patch_iso")
             state = ADWState(request.adw_id)
             update_data = {
                 "adw_id": request.adw_id,
