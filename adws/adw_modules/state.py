@@ -42,7 +42,7 @@ class ADWState:
     def update(self, **kwargs):
         """Update state with new key-value pairs."""
         # Filter to only our core fields
-        core_fields = {"adw_id", "issue_number", "branch_name", "plan_file", "issue_class", "worktree_path", "backend_port", "websocket_port", "frontend_port", "model_set", "all_adws", "data_source", "issue_json", "completed"}
+        core_fields = {"adw_id", "issue_number", "branch_name", "plan_file", "issue_class", "worktree_path", "backend_port", "websocket_port", "frontend_port", "model_set", "all_adws", "data_source", "issue_json", "completed", "patch_file", "patch_history", "patch_source_mode"}
         for key, value in kwargs.items():
             if key in core_fields:
                 self.data[key] = value
@@ -165,6 +165,9 @@ class ADWState:
             data_source=self.data.get("data_source", "github"),
             issue_json=self.data.get("issue_json"),
             completed=self.data.get("completed", False),
+            patch_file=self.data.get("patch_file"),
+            patch_history=self.data.get("patch_history", []),
+            patch_source_mode=self.data.get("patch_source_mode"),
         )
 
         # Save as JSON
@@ -251,5 +254,8 @@ class ADWState:
             "data_source": self.data.get("data_source", "github"),
             "issue_json": self.data.get("issue_json"),
             "completed": self.data.get("completed", False),
+            "patch_file": self.data.get("patch_file"),
+            "patch_history": self.data.get("patch_history", []),
+            "patch_source_mode": self.data.get("patch_source_mode"),
         }
         print(json.dumps(output_data, indent=2))

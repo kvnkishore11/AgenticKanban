@@ -25,6 +25,7 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
   const [adwId, setAdwId] = useState('');
   const [modelSet, setModelSet] = useState('base');
   const [issueNumber, setIssueNumber] = useState(String(task.id));
+  const [patchRequest, setPatchRequest] = useState('');
   const [isTriggering, setIsTriggering] = useState(false);
   const [errors, setErrors] = useState([]);
 
@@ -174,6 +175,11 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
       // Only include ADW ID if provided
       if (adwId && adwId.trim()) {
         options.adw_id = adwId.trim();
+      }
+
+      // Include patch request content for patch workflows
+      if (workflowType === 'adw_patch_iso' && patchRequest && patchRequest.trim()) {
+        options.patch_request = patchRequest.trim();
       }
 
       await triggerWorkflowForTask(task.id, options);
@@ -345,6 +351,27 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
               Used for GitHub integration. Defaults to task ID if not specified.
             </p>
           </div>
+
+          {/* Patch Request Input - Show only for patch workflows */}
+          {workflowType === 'adw_patch_iso' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Patch Request {adwId ? '(Optional)' : ''}
+              </label>
+              <textarea
+                value={patchRequest}
+                onChange={(e) => setPatchRequest(e.target.value)}
+                placeholder="Describe the changes needed (e.g., 'Fix failing test in module X', 'Update API endpoint to return additional fields')&#10;&#10;If not provided, the patch content will be extracted from the task description."
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                {adwId
+                  ? 'Provide patch description directly, or leave empty to use task description and metadata.'
+                  : 'Describe what needs to be changed or fixed. This will be combined with the task description.'}
+              </p>
+            </div>
+          )}
 
           {/* Workflow Summary */}
           {selectedWorkflow && (

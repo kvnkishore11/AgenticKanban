@@ -515,3 +515,198 @@ def get_or_create_fallback_issue(issue_number: str, state: ADWState) -> Optional
 
     logger.info(f"Created and stored fallback issue for #{issue_number}")
     return fallback_issue
+
+
+def format_kanban_task_as_patch_request(issue_json: Dict[str, Any]) -> str:
+    """Format kanban task data as a patch request string.
+
+    Takes kanban task data and formats it as a comprehensive patch request
+    including title, description, images (as markdown), and metadata.
+
+    Args:
+        issue_json: Kanban task data from state
+
+    Returns:
+        Formatted patch request string
+    """
+    logger = logging.getLogger(__name__)
+
+    parts = []
+
+    # Add title
+    title = issue_json.get("title", "Patch Request")
+    parts.append(f"# {title}\n")
+
+    # Add description
+    description = issue_json.get("description", issue_json.get("body", ""))
+    if description:
+        parts.append(f"## Description\n{description}\n")
+
+    # Add images if present
+    images = extract_images_from_kanban_data(issue_json)
+    if images:
+        formatted_images = format_body_with_images("", images)
+        if formatted_images:
+            parts.append(formatted_images)
+        logger.info(f"Included {len(images)} images in patch request")
+
+    # Add work item type
+    if "workItemType" in issue_json:
+        work_type = issue_json["workItemType"]
+        parts.append(f"\n**Work Item Type**: {work_type}\n")
+
+    # Add patch reason if available
+    if "patch_reason" in issue_json:
+        parts.append(f"\n**Patch Reason**: {issue_json['patch_reason']}\n")
+
+    # Add additional metadata
+    if "priority" in issue_json:
+        parts.append(f"\n**Priority**: {issue_json['priority']}\n")
+
+    if "assignees" in issue_json and issue_json["assignees"]:
+        assignees_str = ", ".join([a if isinstance(a, str) else a.get("login", "unknown") for a in issue_json["assignees"]])
+        parts.append(f"\n**Assignees**: {assignees_str}\n")
+
+    # Add labels if present
+    if "labels" in issue_json and issue_json["labels"]:
+        labels_str = ", ".join([
+            label if isinstance(label, str) else label.get("name", "unknown")
+            for label in issue_json["labels"]
+        ])
+        parts.append(f"\n**Labels**: {labels_str}\n")
+
+    formatted_request = "\n".join(parts)
+    logger.debug(f"Formatted kanban task as patch request ({len(formatted_request)} chars)")
+
+    return formatted_request
+
+
+def get_patch_reason_from_kanban(issue_json: Dict[str, Any]) -> str:
+    """Extract or infer reason for patch from kanban task metadata.
+
+    Supports common scenarios:
+    - Explicit patch_reason field
+    - Inferred from labels or work item type
+    - Default fallback reasons
+
+    Args:
+        issue_json: Kanban task data
+
+    Returns:
+        Human-readable patch reason string
+    """
+    logger = logging.getLogger(__name__)
+
+    # Check for explicit patch_reason field
+    if "patch_reason" in issue_json:
+        reason = issue_json["patch_reason"]
+        logger.info(f"Using explicit patch reason: {reason}")
+        return reason
+
+    # Infer from labels
+    labels = issue_json.get("labels", [])
+    label_names = [
+        label if isinstance(label, str) else label.get("name", "")
+        for label in labels
+    ]
+
+    for label in label_names:
+        label_lower = label.lower()
+        if "test" in label_lower or "failing" in label_lower:
+            return "Fix failing tests"
+        if "review" in label_lower or "feedback" in label_lower:
+            return "Address review comments"
+        if "bug" in label_lower or "fix" in label_lower:
+            return "Fix bug identified in task"
+        if "improve" in label_lower or "enhance" in label_lower:
+            return "Improve implementation"
+        if "refactor" in label_lower:
+            return "Refactor code"
+
+    # Infer from work item type
+    work_type = issue_json.get("workItemType", "").lower()
+    if work_type:
+        if work_type == "bug":
+            return "Fix bug"
+        elif work_type == "feature":
+            return "Enhance feature implementation"
+        elif work_type == "chore":
+            return "Update implementation"
+        elif work_type == "patch":
+            return "Apply patch changes"
+
+    # Check task description for keywords
+    description = issue_json.get("description", issue_json.get("body", "")).lower()
+    if "test" in description and "fail" in description:
+        return "Fix failing tests"
+    if "review" in description or "feedback" in description:
+        return "Address review feedback"
+    if "bug" in description or "error" in description:
+        return "Fix identified issue"
+
+    # Default fallback
+    logger.info("No explicit patch reason found, using default")
+    return "Apply requested changes"
+
+
+def get_patch_history_from_state(state: ADWState) -> List[Dict[str, Any]]:
+    """Get patch history for the current ADW ID.
+
+    Args:
+        state: ADW state object
+
+    Returns:
+        List of patch history entries
+    """
+    return state.get("patch_history", [])
+
+
+def add_patch_to_history(
+    state: ADWState,
+    patch_number: int,
+    patch_reason: str,
+    patch_file: str,
+    success: bool = True,
+) -> None:
+    """Add a patch entry to the ADW state history.
+
+    Args:
+        state: ADW state object
+        patch_number: Sequential patch number
+        patch_reason: Reason for the patch
+        patch_file: Path to the patch spec file
+        success: Whether the patch was successful
+    """
+    from datetime import datetime
+
+    logger = logging.getLogger(__name__)
+
+    patch_history = state.get("patch_history", [])
+
+    patch_entry = {
+        "patch_number": patch_number,
+        "reason": patch_reason,
+        "patch_file": patch_file,
+        "timestamp": datetime.now().isoformat(),
+        "success": success,
+    }
+
+    patch_history.append(patch_entry)
+    state.update(patch_history=patch_history)
+
+    logger.info(f"Added patch #{patch_number} to history: {patch_reason}")
+
+
+def get_next_patch_number(state: ADWState) -> int:
+    """Get the next patch number for the current ADW ID.
+
+    Args:
+        state: ADW state object
+
+    Returns:
+        Next available patch number (starting from 1)
+    """
+    patch_history = state.get("patch_history", [])
+    if not patch_history:
+        return 1
+    return len(patch_history) + 1

@@ -128,19 +128,42 @@ uv run adw_plan_iso.py <issue-number> [adw-id]
 8. Creates/updates pull request
 
 #### adw_patch_iso.py - Isolated Patch Workflow
-Quick patches in isolated environment triggered by 'adw_patch' keyword.
+Quick patches in isolated environment with dual-mode operation (GitHub and Kanban).
 
 **Usage:**
 ```bash
 uv run adw_patch_iso.py <issue-number> [adw-id]
 ```
 
+**Dual-Mode Operation:**
+- **GitHub Mode**: Requires 'adw_patch' keyword in issue comment or body
+  - Searches for 'adw_patch' in latest comment first
+  - Falls back to issue body if keyword found there
+  - Extracts patch content from the source containing keyword
+
+- **Kanban Mode**: Uses task data from state (no keyword required)
+  - Activated when `data_source=kanban` in ADW state
+  - Extracts patch content from task description, images, and metadata
+  - Supports explicit `patch_request` field in kanban task data
+  - Does not require 'adw_patch' keyword
+
 **What it does:**
-1. Searches for 'adw_patch' in issue/comments
-2. Creates isolated worktree with unique ports
-3. Creates targeted patch plan in isolation
-4. Implements specific changes
-5. Commits and creates PR from worktree
+1. Detects operation mode (GitHub vs Kanban)
+2. Extracts patch content using mode-specific extractors
+3. Creates isolated worktree with unique ports
+4. Creates targeted patch plan in isolation
+5. Implements specific changes
+6. Commits and creates PR from worktree
+7. Tracks patch history for follow-up patches
+
+**Patch Content Format:**
+- Title and description of requested changes
+- Task images (automatically converted to markdown)
+- Work item type and priority
+- Patch reason (explicit or inferred from labels/description)
+
+**Follow-up Patches:**
+Multiple patches can be applied to the same ADW ID, with full history tracking.
 
 ### Dependent Workflows (Require Existing Worktree)
 

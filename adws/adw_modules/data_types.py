@@ -238,6 +238,10 @@ class ADWStateData(BaseModel):
     issue_json: Optional[dict] = None  # Kanban-provided issue data
     # Merge completion workflow support
     completed: Optional[bool] = False  # Tracks if workflow is completed
+    # Patch workflow support
+    patch_file: Optional[str] = None  # Path to the current/latest patch file
+    patch_history: Optional[List[dict]] = Field(default_factory=list)  # History of patch attempts
+    patch_source_mode: Optional[Literal["github", "kanban"]] = None  # Source of patch content
 
 
 class ReviewIssue(BaseModel):
