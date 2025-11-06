@@ -35,12 +35,10 @@ Key features:
 
 import sys
 import os
-import logging
 import json
 from dotenv import load_dotenv
 
 from adw_modules.state import ADWState
-from adw_modules.data_types import GitHubIssue
 from adw_modules.git_ops import commit_changes, finalize_git_operations
 from adw_modules.github import (
     fetch_issue_safe,

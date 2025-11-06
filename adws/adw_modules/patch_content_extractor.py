@@ -9,7 +9,7 @@ import logging
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
 
-from adw_modules.data_types import GitHubIssue, GitHubComment
+from adw_modules.data_types import GitHubIssue
 from adw_modules.state import ADWState
 from adw_modules.kanban_mode import (
     is_kanban_mode,
