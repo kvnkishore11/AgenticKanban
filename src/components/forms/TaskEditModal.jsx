@@ -15,7 +15,8 @@ import { WORK_ITEM_TYPES, QUEUEABLE_STAGES, SDLC_STAGES } from '../../constants/
 import { X, Save, Image as ImageIcon, Clipboard } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useClipboard } from '../../hooks/useClipboard';
-import RichTextEditor, { htmlToPlainText } from '../ui/RichTextEditor';
+import RichTextEditor from '../ui/RichTextEditor';
+import { htmlToPlainText } from '../../utils/htmlUtils';
 
 const TaskEditModal = ({ task, onClose, onSave }) => {
   const {

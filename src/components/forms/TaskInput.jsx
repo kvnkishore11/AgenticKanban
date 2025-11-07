@@ -16,7 +16,8 @@ import { X, Plus, Image as ImageIcon, Clipboard, GitMerge } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useClipboard } from '../../hooks/useClipboard';
 import AdwIdInput from '../ui/AdwIdInput';
-import RichTextEditor, { htmlToPlainText } from '../ui/RichTextEditor';
+import RichTextEditor from '../ui/RichTextEditor';
+import { htmlToPlainText } from '../../utils/htmlUtils';
 
 const TaskInput = () => {
   const {
