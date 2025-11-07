@@ -176,19 +176,18 @@ html {
 
 /* ADW Header Styling */
 .adw-header {
-  background: #1e293b;
-  color: #f8fafc;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  background: #f1f5f9;
+  color: #1e293b;
   border-radius: 6px 6px 0 0;
   padding: 0.5rem;
   margin: -1rem -1rem 0.75rem -1rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-  border-bottom: 2px solid #334155;
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+  border-bottom: 2px solid #e2e8f0;
 }
 
 .adw-header button {
   transition: all 0.2s ease;
-  color: #f8fafc;
+  color: #1e293b;
 }
 
 .adw-header button:hover:not(:disabled) {

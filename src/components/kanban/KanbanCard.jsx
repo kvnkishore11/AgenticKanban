@@ -193,8 +193,8 @@ const KanbanCard = ({ task, onEdit }) => {
           <div className="adw-header mb-3 pb-2 border-b border-gray-600">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 flex-1 min-w-0">
-                <span className="text-xs font-bold text-white">
-                  #{task.id}
+                <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                  {task.id}
                 </span>
                 <span className="text-xs font-mono font-bold bg-slate-700 px-2 py-1 rounded text-white truncate">
                   {task.metadata?.adw_id}
@@ -255,8 +255,6 @@ const KanbanCard = ({ task, onEdit }) => {
               {task.metadata?.summary || task.title}
             </h4>
             <div className="mt-1 flex items-center text-xs text-gray-700">
-              <span className="truncate">#{task.id}</span>
-              <span className="mx-1">•</span>
               {task.pipelineId?.startsWith('adw_') ? (
                 renderStageBadges(task.pipelineId)
               ) : (
