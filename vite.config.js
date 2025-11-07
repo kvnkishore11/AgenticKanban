@@ -58,6 +58,26 @@ export default defineConfig(({ mode }) => {
       host: true, // Listen on all addresses
     },
     envPrefix: 'VITE_',
+    // Optimize dependencies - pre-bundle TipTap extensions
+    optimizeDeps: {
+      include: [
+        '@tiptap/react',
+        '@tiptap/starter-kit',
+        '@tiptap/extension-placeholder',
+        '@tiptap/extension-underline',
+        '@tiptap/extension-text-style',
+        '@tiptap/extension-color',
+        '@tiptap/extension-highlight',
+        '@tiptap/extension-link',
+        '@tiptap/extension-text-align',
+        '@tiptap/extension-table',
+        '@tiptap/extension-table-row',
+        '@tiptap/extension-table-cell',
+        '@tiptap/extension-table-header',
+        '@tiptap/extension-typography',
+        '@tiptap/extension-character-count',
+      ],
+    },
     // Optimize build to reduce memory usage
     build: {
       // Reduce chunk size warnings threshold
