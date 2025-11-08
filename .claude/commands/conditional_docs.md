@@ -87,3 +87,13 @@ This prompt helps you determine what documentation you should read based on the 
     - When logs are being sent but not displayed in the UI
     - When working with WorkflowLogViewer or StageLogsViewer components
     - When debugging KanbanStore's handleWorkflowLog or appendWorkflowLog functions
+
+- app_docs/feature-754def43-project-navigation-browse.md
+  - Conditions:
+    - When working with project selection or navigation functionality
+    - When implementing or troubleshooting the project browse/directory picker
+    - When modifying ProjectSelector component
+    - When working with HTML5 webkitdirectory file inputs
+    - When troubleshooting project validation or isValid checks
+    - When users report projects not opening when clicked
+    - When working with project addition workflow
