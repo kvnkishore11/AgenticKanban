@@ -199,7 +199,7 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
                 {task.title}
               </h2>
               <div className="mt-1 flex items-center text-sm text-gray-500">
-                <span className="truncate">#{task.id}</span>
+                <span className="truncate">{task.id}</span>
                 <span className="mx-1">•</span>
                 <span>{formatPipelineName(task.pipelineId)}</span>
               </div>

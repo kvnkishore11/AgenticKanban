@@ -234,7 +234,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                   {task.title}
                 </h2>
                 <div className="flex items-center space-x-2 text-xs text-gray-600">
-                  <span>#{task.id}</span>
+                  <span>{task.id}</span>
                   {task.metadata?.adw_id && (
                     <>
                       <span>•</span>
