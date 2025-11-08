@@ -9,9 +9,9 @@
  * @module components/ProjectSelector
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useKanbanStore } from '../stores/kanbanStore';
-import { Folder, FolderOpen, CheckCircle, XCircle, Plus, FileText } from 'lucide-react';
+import { Folder, FolderOpen, Plus, FileText } from 'lucide-react';
 
 const ProjectSelector = () => {
   const {
@@ -26,37 +26,36 @@ const ProjectSelector = () => {
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjectPath, setNewProjectPath] = useState('');
   const [newProjectName, setNewProjectName] = useState('');
-  const [validationStatus, setValidationStatus] = useState(null);
-
+  const fileInputRef = useRef(null);
 
   // Refresh projects when component mounts to ensure clean data
   useEffect(() => {
     refreshProjects();
   }, [refreshProjects]);
 
-  const validateProject = (path) => {
-    // Simulate project validation
-    setLoading(true);
+  const handleDirectorySelect = (event) => {
+    const files = event.target.files;
+    if (files.length > 0) {
+      // Extract directory path from the first file
+      const fullPath = files[0].webkitRelativePath || files[0].name;
+      const dirName = fullPath.split('/')[0];
 
+      setNewProjectPath(dirName);
+      setNewProjectName(dirName);
+    }
+  };
+
+  const handleBrowseClick = () => {
+    setShowNewProject(true);
+    // Trigger the file input click
     setTimeout(() => {
-      const isValid = Math.random() > 0.1; // 90% chance of being valid - simplified validation
-
-      setValidationStatus({
-        isValid,
-        path,
-      });
-
-      setLoading(false);
-    }, 1000);
+      if (fileInputRef.current) {
+        fileInputRef.current.click();
+      }
+    }, 100);
   };
 
   const handleSelectProject = (project) => {
-    // Check if project is valid for ADW workflows
-    if (!project.isValid) {
-      setError('Selected project is not valid for ADW workflows');
-      return;
-    }
-
     selectProject(project);
   };
 
@@ -71,32 +70,27 @@ const ProjectSelector = () => {
       return;
     }
 
-    if (validationStatus && validationStatus.isValid) {
-      const newProject = {
-        name: newProjectName.trim(),
-        path: newProjectPath.trim(),
-        description: 'Recently added project with dynamic ADW support',
-      };
+    const newProject = {
+      name: newProjectName.trim(),
+      path: newProjectPath.trim(),
+      description: 'Recently added project with dynamic ADW support',
+    };
 
-      // Use the new persistence service through the store
-      const result = addProject(newProject);
+    // Use the new persistence service through the store
+    const result = addProject(newProject);
 
-      if (result.success) {
-        selectProject(result.project);
+    if (result.success) {
+      selectProject(result.project);
 
-        // Reset form
-        setNewProjectPath('');
-        setNewProjectName('');
-        setValidationStatus(null);
-        setShowNewProject(false);
+      // Reset form
+      setNewProjectPath('');
+      setNewProjectName('');
+      setShowNewProject(false);
 
-        console.log('Successfully added project:', result.project);
-      } else {
-        setError(result.errors.join(', '));
-        console.error('Failed to add project:', result.errors);
-      }
+      console.log('Successfully added project:', result.project);
     } else {
-      setError('Please validate the project first');
+      setError(result.errors.join(', '));
+      console.error('Failed to add project:', result.errors);
     }
   };
 
@@ -129,26 +123,13 @@ const ProjectSelector = () => {
           {availableProjects.map((project) => (
             <div
               key={project.id}
-              className={`card cursor-pointer transition-all hover:shadow-md ${
-                project.isValid
-                  ? 'hover:border-primary-300'
-                  : 'opacity-75 hover:border-red-300'
-              }`}
+              className="card cursor-pointer transition-all hover:shadow-md hover:border-primary-300"
               onClick={() => handleSelectProject(project)}
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center space-x-2">
-                  <Folder className={`h-5 w-5 ${
-                    project.isValid !== false ? 'text-primary-600' : 'text-gray-400'
-                  }`} />
+                  <Folder className="h-5 w-5 text-primary-600" />
                   <h3 className="font-medium text-gray-900">{project.name}</h3>
-                </div>
-                <div className="flex items-center space-x-2">
-                  {project.isValid !== false ? (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <XCircle className="h-5 w-5 text-red-500" />
-                  )}
                 </div>
               </div>
 
@@ -180,13 +161,23 @@ const ProjectSelector = () => {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900">Add New Project</h2>
           <button
-            onClick={() => setShowNewProject(!showNewProject)}
+            onClick={handleBrowseClick}
             className="btn-secondary flex items-center space-x-2"
           >
             <Plus className="h-4 w-4" />
             <span>Browse</span>
           </button>
         </div>
+
+        {/* Hidden directory picker input */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleDirectorySelect}
+          style={{ display: 'none' }}
+          webkitdirectory=""
+          directory=""
+        />
 
         {showNewProject && (
           <div className="card max-w-2xl">
@@ -219,62 +210,17 @@ const ProjectSelector = () => {
                   className="input-field"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Enter the full path to your project directory
+                  Enter the full path to your project directory (or select via Browse)
                 </p>
               </div>
 
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => validateProject(newProjectPath)}
-                  className="btn-secondary"
-                  disabled={!newProjectPath.trim() || !newProjectName.trim()}
-                >
-                  Validate Project
-                </button>
-
-                {validationStatus && (
-                  <button
-                    onClick={handleAddNewProject}
-                    className="btn-primary"
-                    disabled={!validationStatus.isValid}
-                  >
-                    Add Project
-                  </button>
-                )}
-              </div>
-
-              {validationStatus && (
-                <div className={`p-4 rounded-md ${
-                  validationStatus.isValid
-                    ? 'bg-green-50 border border-green-200'
-                    : 'bg-red-50 border border-red-200'
-                }`}>
-                  <div className="flex items-center space-x-2 mb-2">
-                    {validationStatus.isValid ? (
-                      <CheckCircle className="h-5 w-5 text-green-500" />
-                    ) : (
-                      <XCircle className="h-5 w-5 text-red-500" />
-                    )}
-                    <span className={`font-medium ${
-                      validationStatus.isValid ? 'text-green-800' : 'text-red-800'
-                    }`}>
-                      {validationStatus.isValid
-                        ? 'Project is ready for ADW workflows'
-                        : 'Project validation failed'
-                      }
-                    </span>
-                  </div>
-
-                  {validationStatus.isValid && (
-                    <div className="text-sm text-green-700">
-                      <div className="flex items-center space-x-2">
-                        <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                        <span>Dynamic ADW workflows will be created as needed</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              <button
+                onClick={handleAddNewProject}
+                className="btn-primary"
+                disabled={!newProjectPath.trim() || !newProjectName.trim()}
+              >
+                Add Project
+              </button>
             </div>
           </div>
         )}
