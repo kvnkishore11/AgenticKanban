@@ -97,3 +97,18 @@ This prompt helps you determine what documentation you should read based on the 
     - When troubleshooting project validation or isValid checks
     - When users report projects not opening when clicked
     - When working with project addition workflow
+
+- app_docs/feature-c24c81b5-realtime-logs-stage-progression.md
+  - Conditions:
+    - When working with real-time log streaming or live log display
+    - When implementing or troubleshooting the LiveLogsPanel component
+    - When working with log buffering or circular buffer management
+    - When implementing stage progression indicators or animations
+    - When troubleshooting stage transition animations or visual feedback
+    - When working with the StageProgressionIndicator component
+    - When implementing or debugging the useStageTransition hook
+    - When adding visual effects to Kanban cards (glow, pulse, animations)
+    - When working with log filtering, search, or auto-scroll functionality
+    - When troubleshooting WebSocket log streaming performance
+    - When implementing progress bars or stage badges on cards
+    - When working with workflow visualization or status indicators
