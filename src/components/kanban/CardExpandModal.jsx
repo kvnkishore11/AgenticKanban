@@ -27,6 +27,8 @@ import {
 import ReactMarkdown from 'react-markdown';
 import StageLogsViewer from './StageLogsViewer';
 import PlanViewer from './PlanViewer';
+import LiveLogsPanel from './LiveLogsPanel';
+import StageProgressionIndicator from './StageProgressionIndicator';
 import adwDiscoveryService from '../../services/api/adwDiscoveryService';
 import fileOperationsService from '../../services/api/fileOperationsService';
 import { useState } from 'react';
@@ -49,6 +51,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   const [planError, setPlanError] = useState(null);
   const [ideOpenLoading, setIdeOpenLoading] = useState(false);
   const [ideOpenSuccess, setIdeOpenSuccess] = useState(false);
+  const [activeLogsTab, setActiveLogsTab] = useState('live'); // 'live' or 'historical'
 
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
@@ -348,22 +351,16 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                   </div>
                 </div>
 
-                {/* Compact Progress Bar with inline info */}
-                {(workflowProgress?.progress !== undefined) && (
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <div className="w-full bg-blue-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${workflowProgress.progress}%` }}
-                        />
-                      </div>
-                    </div>
-                    <span className="text-xs text-blue-700 font-semibold whitespace-nowrap">
-                      {Math.round(workflowProgress.progress)}%
-                    </span>
-                  </div>
-                )}
+                {/* Stage Progression Indicator */}
+                <StageProgressionIndicator
+                  currentStage={task.stage}
+                  queuedStages={task.queuedStages || []}
+                  workflowProgress={workflowProgress}
+                  workflowComplete={task.metadata?.workflow_complete}
+                  showProgressBar={true}
+                  showPercentage={true}
+                  compact={false}
+                />
 
                 {/* Inline Current Step and Message */}
                 {(workflowProgress?.currentStep || workflowProgress?.message) && (
@@ -484,15 +481,44 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
             )}
 
             {/* Workflow Logs Section */}
-            <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-700 flex items-center">
-                  <Activity className="h-4 w-4 mr-2 text-green-600" />
-                  Workflow Logs
-                  <span className="ml-2 text-xs font-normal text-gray-500">
+            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              {/* Logs Header with Tabs */}
+              <div className="flex items-center justify-between p-2 bg-gray-50 border-b border-gray-200">
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-sm font-semibold text-gray-700 flex items-center">
+                    <Activity className="h-4 w-4 mr-2 text-green-600" />
+                    Workflow Logs
+                  </h3>
+                  <span className="text-xs font-normal text-gray-500">
                     ({workflowLogs.length})
                   </span>
-                </h3>
+
+                  {/* Tab Buttons */}
+                  <div className="flex items-center space-x-1 ml-4">
+                    <button
+                      type="button"
+                      onClick={() => setActiveLogsTab('live')}
+                      className={`px-3 py-1 text-xs rounded transition-colors ${
+                        activeLogsTab === 'live'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                      }`}
+                    >
+                      Live Logs
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveLogsTab('historical')}
+                      className={`px-3 py-1 text-xs rounded transition-colors ${
+                        activeLogsTab === 'historical'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                      }`}
+                    >
+                      All Logs
+                    </button>
+                  </div>
+                </div>
 
                 {/* WebSocket Status */}
                 <div className={`text-xs px-2 py-0.5 rounded ${
@@ -502,32 +528,46 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                 </div>
               </div>
 
-              {/* Enhanced Logs Viewer with tabs */}
-              {task.metadata?.adw_id ? (
-                <div onClick={(e) => e.stopPropagation()}>
-                  <StageLogsViewer
-                    taskId={task.id}
-                    adwId={task.metadata?.adw_id}
-                    title="Workflow Logs"
-                    maxHeight="500px"
-                    onClear={() => clearWorkflowLogsForTask(task.id)}
-                    showTimestamps={true}
-                    autoScroll={true}
-                  />
-                </div>
-              ) : (
-                <div className="text-sm text-gray-600 text-center py-8 space-y-2">
-                  <div className="font-medium">No logs available yet</div>
-                  <div className="text-xs text-gray-500">
-                    {task.metadata?.adw_id ?
-                      'Workflow not started. Trigger a workflow to see logs.' :
-                      'No workflow associated with this task yet.'}
-                  </div>
-                  <div className="text-xs font-mono text-gray-400">
-                    Task ID: {task.id}
-                  </div>
-                </div>
-              )}
+              {/* Logs Content */}
+              <div className="p-3">
+                {activeLogsTab === 'live' ? (
+                  task.metadata?.adw_id ? (
+                    <LiveLogsPanel
+                      taskId={task.id}
+                      maxHeight="500px"
+                      autoScrollDefault={true}
+                    />
+                  ) : (
+                    <div className="text-sm text-gray-600 text-center py-8 space-y-2">
+                      <div className="font-medium">No workflow started yet</div>
+                      <div className="text-xs text-gray-500">
+                        Trigger a workflow to see live logs
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  task.metadata?.adw_id ? (
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <StageLogsViewer
+                        taskId={task.id}
+                        adwId={task.metadata?.adw_id}
+                        title="All Logs"
+                        maxHeight="500px"
+                        onClear={() => clearWorkflowLogsForTask(task.id)}
+                        showTimestamps={true}
+                        autoScroll={true}
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-600 text-center py-8 space-y-2">
+                      <div className="font-medium">No logs available yet</div>
+                      <div className="text-xs text-gray-500">
+                        No workflow associated with this task
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
             </div>
 
             {/* Actions Section */}

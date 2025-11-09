@@ -1317,3 +1317,197 @@ button:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+/* Stage Transition Animations */
+
+/* Success transition (card moving to a successful stage) */
+@keyframes stage-transition-success {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 12px 28px -5px rgba(34, 197, 94, 0.4);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.stage-transition-success {
+  animation: stage-transition-success 1s ease-out;
+  border-color: #22c55e;
+}
+
+/* Error transition (card moving to error stage) */
+@keyframes stage-transition-error {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+.stage-transition-error {
+  animation: stage-transition-error 0.6s ease;
+  border-color: #ef4444;
+}
+
+/* Progress transition (card moving between stages) */
+@keyframes stage-transition-progress {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-10px);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.stage-transition-progress {
+  animation: stage-transition-progress 0.5s ease-out;
+  border-color: #3b82f6;
+}
+
+/* Completion transition (workflow completed) */
+@keyframes stage-transition-completion {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  25% {
+    transform: scale(1.1) rotate(-2deg);
+  }
+  50% {
+    transform: scale(1.15) rotate(2deg);
+  }
+  75% {
+    transform: scale(1.1) rotate(-1deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.stage-transition-completion {
+  animation: stage-transition-completion 1.5s ease-out;
+  border-color: #10b981;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2), 0 12px 28px -5px rgba(0, 0, 0, 0.15);
+}
+
+/* Glow effects for active cards */
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 0 10px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 0 20px rgba(59, 130, 246, 0.6);
+  }
+}
+
+.card-glow-active {
+  border-color: #3b82f6;
+  animation: glow-pulse 2s infinite;
+}
+
+.card-glow-success {
+  border-color: #10b981;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
+.card-glow-error {
+  border-color: #ef4444;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+/* Pulse animation for active cards */
+@keyframes card-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+.card-pulse {
+  animation: card-pulse 2s infinite ease-in-out;
+}
+
+/* Stage column highlight animation (when card is about to enter) */
+@keyframes column-highlight {
+  0%, 100% {
+    background-color: transparent;
+  }
+  50% {
+    background-color: rgba(59, 130, 246, 0.05);
+  }
+}
+
+.column-highlight {
+  animation: column-highlight 2s infinite;
+  border: 2px solid #3b82f6;
+}
+
+/* Stage column header bounce (when card enters) */
+@keyframes column-header-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.column-header-bounce {
+  animation: column-header-bounce 0.5s ease;
+}
+
+/* Confetti animation for completion (simple version) */
+@keyframes confetti {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100px) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+.confetti-particle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background-color: #3b82f6;
+  animation: confetti 1.5s ease-out forwards;
+}
+
+/* Reduced motion support for animations */
+@media (prefers-reduced-motion: reduce) {
+  .stage-transition-success,
+  .stage-transition-error,
+  .stage-transition-progress,
+  .stage-transition-completion,
+  .card-glow-active,
+  .card-pulse,
+  .column-highlight,
+  .column-header-bounce,
+  .confetti-particle {
+    animation: none !important;
+  }
+
+  .card-glow-active {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+  }
+}

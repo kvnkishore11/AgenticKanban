@@ -30,6 +30,8 @@ import {
   Copy
 } from 'lucide-react';
 import CardExpandModal from './CardExpandModal';
+import StageProgressionIndicator from './StageProgressionIndicator';
+import { useStageTransition } from '../../hooks/useStageTransition';
 
 const KanbanCard = ({ task, onEdit }) => {
   const {
@@ -48,6 +50,9 @@ const KanbanCard = ({ task, onEdit }) => {
   const websocketStatus = getWebSocketStatus();
   const workflowProgress = getWorkflowProgressForTask(task.id);
   const workflowLogs = getWorkflowLogsForTask(task.id);
+
+  // Use stage transition hook for animations
+  const { getTransitionClass, getGlowClass, shouldPulse } = useStageTransition(task, workflowProgress);
 
   // Format dynamic pipeline names for display
   const formatPipelineName = (pipelineId) => {
@@ -164,9 +169,14 @@ const KanbanCard = ({ task, onEdit }) => {
   // Check if this is a completed task
   const isCompleted = task.stage === 'completed';
 
+  // Get transition and glow animation classes
+  const transitionClass = getTransitionClass();
+  const glowClass = getGlowClass();
+  const pulseClass = shouldPulse() ? 'card-pulse' : '';
+
   return (
     <div
-      className={`kanban-card ${isCompleted ? 'completed-card' : ''}`}
+      className={`kanban-card ${isCompleted ? 'completed-card' : ''} ${transitionClass} ${glowClass} ${pulseClass}`}
       onClick={handleCardClick}
     >
       <div className="p-4">
@@ -327,6 +337,21 @@ const KanbanCard = ({ task, onEdit }) => {
             <p className="whitespace-pre-wrap break-words line-clamp-3">
               {task.description}
             </p>
+          </div>
+        )}
+
+        {/* Stage Progression Indicator (compact view) */}
+        {task.queuedStages && task.queuedStages.length > 0 && task.stage !== 'completed' && task.stage !== 'errored' && (
+          <div className="mb-3">
+            <StageProgressionIndicator
+              currentStage={task.stage}
+              queuedStages={task.queuedStages}
+              workflowProgress={workflowProgress}
+              workflowComplete={task.metadata?.workflow_complete}
+              compact={true}
+              showProgressBar={false}
+              showPercentage={true}
+            />
           </div>
         )}
 
