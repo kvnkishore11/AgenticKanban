@@ -48,19 +48,11 @@ function App() {
       });
     }
 
-    // Cleanup function to properly cleanup WebSocket on unmount
-    return () => {
-      console.log('[App] Cleaning up on unmount');
-      // Import and cleanup WebSocket service
-      import('./services/websocket/websocketService.js').then(module => {
-        const websocketService = module.default;
-        if (websocketService) {
-          websocketService.cleanup();
-        }
-      }).catch(err => {
-        console.error('[App] Failed to cleanup WebSocket service:', err);
-      });
-    };
+    // NOTE: We intentionally do NOT cleanup websocketService here because:
+    // 1. websocketService is a singleton that should persist for the app's lifetime
+    // 2. Cleaning up on every re-render would clear event listeners
+    // 3. This was causing the bug where workflow_log listeners were cleared
+    // The websocketService will be cleaned up when the browser tab/window closes
   }, [initializeWebSocket]);
 
   return (
