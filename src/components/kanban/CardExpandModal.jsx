@@ -358,7 +358,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                   workflowProgress={workflowProgress}
                   workflowComplete={task.metadata?.workflow_complete}
                   showProgressBar={true}
-                  showPercentage={true}
+                  showPercentage={false}
                   compact={false}
                 />
 

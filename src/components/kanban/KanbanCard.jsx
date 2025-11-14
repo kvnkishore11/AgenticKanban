@@ -340,21 +340,6 @@ const KanbanCard = ({ task, onEdit }) => {
           </div>
         )}
 
-        {/* Stage Progression Indicator (compact view) */}
-        {task.queuedStages && task.queuedStages.length > 0 && task.stage !== 'completed' && task.stage !== 'errored' && (
-          <div className="mb-3">
-            <StageProgressionIndicator
-              currentStage={task.stage}
-              queuedStages={task.queuedStages}
-              workflowProgress={workflowProgress}
-              workflowComplete={task.metadata?.workflow_complete}
-              compact={true}
-              showProgressBar={false}
-              showPercentage={true}
-            />
-          </div>
-        )}
-
         {/* Current Substage Display */}
         {workflowProgress?.currentStep && task.stage !== 'completed' && task.stage !== 'errored' && (
           <div className="mb-3 flex items-center text-xs bg-blue-50 text-blue-700 px-2 py-1.5 rounded">

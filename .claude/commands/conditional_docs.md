@@ -112,3 +112,12 @@ This prompt helps you determine what documentation you should read based on the 
     - When troubleshooting WebSocket log streaming performance
     - When implementing progress bars or stage badges on cards
     - When working with workflow visualization or status indicators
+
+- app_docs/feature-85736253-remove-redundant-card-displays.md
+  - Conditions:
+    - When working with Kanban card display components (KanbanCard.jsx or CardExpandModal.jsx)
+    - When modifying StageProgressionIndicator usage or visibility
+    - When implementing changes to reduce UI redundancy on cards
+    - When troubleshooting stage progression display issues
+    - When working with compact vs full stage progression views
+    - When removing or adding stage badges or percentage displays from cards
