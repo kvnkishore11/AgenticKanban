@@ -1139,7 +1139,7 @@ export const useKanbanStore = create()(
               websocketService.getModelSetForWorkItem(task.workItemType);
 
             const triggerOptions = {
-              adw_id: options.adw_id,
+              adw_id: options.adw_id || task.metadata?.adw_id,
               issue_number: options.issue_number,
               model_set: modelSet,
               ...options

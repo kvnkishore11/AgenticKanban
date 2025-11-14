@@ -28,12 +28,21 @@ class ADWCreationService {
     }
 
     // Generate automatic ADW ID if no custom ID provided
-    const timestamp = Date.now();
-    const workItemPrefix = taskData.workItemType ? taskData.workItemType.substring(0, 3) : 'tsk';
-    const stagePrefix = taskData.queuedStages?.length > 0 ?
-      taskData.queuedStages.map(s => s.substring(0, 1)).join('') : 'gen';
+    // Use same format as backend: 8-character UUID (first 8 chars of UUID)
+    // Backend uses: str(uuid.uuid4())[:8]
+    try {
+      // Try using Web Crypto API (available in modern browsers)
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID().substring(0, 8);
+      }
+    } catch (error) {
+      console.warn('[ADWCreationService] crypto.randomUUID() not available, using fallback');
+    }
 
-    return `${workItemPrefix}_${stagePrefix}_${timestamp}`;
+    // Fallback: generate 8 random hex characters
+    return Array.from({ length: 8 }, () =>
+      Math.floor(Math.random() * 16).toString(16)
+    ).join('');
   }
 
   /**
