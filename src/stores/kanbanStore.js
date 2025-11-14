@@ -562,10 +562,6 @@ export const useKanbanStore = create()(
             errors.push('Task description is required');
           }
 
-          if (task.description && task.description.length > 2000) {
-            errors.push('Task description must be less than 2000 characters');
-          }
-
           // Work item type validation
           if (!task.workItemType || !Object.values(WORK_ITEM_TYPES).includes(task.workItemType)) {
             errors.push('Valid work item type is required (Feature, Chore, Bug, or Patch)');
