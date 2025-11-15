@@ -38,10 +38,9 @@ function App() {
 
   useEffect(() => {
     // Initialize the application
-    console.log('[App] AgenticKanban initialized');
-
     // Initialize WebSocket connection only once
     if (!wsInitialized.current) {
+      console.log('[App] AgenticKanban initialized');
       wsInitialized.current = true;
       initializeWebSocket().catch(error => {
         console.error('[App] Failed to initialize WebSocket:', error);
@@ -53,7 +52,7 @@ function App() {
     // 2. Cleaning up on every re-render would clear event listeners
     // 3. This was causing the bug where workflow_log listeners were cleared
     // The websocketService will be cleaned up when the browser tab/window closes
-  }, [initializeWebSocket]);
+  }, []); // Empty dependency array: only run once on mount. wsInitialized.current ref prevents duplicate initialization.
 
   return (
     <ErrorBoundary>

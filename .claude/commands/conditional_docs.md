@@ -121,3 +121,15 @@ This prompt helps you determine what documentation you should read based on the 
     - When troubleshooting stage progression display issues
     - When working with compact vs full stage progression views
     - When removing or adding stage badges or percentage displays from cards
+
+- app_docs/feature-e4d75c88-fix-excessive-app-refreshing.md
+  - Conditions:
+    - When experiencing excessive re-renders or app refreshing issues
+    - When working with App.jsx useEffect hooks and their dependencies
+    - When debugging Zustand store function references causing re-renders
+    - When implementing or troubleshooting WebSocket initialization in App.jsx
+    - When reducing excessive console logging in the application
+    - When working with kanbanStore.js handleWorkflowLog function
+    - When troubleshooting task creation causing multiple re-renders
+    - When implementing development-only logging with import.meta.env.DEV
+    - When debugging useEffect dependency arrays with Zustand store functions

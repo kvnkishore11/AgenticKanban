@@ -1421,52 +1421,32 @@ export const useKanbanStore = create()(
 
         // Handle workflow log entries from WebSocket
         handleWorkflowLog: (logEntry) => {
-          console.log('[KanbanStore] ===== HANDLE WORKFLOW LOG =====');
-          console.log('[KanbanStore] handleWorkflowLog received:', JSON.stringify(logEntry, null, 2));
+          if (import.meta.env.DEV) {
+            console.log('[KanbanStore] handleWorkflowLog received:', JSON.stringify(logEntry, null, 2));
+          }
 
           // Check for duplicate messages
           if (get().isDuplicateMessage('workflow_log', logEntry)) {
-            console.log('[KanbanStore] Duplicate log entry detected, skipping:', logEntry);
+            if (import.meta.env.DEV) {
+              console.log('[KanbanStore] Duplicate log entry detected, skipping:', logEntry);
+            }
             return; // Skip processing duplicate
           }
 
           const { adw_id } = logEntry;
 
-          console.log('[KanbanStore] Processing new log entry with adw_id:', adw_id);
-          console.log('[KanbanStore] Log entry details:', {
-            adw_id: logEntry.adw_id,
-            workflow_name: logEntry.workflow_name,
-            level: logEntry.level,
-            message: logEntry.message?.substring(0, 100),
-            timestamp: logEntry.timestamp
-          });
-
           // Find the task associated with this workflow
           const { tasks } = get();
-          console.log('[KanbanStore] Total tasks in store:', tasks.length);
-          console.log('[KanbanStore] Searching for task with adw_id:', adw_id);
-          console.log('[KanbanStore] All tasks and their adw_ids:', tasks.map(t => ({
-            id: t.id,
-            title: t.title,
-            adw_id: t.metadata?.adw_id,
-            stage: t.stage
-          })));
-
           const task = tasks.find(t => t.metadata?.adw_id === adw_id);
 
           if (task) {
-            console.log('[KanbanStore] ✅ FOUND task for log entry:', {
-              taskId: task.id,
-              taskTitle: task.title,
-              adw_id: task.metadata?.adw_id,
-              currentStage: task.stage
-            });
-            console.log('[KanbanStore] Calling appendWorkflowLog for taskId:', task.id);
+            if (import.meta.env.DEV) {
+              console.log('[KanbanStore] Processing log for task:', task.title);
+            }
             get().appendWorkflowLog(task.id, logEntry);
           } else {
             console.error('[KanbanStore] ❌ NO TASK FOUND for log entry with adw_id:', adw_id);
             console.error('[KanbanStore] Available task adw_ids:', tasks.map(t => t.metadata?.adw_id).filter(Boolean));
-            console.error('[KanbanStore] Total tasks in store:', tasks.length);
           }
         },
 
