@@ -370,7 +370,7 @@ const CommandEditor = ({ commandId, isOpen, onClose, onSave = null }) => {
                   visibleDragBar={false}
                   textareaProps={{
                     placeholder: 'Enter markdown content for this command...',
-                    style: { fontSize: 14, lineHeight: 1.5, fontFamily: 'var(--font-mono)' }
+                    style: { fontSize: 14, lineHeight: 1.5, fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
                   }}
                   height={isFullscreen ? 'calc(100vh - 280px)' : '400px'}
                   data-color-mode="light"
@@ -388,7 +388,7 @@ const CommandEditor = ({ commandId, isOpen, onClose, onSave = null }) => {
                   visibleDragBar={false}
                   textareaProps={{
                     placeholder: 'Enter markdown content for this command...',
-                    style: { fontSize: 14, lineHeight: 1.5, fontFamily: 'var(--font-mono)' }
+                    style: { fontSize: 14, lineHeight: 1.5, fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
                   }}
                   height={isFullscreen ? 'calc(100vh - 280px)' : '400px'}
                   data-color-mode="light"
