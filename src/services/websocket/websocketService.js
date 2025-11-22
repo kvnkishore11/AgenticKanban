@@ -60,16 +60,16 @@ class WebSocketService {
 
     // Configuration - extract from environment variables
     const backendUrl = import.meta.env.VITE_BACKEND_URL;
-    const websocketPort = import.meta.env.VITE_WEBSOCKET_PORT;
-    
+    const adwPort = import.meta.env.VITE_ADW_PORT;
+
     if (!backendUrl) {
       throw new Error('VITE_BACKEND_URL environment variable is required');
     }
-    
+
     const url = new URL(backendUrl);
-    
-    // Use VITE_WEBSOCKET_PORT if provided, otherwise fallback to VITE_BACKEND_URL port
-    const port = websocketPort ? parseInt(websocketPort) : parseInt(url.port);
+
+    // Use VITE_ADW_PORT if provided, otherwise fallback to VITE_BACKEND_URL port
+    const port = adwPort ? parseInt(adwPort) : parseInt(url.port);
     
     this.config = {
       host: url.hostname,

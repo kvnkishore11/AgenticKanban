@@ -33,7 +33,7 @@ process.on('SIGINT', () => {
 export default defineConfig(({ mode }) => {
   // Load .ports.env if it exists
   // eslint-disable-next-line no-undef
-  const env = loadEnv(mode, process.cwd(), ['FRONTEND_PORT', 'WEBSOCKET_PORT'])
+  const env = loadEnv(mode, process.cwd(), ['FRONTEND_PORT', 'ADW_PORT'])
 
   return {
     plugins: [react()],
