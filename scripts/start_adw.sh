@@ -20,24 +20,24 @@ else
     exit 1
 fi
 
-# Check if WEBSOCKET_PORT is set
-if [ -z "$WEBSOCKET_PORT" ]; then
-    echo -e "${RED}Error: WEBSOCKET_PORT not defined in .ports.env${NC}"
+# Check if ADW_PORT is set
+if [ -z "$ADW_PORT" ]; then
+    echo -e "${RED}Error: ADW_PORT not defined in .ports.env${NC}"
     exit 1
 fi
 
-echo -e "${BLUE}Starting ADW WebSocket Trigger Server on port $WEBSOCKET_PORT...${NC}"
+echo -e "${BLUE}Starting ADW WebSocket Trigger Server on port $ADW_PORT...${NC}"
 
 # Kill any existing process on the webhook port
-echo -e "${YELLOW}Checking for existing processes on port $WEBSOCKET_PORT...${NC}"
-pid=$(lsof -ti:$WEBSOCKET_PORT 2>/dev/null)
+echo -e "${YELLOW}Checking for existing processes on port $ADW_PORT...${NC}"
+pid=$(lsof -ti:$ADW_PORT 2>/dev/null)
 if [ ! -z "$pid" ]; then
-    echo -e "${YELLOW}Killing existing process (PID: $pid) on port $WEBSOCKET_PORT...${NC}"
+    echo -e "${YELLOW}Killing existing process (PID: $pid) on port $ADW_PORT...${NC}"
     kill -9 $pid 2>/dev/null
     sleep 1
-    echo -e "${GREEN}✓ Killed process on port $WEBSOCKET_PORT${NC}"
+    echo -e "${GREEN}✓ Killed process on port $ADW_PORT${NC}"
 else
-    echo -e "${GREEN}✓ Port $WEBSOCKET_PORT is available${NC}"
+    echo -e "${GREEN}✓ Port $ADW_PORT is available${NC}"
 fi
 
 # Kill any lingering trigger_websocket processes
@@ -47,14 +47,14 @@ pkill -f "trigger_websocket.py" 2>/dev/null && echo -e "${GREEN}✓ Killed linge
 # Change to project root directory
 cd "$PROJECT_ROOT"
 
-# Export WEBSOCKET_PORT for the WebSocket server
-export WEBSOCKET_PORT=$WEBSOCKET_PORT
+# Export ADW_PORT for the WebSocket server
+export ADW_PORT=$ADW_PORT
 
 # Start the ADW WebSocket trigger server
 echo -e "${BLUE}Starting ADW WebSocket server...${NC}"
-echo -e "${BLUE}WebSocket endpoint:    ws://localhost:$WEBSOCKET_PORT/ws/trigger${NC}"
-echo -e "${BLUE}Health check endpoint: http://localhost:$WEBSOCKET_PORT/health${NC}"
-echo -e "${BLUE}ADWs List endpoint:    http://localhost:$WEBSOCKET_PORT/api/adws/list${NC}"
+echo -e "${BLUE}WebSocket endpoint:    ws://localhost:$ADW_PORT/ws/trigger${NC}"
+echo -e "${BLUE}Health check endpoint: http://localhost:$ADW_PORT/health${NC}"
+echo -e "${BLUE}ADWs List endpoint:    http://localhost:$ADW_PORT/api/adws/list${NC}"
 echo ""
 echo -e "${YELLOW}Note: This server listens for WebSocket connections from the Kanban frontend.${NC}"
 echo ""

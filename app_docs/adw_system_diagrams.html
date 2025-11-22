@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADW System - Visual Diagrams</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 40px;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+        .diagram-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+        .mermaid {
+            text-align: center;
+        }
+        .description {
+            background: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        .nav {
+            background: #34495e;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+        .nav a {
+            color: #3498db;
+            text-decoration: none;
+            margin-right: 20px;
+        }
+        .nav a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 ADW System - Complete Visual Reference</h1>
+
+    <div class="nav">
+        <strong>Quick Navigation:</strong>
+        <a href="#architecture">Architecture</a>
+        <a href="#file-structure">File Structure</a>
+        <a href="#worktree">Worktree Isolation</a>
+        <a href="#workflow-execution">Workflow Execution</a>
+        <a href="#state-management">State Management</a>
+        <a href="#agent-execution">Agent Execution</a>
+        <a href="#port-allocation">Port Allocation</a>
+        <a href="#integration">Integration Points</a>
+        <a href="#data-flow">Data Flow</a>
+        <a href="#workflow-types">Workflow Types</a>
+    </div>
+
+    <!-- System Architecture -->
+    <h2 id="architecture">System Architecture Overview</h2>
+    <div class="description">
+        The ADW system is a multi-layered architecture that enables isolated, concurrent software development workflows.
+        This diagram shows how all components interact.
+    </div>
+    <div class="diagram-container">
+        <div class="mermaid">
+graph TB
+    subgraph "Entry Points"
+        GH[GitHub Issues]
+        WH[Webhook Trigger]
+        CR[Cron Monitor]
+        WS[WebSocket Trigger]
+        KB[Kanban App]
+        CLI[Manual CLI]
+    end
+
+    subgraph "Workflow Orchestrators"
+        PL[Plan Workflow]
+        PA[Patch Workflow]
+        PB[Plan+Build]
+        PBT[Plan+Build+Test]
+        PBTR[Plan+Build+Test+Review]
+        SDLC[Full SDLC]
+        ZTE[Zero Touch Execution]
+    end
+
+    subgraph "Core Workflow Phases"
+        PLAN[Planning Phase]
+        BUILD[Build Phase]
+        TEST[Test Phase]
+        REVIEW[Review Phase]
+        DOC[Document Phase]
+        SHIP[Ship Phase]
+    end
+
+    subgraph "Infrastructure Layer"
+        WT[Worktree Management]
+        ST[State Management]
+        PT[Port Allocation]
+        GIT[Git Operations]
+    end
+
+    subgraph "Execution Layer"
+        AG[Agent Module]
+        CC[Claude Code CLI]
+        SC[Slash Commands]
+    end
+
+    subgraph "Data & State"
+        STATE[adw_state.json]
+        LOGS[Agent Logs]
+        SPECS[Spec Files]
+        PLANS[Plan Files]
+    end
+
+    subgraph "Output"
+        PR[Pull Requests]
+        COMMITS[Git Commits]
+        DOCS[Documentation]
+        SCREENSHOTS[Screenshots]
+    end
+
+    GH --> WH --> PL
+    GH --> CR --> PL
+    KB --> WS --> PL
+    CLI --> PL
+
+    PL --> PLAN
+    PA --> PLAN
+    PB --> PLAN --> BUILD
+    PBT --> PLAN --> BUILD --> TEST
+    PBTR --> PLAN --> BUILD --> TEST --> REVIEW
+    SDLC --> PLAN --> BUILD --> TEST --> REVIEW --> DOC
+    ZTE --> PLAN --> BUILD --> TEST --> REVIEW --> DOC --> SHIP
+
+    PLAN --> WT
+    PLAN --> ST
+    PLAN --> PT
+    BUILD --> WT
+    TEST --> WT
+    REVIEW --> WT
+    DOC --> WT
+    SHIP --> GIT
+
+    PLAN --> AG
+    BUILD --> AG
+    TEST --> AG
+    REVIEW --> AG
+    DOC --> AG
+
+    AG --> CC --> SC
+
+    ST --> STATE
+    AG --> LOGS
+    PLAN --> SPECS
+    PLAN --> PLANS
+
+    BUILD --> COMMITS
+    REVIEW --> SCREENSHOTS
+    DOC --> DOCS
+    SHIP --> PR
+
+    style STATE fill:#f9f,stroke:#333,stroke-width:2px
+    style WT fill:#bbf,stroke:#333,stroke-width:2px
+    style AG fill:#bfb,stroke:#333,stroke-width:2px
+        </div>
+    </div>
+
+    <!-- File Structure -->
+    <h2 id="file-structure">File & Directory Structure</h2>
+    <div class="description">
+        Understanding where and how files are created is crucial. This shows the complete directory structure.
+    </div>
+    <div class="diagram-container">
+        <div class="mermaid">
+graph TD
+    subgraph "Project Root"
+        ADWS[adws/]
+        TREES[trees/]
+        AGENTS[agents/]
+        SPECS_DIR[specs/]
+        APP_DOCS[app_docs/]
+    end
+
+    subgraph "adws/ - ADW Scripts & Modules"
+        ADW_SCRIPTS[Workflow Scripts<br/>adw_plan_iso.py<br/>adw_build_iso.py<br/>etc.]
+        MODULES[adw_modules/<br/>agent.py<br/>workflow_ops.py<br/>state.py<br/>worktree_ops.py<br/>git_ops.py]
+        TRIGGERS[adw_triggers/<br/>trigger_webhook.py<br/>trigger_cron.py<br/>trigger_websocket.py]
+    end
+
+    subgraph "trees/ - Isolated Worktrees"
+        WT1[abc12345/<br/>Complete Repo Copy]
+        WT2[def67890/<br/>Complete Repo Copy]
+        WTN[...more worktrees]
+    end
+
+    subgraph "trees/abc12345/ - Worktree Structure"
+        WT_APP[app/<br/>Application Code]
+        WT_ENV[.env<br/>Copied from main]
+        WT_PORTS[.ports.env<br/>Port Config]
+        WT_SPECS[specs/<br/>Spec Files]
+        WT_GIT[.git<br/>Worktree Git Dir]
+    end
+
+    subgraph "agents/ - Workflow State & Artifacts"
+        ADW1[abc12345/]
+        ADW2[def67890/]
+    end
+
+    subgraph "agents/abc12345/ - ADW Instance"
+        STATE_FILE[adw_state.json<br/>Persistent State]
+        PLANNER_DIR[sdlc_planner/<br/>raw_output.jsonl<br/>prompts/]
+        IMPLEMENTOR_DIR[sdlc_implementor/<br/>raw_output.jsonl]
+        TESTER_DIR[tester/<br/>raw_output.jsonl]
+        REVIEWER_DIR[reviewer/<br/>raw_output.jsonl<br/>review_img/]
+        DOCUMENTER_DIR[documenter/<br/>raw_output.jsonl]
+        PLAN_FILE[abc12345_plan_spec.md]
+        PATCH_DIR[patch_*/]
+    end
+
+    subgraph "specs/ - Implementation Specs"
+        SPEC_FILES[issue-123-adw-abc12345-*.md<br/>Generated by planner]
+    end
+
+    subgraph "app_docs/ - Generated Documentation"
+        FEATURE_DOCS[features/<br/>feature-name/<br/>overview.md<br/>technical-guide.md<br/>images/]
+    end
+
+    ADWS --> ADW_SCRIPTS
+    ADWS --> MODULES
+    ADWS --> TRIGGERS
+
+    TREES --> WT1
+    TREES --> WT2
+    TREES --> WTN
+
+    WT1 --> WT_APP
+    WT1 --> WT_ENV
+    WT1 --> WT_PORTS
+    WT1 --> WT_SPECS
+    WT1 --> WT_GIT
+
+    AGENTS --> ADW1
+    AGENTS --> ADW2
+
+    ADW1 --> STATE_FILE
+    ADW1 --> PLANNER_DIR
+    ADW1 --> IMPLEMENTOR_DIR
+    ADW1 --> TESTER_DIR
+    ADW1 --> REVIEWER_DIR
+    ADW1 --> DOCUMENTER_DIR
+    ADW1 --> PLAN_FILE
+    ADW1 --> PATCH_DIR
+
+    SPECS_DIR --> SPEC_FILES
+    APP_DOCS --> FEATURE_DOCS
+
+    style STATE_FILE fill:#f9f,stroke:#333,stroke-width:3px
+    style WT1 fill:#bbf,stroke:#333,stroke-width:3px
+    style MODULES fill:#bfb,stroke:#333,stroke-width:2px
+        </div>
+    </div>
+
+    <!-- Worktree Isolation -->
+    <h2 id="worktree">Worktree Isolation Model</h2>
+    <div class="description">
+        Each ADW workflow runs in complete isolation using git worktrees. Up to 15 concurrent instances can run simultaneously.
+    </div>
+    <div class="diagram-container">
+        <div class="mermaid">
+graph TB
+    subgraph "Main Repository"
+        MAIN_REPO[Main Repo<br/>Git Working Tree]
+        MAIN_BRANCH[main branch]
+    end
+
+    subgraph "Worktree Creation Process"
+        REQ[Workflow Request<br/>Issue #123]
+        ADW_ID[Generate ADW ID<br/>abc12345]
+        PORTS[Allocate Ports<br/>WS: 8507<br/>FE: 9207]
+        CREATE_WT[git worktree add<br/>trees/abc12345]
+        BRANCH[Create Branch<br/>feat-issue-123-adw-abc12345-*]
+    end
+
+    subgraph "Isolated Worktree: trees/abc12345/"
+        WT_FULL[Complete Repository Copy]
+        WT_BRANCH[Feature Branch<br/>feat-issue-123-adw-abc12345-add-export]
+        WT_ENV_FILE[.env + .ports.env<br/>Environment Setup]
+        WT_DEPS[Dependencies<br/>npm install / pip install]
+        WT_AGENTS[Run Agents<br/>In Isolation]
+        WT_SERVICES[Services<br/>WebSocket: 8507<br/>Frontend: 9207]
+    end
+
+    subgraph "Concurrent Worktree: trees/def67890/"
+        WT2_FULL[Complete Repository Copy]
+        WT2_BRANCH[Different Feature Branch]
+        WT2_PORTS[Different Ports<br/>WS: 8503<br/>FE: 9203]
+        WT2_AGENTS[Independent Agents]
+    end
+
+    subgraph "Shared State (Outside Worktrees)"
+        STATE_STORE[agents/<br/>State Storage]
+        STATE1[abc12345/<br/>adw_state.json]
+        STATE2[def67890/<br/>adw_state.json]
+    end
+
+    REQ --> ADW_ID
+    ADW_ID --> PORTS
+    PORTS --> CREATE_WT
+    CREATE_WT --> BRANCH
+
+    MAIN_REPO --> CREATE_WT
+    MAIN_BRANCH --> BRANCH
+
+    CREATE_WT --> WT_FULL
+    BRANCH --> WT_BRANCH
+    WT_FULL --> WT_ENV_FILE
+    WT_ENV_FILE --> WT_DEPS
+    WT_DEPS --> WT_AGENTS
+    WT_AGENTS --> WT_SERVICES
+
+    MAIN_REPO -.->|Separate Worktree| WT2_FULL
+    WT2_FULL --> WT2_BRANCH
+    WT2_FULL --> WT2_PORTS
+    WT2_PORTS --> WT2_AGENTS
+
+    WT_AGENTS -.->|Saves State| STATE1
+    WT2_AGENTS -.->|Saves State| STATE2
+    STATE_STORE --> STATE1
+    STATE_STORE --> STATE2
+
+    style WT_FULL fill:#bbf,stroke:#333,stroke-width:3px
+    style WT2_FULL fill:#bbf,stroke:#333,stroke-width:3px
+    style STATE1 fill:#f9f,stroke:#333,stroke-width:2px
+    style STATE2 fill:#f9f,stroke:#333,stroke-width:2px
+        </div>
+    </div>
+
+    <!-- Port Allocation -->
+    <h2 id="port-allocation">Port Allocation System</h2>
+    <div class="description">
+        Deterministic port allocation enables concurrent worktrees. Each ADW ID gets unique ports based on hash.
+    </div>
+    <div class="diagram-container">
+        <div class="mermaid">
+graph TB
+    subgraph "Port Allocation Process"
+        ADW_ID[ADW ID: abc12345]
+        HASH[Hash First 8 Chars<br/>Base36 Conversion]
+        INDEX[Index = hash % 15<br/>Result: 7]
+        WS_PORT[WebSocket Port<br/>8500 + 7 = 8507]
+        FE_PORT[Frontend Port<br/>9200 + 7 = 9207]
+    end
+
+    subgraph "Port Ranges (15 Slots)"
+        WS_RANGE[WebSocket Range<br/>8500 - 8514]
+        FE_RANGE[Frontend Range<br/>9200 - 9214]
+    end
+
+    subgraph "Conflict Resolution"
+        CHECK[Check Port Available<br/>socket.bind]
+        AVAILABLE{Port<br/>Available?}
+        USE[Use Port]
+        NEXT[Try Next Index<br/>index + 1 mod 15]
+        FAIL[All Ports Busy<br/>Raise Error]
+    end
+
+    subgraph ".ports.env File"
+        ENV_FILE["WEBSOCKET_PORT=8507<br/>FRONTEND_PORT=9207<br/>VITE_BACKEND_URL=http://localhost:8507"]
+    end
+
+    ADW_ID --> HASH
+    HASH --> INDEX
+    INDEX --> WS_PORT
+    INDEX --> FE_PORT
+
+    WS_PORT --> WS_RANGE
+    FE_PORT --> FE_RANGE
+
+    WS_PORT --> CHECK
+    FE_PORT --> CHECK
+    CHECK --> AVAILABLE
+    AVAILABLE -->|Yes| USE
+    AVAILABLE -->|No| NEXT
+    NEXT --> CHECK
+    NEXT -.->|After 15 tries| FAIL
+
+    USE --> ENV_FILE
+
+    style INDEX fill:#f9f,stroke:#333,stroke-width:2px
+    style ENV_FILE fill:#bfb,stroke:#333,stroke-width:2px
+        </div>
+    </div>
+
+    <!-- Workflow Types -->
+    <h2 id="workflow-types">Workflow Types Comparison</h2>
+    <div class="description">
+        ADW offers multiple workflow types for different use cases. Choose the right one based on your needs.
+    </div>
+    <div class="diagram-container">
+        <div class="mermaid">
+graph LR
+    subgraph "Entry Point Workflows"
+        PLAN[adw_plan_iso<br/>Planning Only<br/>✓ Creates worktree<br/>✓ Generates spec<br/>✗ No implementation]
+        PATCH[adw_patch_iso<br/>Quick Patch<br/>✓ Creates worktree<br/>✓ Direct implementation<br/>✓ No planning phase]
+    end
+
+    subgraph "Dependent Workflows"
+        BUILD[adw_build_iso<br/>Build Only<br/>✗ Needs existing worktree<br/>✓ Implements plan<br/>✗ No testing]
+        TEST[adw_test_iso<br/>Test Only<br/>✗ Needs existing worktree<br/>✓ Runs tests<br/>✓ Auto-fixes failures]
+        REVIEW[adw_review_iso<br/>Review Only<br/>✗ Needs existing worktree<br/>✓ Takes screenshots<br/>✓ Validates spec]
+    end
+
+    subgraph "Composite Workflows"
+        PB[adw_plan_build_iso<br/>Plan → Build<br/>⏱ ~5-10 min<br/>Best for: Quick features]
+        SDLC[adw_sdlc_iso<br/>Full Pipeline<br/>Plan → Build → Test → Review → Doc<br/>⏱ ~20-30 min<br/>Best for: Complete features]
+        ZTE[adw_sdlc_zte_iso<br/>Zero Touch Execution<br/>Full SDLC + Auto-merge<br/>⏱ ~20-30 min<br/>⚠️ Auto-ships to main!]
+    end
+
+    PLAN -.->|Use separately| BUILD
+    BUILD -.->|Use separately| TEST
+    TEST -.->|Use separately| REVIEW
+
+    style PLAN fill:#bfb,stroke:#333,stroke-width:2px
+    style PATCH fill:#bfb,stroke:#333,stroke-width:2px
+    style SDLC fill:#f9f,stroke:#333,stroke-width:3px
+    style ZTE fill:#fbb,stroke:#333,stroke-width:3px
+        </div>
+    </div>
+
+    <!-- Integration Points -->
+    <h2 id="integration">Integration Points</h2>
+    <div class="description">
+        ADW integrates with multiple external systems: GitHub, Kanban apps, WebSocket servers, and more.
+    </div>
+    <div class="diagram-container">
+        <div class="mermaid">
+graph TB
+    subgraph "GitHub Integration"
+        GH_ISSUES[GitHub Issues API]
+        GH_PR[GitHub PR API]
+        GH_COMMENTS[GitHub Comments API]
+        GH_CLI[GitHub CLI gh]
+    end
+
+    subgraph "Kanban Integration"
+        KB_WS[WebSocket Server<br/>Port 8500]
+        KB_DATA[Issue JSON Data]
+        KB_IMAGES[Task Images]
+        KB_OUTPUT[Output Directory<br/>agents/*/kanban_output/]
+    end
+
+    subgraph "WebSocket Integration"
+        WS_TRIGGER[WebSocket Trigger Server]
+        WS_NOTIFY[WebSocket Notifier]
+        WS_STATE[State Change Events]
+        WS_PROGRESS[Progress Updates]
+    end
+
+    subgraph "Webhook Integration"
+        WH_SERVER[Webhook Server<br/>Port 8001]
+        WH_VALIDATE[Signature Validation]
+        WH_EVENTS[GitHub Events<br/>issues, issue_comment]
+        WH_TRIGGER[Workflow Trigger]
+    end
+
+    subgraph "ADW Core"
+        WORKFLOWS[ADW Workflows]
+        STATE_MGR[State Manager]
+        AGENTS[Agent Executor]
+    end
+
+    GH_ISSUES -->|Fetch Issue Data| WORKFLOWS
+    WORKFLOWS -->|Create PR| GH_PR
+    WORKFLOWS -->|Post Comments| GH_COMMENTS
+    GH_CLI -->|PR Operations| GH_PR
+
+    KB_WS -->|Trigger Message| WORKFLOWS
+    KB_DATA -->|Issue Info| WORKFLOWS
+    KB_IMAGES -->|Converted to Markdown| WORKFLOWS
+    WORKFLOWS -->|Save Outputs| KB_OUTPUT
+
+    WS_TRIGGER -->|Workflow Request| WORKFLOWS
+    STATE_MGR -->|State Changes| WS_NOTIFY
+    WORKFLOWS -->|Progress| WS_PROGRESS
+    WS_NOTIFY -->|Real-time Updates| WS_STATE
+
+    WH_SERVER -->|Receives Events| WH_VALIDATE
+    WH_VALIDATE -->|Valid Event| WH_EVENTS
+    WH_EVENTS -->|Issue Event| WH_TRIGGER
+    WH_TRIGGER -->|Start Workflow| WORKFLOWS
+
+    style WORKFLOWS fill:#f9f,stroke:#333,stroke-width:3px
+    style WS_TRIGGER fill:#bfb,stroke:#333,stroke-width:2px
+    style WH_SERVER fill:#bfb,stroke:#333,stroke-width:2px
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+</body>
+</html>
