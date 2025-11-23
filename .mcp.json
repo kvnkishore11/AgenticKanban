@@ -3,10 +3,7 @@
     "playwright": {
       "command": "npx",
       "args": [
-        "@playwright/mcp@latest",
-        "--isolated",
-        "--config",
-        "/Users/kvnkishore/WebstormProjects/AKApp/AgenticKanban/trees/e4d75c88/playwright-mcp-config.json"
+        "@playwright/mcp@latest"
       ]
     }
   }
