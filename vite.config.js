@@ -31,9 +31,10 @@ process.on('SIGINT', () => {
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  // Load .ports.env if it exists
+  // Load environment variables with VITE_ prefix (for browser) and server-side vars
+  // VITE_* variables are exposed to the browser, others are server-side only
   // eslint-disable-next-line no-undef
-  const env = loadEnv(mode, process.cwd(), ['FRONTEND_PORT', 'ADW_PORT'])
+  const env = loadEnv(mode, process.cwd(), ['VITE_', 'FRONTEND_PORT', 'ADW_PORT'])
 
   return {
     plugins: [react()],
