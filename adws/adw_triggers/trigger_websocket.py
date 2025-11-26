@@ -1724,6 +1724,30 @@ async def get_adw_plan(adw_id: str):
                 specs_directories.append(worktree_specs_dir)
                 logger.info(f"Also searching worktree specs directory: {worktree_specs_dir}")
 
+        # Check if there's a worktree for this specific ADW ID and search its specs
+        # This handles nested worktrees where plan files are created inside trees/{adw_id}/specs/
+        trees_index = path_parts.index('trees') if 'trees' in path_parts else None
+        if trees_index is not None:
+            main_project_root = Path(*path_parts[:trees_index])
+        else:
+            main_project_root = current_root
+
+        # Search in trees/{adw_id}/specs/ directory
+        adw_worktree_specs = main_project_root / "trees" / adw_id / "specs"
+        if adw_worktree_specs.exists() and adw_worktree_specs not in specs_directories:
+            specs_directories.append(adw_worktree_specs)
+            logger.info(f"Also searching ADW worktree specs directory: {adw_worktree_specs}")
+
+        # Also search nested worktrees (trees/X/trees/{adw_id}/specs/)
+        trees_dir = main_project_root / "trees"
+        if trees_dir.exists():
+            for parent_worktree in trees_dir.iterdir():
+                if parent_worktree.is_dir():
+                    nested_adw_specs = parent_worktree / "trees" / adw_id / "specs"
+                    if nested_adw_specs.exists() and nested_adw_specs not in specs_directories:
+                        specs_directories.append(nested_adw_specs)
+                        logger.info(f"Also searching nested worktree specs directory: {nested_adw_specs}")
+
         logger.info(f"Searching for plan files in {len(specs_directories)} directories")
 
         # Search for plan files matching the pattern: issue-*-adw-{adw_id}-sdlc_planner-*.md
