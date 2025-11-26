@@ -566,6 +566,17 @@ export const useKanbanStore = create()(
             // Send project notification after successful task creation
             get().sendProjectNotification(newTask);
 
+            // Auto-trigger workflow if "Start Immediately" was clicked
+            if (taskData.startImmediately && taskData.queuedStages && taskData.queuedStages.length > 0) {
+              setTimeout(() => {
+                try {
+                  get().triggerWorkflowForTask(newTask.id);
+                } catch (error) {
+                  console.error('Failed to auto-trigger workflow:', error);
+                }
+              }, 100);
+            }
+
             return newTask;
 
           } catch (error) {
@@ -601,6 +612,17 @@ export const useKanbanStore = create()(
 
             // Send project notification even for fallback task creation
             get().sendProjectNotification(fallbackTask);
+
+            // Auto-trigger workflow if "Start Immediately" was clicked
+            if (taskData.startImmediately && taskData.queuedStages && taskData.queuedStages.length > 0) {
+              setTimeout(() => {
+                try {
+                  get().triggerWorkflowForTask(fallbackTask.id);
+                } catch (error) {
+                  console.error('Failed to auto-trigger workflow:', error);
+                }
+              }, 100);
+            }
 
             return fallbackTask;
           }

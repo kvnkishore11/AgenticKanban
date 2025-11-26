@@ -246,6 +246,7 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
       workItemType,
       queuedStages,
       customAdwId: customAdwId.trim(),
+      startImmediately: startImmediately,
       images: images.map(img => ({
         ...img,
         annotations: imageAnnotations[img.id] || []
