@@ -131,11 +131,11 @@ const LiveLogsPanel = ({ taskId, maxHeight = '500px', autoScrollDefault = true }
       case 'WARNING':
         return '⚠️';
       case 'SUCCESS':
-        return '✓';
+        return '✅';
       case 'DEBUG':
         return '🔍';
       default:
-        return '●';
+        return 'ℹ️';
     }
   };
 

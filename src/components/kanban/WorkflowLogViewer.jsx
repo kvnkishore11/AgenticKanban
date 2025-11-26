@@ -83,12 +83,12 @@ const WorkflowLogViewer = ({
       case 'WARNING':
         return '⚠️';
       case 'SUCCESS':
-        return '✓';
+        return '✅';
       case 'DEBUG':
         return '🔍';
       case 'INFO':
       default:
-        return '●';
+        return 'ℹ️';
     }
   };
 
