@@ -1992,8 +1992,11 @@ export const useKanbanStore = create()(
           }), false, 'fetchStageLogsForTask:loading');
 
           try {
-            // Determine the WebSocket server URL from VITE_BACKEND_URL
-            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8500';
+            // Get backend URL from environment (required - set via .ports.env)
+            const backendUrl = import.meta.env.VITE_BACKEND_URL;
+            if (!backendUrl) {
+              throw new Error('VITE_BACKEND_URL environment variable is required');
+            }
 
             // Fetch stage logs from backend
             const response = await fetch(`${backendUrl}/api/stage-logs/${adwId}/${stage}`);
@@ -2108,8 +2111,11 @@ export const useKanbanStore = create()(
           }), false, 'fetchAgentState:loading');
 
           try {
-            // Determine the WebSocket server URL from VITE_BACKEND_URL
-            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8500';
+            // Get backend URL from environment (required - set via .ports.env)
+            const backendUrl = import.meta.env.VITE_BACKEND_URL;
+            if (!backendUrl) {
+              throw new Error('VITE_BACKEND_URL environment variable is required');
+            }
 
             // Fetch agent state from backend
             const response = await fetch(`${backendUrl}/api/agent-state/${adwId}`);

@@ -427,8 +427,11 @@ class ADWService {
    */
   async triggerMerge(adw_id, issue_number) {
     try {
-      // Get backend URL from environment or use default
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:9104';
+      // Get backend URL from environment (required - set via .ports.env)
+      const backendUrl = import.meta.env.VITE_BACKEND_URL;
+      if (!backendUrl) {
+        throw new Error('VITE_BACKEND_URL environment variable is required');
+      }
 
       const response = await fetch(`${backendUrl}/api/merge/trigger`, {
         method: 'POST',
@@ -459,7 +462,11 @@ class ADWService {
    */
   async getMergeStatus(adw_id) {
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:9104';
+      // Get backend URL from environment (required - set via .ports.env)
+      const backendUrl = import.meta.env.VITE_BACKEND_URL;
+      if (!backendUrl) {
+        throw new Error('VITE_BACKEND_URL environment variable is required');
+      }
 
       const response = await fetch(`${backendUrl}/api/merge/status/${adw_id}`, {
         method: 'GET',
@@ -491,7 +498,11 @@ class ADWService {
    */
   async deleteWorktree(adw_id) {
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:9104';
+      // Get backend URL from environment (required - set via .ports.env)
+      const backendUrl = import.meta.env.VITE_BACKEND_URL;
+      if (!backendUrl) {
+        throw new Error('VITE_BACKEND_URL environment variable is required');
+      }
 
       const response = await fetch(`${backendUrl}/api/adws/${adw_id}`, {
         method: 'DELETE',
