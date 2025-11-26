@@ -2241,6 +2241,51 @@ export const useKanbanStore = create()(
           console.log(`Task ${task.id} moved to completed stage after successful merge`);
         },
 
+        /**
+         * Delete a worktree and associated task
+         * This calls the backend API to:
+         * - Kill processes on allocated ports
+         * - Remove the git worktree
+         * - Delete the agents/{adw_id} directory
+         * - Remove the task from the kanban board
+         *
+         * @param {string} adw_id - The ADW identifier to delete
+         * @returns {Promise<boolean>} True if deletion succeeded
+         */
+        deleteWorktree: async (adw_id) => {
+          try {
+            set({ isLoading: true, error: null }, false, 'deleteWorktree');
+
+            // Find the task associated with this ADW
+            const task = get().getTaskByAdwId(adw_id);
+
+            // Call the backend API to delete the worktree
+            const response = await adwService.deleteWorktree(adw_id);
+
+            if (response.success) {
+              // Remove the task from the kanban board if it exists
+              if (task) {
+                get().deleteTask(task.id);
+                console.log(`Deleted task ${task.id} associated with ADW ${adw_id}`);
+              }
+
+              set({ isLoading: false }, false, 'deleteWorktreeSuccess');
+              console.log(`Successfully deleted worktree ${adw_id}`);
+              return true;
+            } else {
+              throw new Error(response.message || 'Deletion failed');
+            }
+
+          } catch (error) {
+            console.error(`Failed to delete worktree ${adw_id}:`, error);
+            set({
+              isLoading: false,
+              error: `Failed to delete worktree: ${error.message}`
+            }, false, 'deleteWorktreeError');
+            return false;
+          }
+        },
+
         // Handle workflow completion
         handleWorkflowCompletion: (taskId) => {
           const task = get().tasks.find(t => t.id === taskId);

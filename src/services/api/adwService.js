@@ -480,6 +480,39 @@ class ADWService {
       throw error;
     }
   }
+
+  /**
+   * Delete a worktree and all associated files
+   * Calls the backend DELETE endpoint to remove worktree, agents directory, and kill processes
+   *
+   * @param {string} adw_id - The ADW identifier (8-character alphanumeric)
+   * @returns {Promise<Object>} Response object with deletion status
+   * @throws {Error} If deletion fails or ADW not found
+   */
+  async deleteWorktree(adw_id) {
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:9104';
+
+      const response = await fetch(`${backendUrl}/api/adws/${adw_id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`Successfully deleted worktree ${adw_id}:`, data);
+      return data;
+    } catch (error) {
+      console.error(`Failed to delete worktree ${adw_id}:`, error);
+      throw error;
+    }
+  }
 }
 
 // Create and export singleton instance

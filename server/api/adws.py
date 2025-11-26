@@ -4,9 +4,12 @@ ADW (Agent-Driven Workflow) management API endpoints.
 import os
 import json
 import logging
+import shutil
+import subprocess
+import signal
 from pathlib import Path
 from typing import List, Dict, Any
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -376,4 +379,202 @@ async def get_adw_plan(adw_id: str):
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error: {str(e)}"
+        )
+
+def kill_process_on_port(port: int, logger: logging.Logger) -> bool:
+    """
+    Kill any process running on the specified port.
+
+    Args:
+        port: Port number to check and kill process on
+        logger: Logger instance
+
+    Returns:
+        True if a process was killed, False otherwise
+    """
+    try:
+        # Use lsof to find process on port
+        result = subprocess.run(
+            ["lsof", "-ti", f":{port}"],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode == 0 and result.stdout.strip():
+            pid = int(result.stdout.strip())
+            logger.info(f"Found process {pid} on port {port}, killing it")
+
+            try:
+                os.kill(pid, signal.SIGTERM)
+                logger.info(f"Killed process {pid} on port {port}")
+                return True
+            except ProcessLookupError:
+                logger.warning(f"Process {pid} already terminated")
+                return False
+        else:
+            logger.info(f"No process found on port {port}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Error killing process on port {port}: {e}")
+        return False
+
+@router.delete("/adws/{adw_id}")
+async def delete_adw(adw_id: str, request: Request):
+    """
+    Delete a worktree and all associated files for a specific ADW ID.
+
+    This endpoint performs the following cleanup operations:
+    1. Validates the ADW ID format
+    2. Checks if the ADW exists
+    3. Kills any processes running on the worktree's allocated ports
+    4. Removes the git worktree
+    5. Deletes the agents/{adw_id} directory
+    6. Broadcasts WebSocket notification on success/failure
+
+    Args:
+        adw_id: The ADW identifier (8-character alphanumeric string)
+        request: FastAPI request object to access app state
+
+    Returns:
+        JSON response confirming deletion
+    """
+    # Validate ADW ID format
+    if len(adw_id) != 8 or not adw_id.isalnum():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid ADW ID format: {adw_id}. Must be 8 alphanumeric characters."
+        )
+
+    try:
+        agents_dir = get_agents_directory()
+        adw_dir = agents_dir / adw_id
+
+        # Check if ADW directory exists
+        if not adw_dir.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"ADW ID '{adw_id}' not found"
+            )
+
+        # Read adw_state.json to get port and worktree information
+        state_data = read_adw_state(adw_dir)
+        if state_data is None:
+            logger.warning(f"adw_state.json not found for {adw_id}, proceeding with deletion anyway")
+            state_data = {}
+
+        worktree_path = state_data.get("worktree_path")
+        websocket_port = state_data.get("websocket_port")
+        frontend_port = state_data.get("frontend_port")
+
+        logger.info(f"Starting deletion of ADW {adw_id}")
+        logger.info(f"  Worktree path: {worktree_path}")
+        logger.info(f"  WebSocket port: {websocket_port}")
+        logger.info(f"  Frontend port: {frontend_port}")
+
+        # Step 1: Kill processes on allocated ports
+        killed_ports = []
+        if websocket_port:
+            if kill_process_on_port(websocket_port, logger):
+                killed_ports.append(websocket_port)
+        if frontend_port:
+            if kill_process_on_port(frontend_port, logger):
+                killed_ports.append(frontend_port)
+
+        # Step 2: Remove git worktree
+        worktree_removed = False
+        if worktree_path and os.path.exists(worktree_path):
+            try:
+                # First try git worktree remove
+                result = subprocess.run(
+                    ["git", "worktree", "remove", worktree_path, "--force"],
+                    capture_output=True,
+                    text=True
+                )
+
+                if result.returncode == 0:
+                    logger.info(f"Successfully removed worktree via git: {worktree_path}")
+                    worktree_removed = True
+                else:
+                    logger.warning(f"Git worktree remove failed: {result.stderr}")
+                    # Try manual cleanup
+                    if os.path.exists(worktree_path):
+                        shutil.rmtree(worktree_path)
+                        logger.info(f"Manually removed worktree directory: {worktree_path}")
+                        worktree_removed = True
+
+                    # Prune stale worktree entries
+                    subprocess.run(["git", "worktree", "prune"], capture_output=True)
+
+            except Exception as e:
+                logger.error(f"Error removing worktree: {e}")
+                # Continue with deletion even if worktree removal fails
+        elif worktree_path:
+            logger.warning(f"Worktree path {worktree_path} does not exist, skipping worktree removal")
+
+        # Step 3: Delete agents/{adw_id} directory
+        try:
+            shutil.rmtree(adw_dir)
+            logger.info(f"Successfully deleted agents directory: {adw_dir}")
+        except Exception as e:
+            error_msg = f"Failed to delete agents directory {adw_dir}: {e}"
+            logger.error(error_msg)
+            raise HTTPException(
+                status_code=500,
+                detail=error_msg
+            )
+
+        # Step 4: Broadcast WebSocket notification
+        ws_manager = getattr(request.app.state, "ws_manager", None)
+        if ws_manager:
+            try:
+                await ws_manager.broadcast_system_log(
+                    message=f"Worktree {adw_id} deleted successfully",
+                    level="SUCCESS",
+                    context={
+                        "adw_id": adw_id,
+                        "worktree_removed": worktree_removed,
+                        "killed_ports": killed_ports,
+                        "event_type": "worktree_deleted"
+                    }
+                )
+                logger.info(f"Broadcasted worktree_deleted event for {adw_id}")
+            except Exception as e:
+                logger.error(f"Error broadcasting WebSocket notification: {e}")
+
+        logger.info(f"Successfully deleted ADW {adw_id}")
+
+        return {
+            "success": True,
+            "adw_id": adw_id,
+            "worktree_removed": worktree_removed,
+            "killed_ports": killed_ports,
+            "message": f"ADW {adw_id} deleted successfully"
+        }
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting ADW {adw_id}: {e}", exc_info=True)
+
+        # Broadcast error notification
+        ws_manager = getattr(request.app.state, "ws_manager", None)
+        if ws_manager:
+            try:
+                await ws_manager.broadcast_system_log(
+                    message=f"Failed to delete worktree {adw_id}",
+                    level="ERROR",
+                    details=str(e),
+                    context={
+                        "adw_id": adw_id,
+                        "event_type": "worktree_delete_failed"
+                    }
+                )
+            except Exception as broadcast_error:
+                logger.error(f"Error broadcasting error notification: {broadcast_error}")
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error while deleting ADW: {str(e)}"
         )
