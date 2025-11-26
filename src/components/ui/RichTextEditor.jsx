@@ -32,7 +32,7 @@ import {
  * @param {string} [props.className] - Additional CSS classes
  * @returns {JSX.Element}
  */
-const RichTextEditor = ({ value, onChange, placeholder = 'Enter description...', className = '' }) => {
+const RichTextEditor = ({ value, onChange, placeholder = 'Enter description...', className = '', brutalist = false }) => {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -123,8 +123,8 @@ const RichTextEditor = ({ value, onChange, placeholder = 'Enter description...',
     </button>
   );
 
-  const ToolbarDivider = () => (
-    <div className="w-px h-6 bg-gray-300 mx-1"></div>
+  const ToolbarDivider = ({ brutalistMode = false }) => (
+    <div className={brutalistMode ? 'w-px h-6 bg-gray-300 mx-1.5' : 'w-px h-6 bg-gray-300 mx-1'}></div>
   );
 
   const colorOptions = [
@@ -151,9 +151,42 @@ const RichTextEditor = ({ value, onChange, placeholder = 'Enter description...',
   const charCount = editor.storage.characterCount?.characters() || 0;
   const wordCount = editor.storage.characterCount?.words() || 0;
 
+  // Brutalist toolbar button styling
+  const BrutalistToolbarButton = ({ onClick, active, children, title, disabled = false }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`w-8 h-8 border-2 border-transparent flex items-center justify-center text-xs font-bold transition-all ${
+        active
+          ? 'bg-black text-white border-black'
+          : disabled
+          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+          : 'bg-transparent text-gray-500 hover:bg-black hover:text-white hover:border-black'
+      }`}
+      style={{ fontFamily: "'Courier New', monospace" }}
+      title={title}
+    >
+      {children}
+    </button>
+  );
+
+  // Determine which button component and styles to use
+  const ButtonComponent = brutalist ? BrutalistToolbarButton : ToolbarButton;
+  const containerClass = brutalist
+    ? `rich-text-editor flex flex-col h-full ${className}`
+    : `rich-text-editor border border-gray-300 rounded-lg shadow-sm ${className}`;
+  const toolbarClass = brutalist
+    ? 'toolbar flex flex-wrap gap-0.5 p-2.5 bg-gray-100 border-b-2 border-black'
+    : 'toolbar flex flex-wrap gap-1 p-2 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-300 rounded-t-lg';
+  const dividerClass = brutalist ? 'w-px h-6 bg-gray-300 mx-1.5' : 'w-px h-6 bg-gray-300 mx-1';
+  const footerClass = brutalist
+    ? 'px-4 py-2.5 text-[9px] text-gray-500 bg-gray-100 border-t-2 border-black flex justify-between items-center font-bold uppercase tracking-wider'
+    : 'px-4 py-2 text-xs text-gray-500 bg-gray-50 border-t border-gray-300 rounded-b-lg flex justify-between items-center';
+
   return (
-    <div className={`rich-text-editor border border-gray-300 rounded-lg shadow-sm ${className}`}>
-      <div className="toolbar flex flex-wrap gap-1 p-2 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-300 rounded-t-lg">
+    <div className={containerClass}>
+      <div className={toolbarClass}>
         {/* Undo/Redo */}
         <ToolbarButton
           onClick={() => editor.chain().focus().undo().run()}
@@ -436,9 +469,12 @@ const RichTextEditor = ({ value, onChange, placeholder = 'Enter description...',
         </ToolbarButton>
       </div>
 
-      <EditorContent editor={editor} className="bg-white rounded-b-lg" />
+      <EditorContent
+        editor={editor}
+        className={brutalist ? 'bg-white flex-1' : 'bg-white rounded-b-lg'}
+      />
 
-      <div className="px-4 py-2 text-xs text-gray-500 bg-gray-50 border-t border-gray-300 rounded-b-lg flex justify-between items-center">
+      <div className={footerClass}>
         <span>{charCount} characters</span>
         <span>{wordCount} words</span>
       </div>
