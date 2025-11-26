@@ -597,7 +597,8 @@
 /* Stage Info Banner - Inside Activity Log */
 .stage-info-banner {
   background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-  border-bottom: 3px solid var(--color-brutalist-black);
+  border: 3px solid #3b82f6;
+  margin: 16px;
   padding: 16px 20px;
   display: flex;
   align-items: flex-start;
@@ -611,7 +612,7 @@
   align-items: center;
   justify-content: center;
   font-size: 24px;
-  background: var(--color-brutalist-white);
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   border: 3px solid var(--color-brutalist-black);
   flex-shrink: 0;
 }
@@ -924,111 +925,147 @@
   flex: 1;
   overflow-y: auto;
   background: var(--color-brutalist-white);
-  padding: 0;
+  padding: 16px 24px;
 }
 
-/* Log Entry */
+/* Timeline Log Entries */
 .log-entry {
-  border: 2px solid var(--color-brutalist-black);
-  margin-bottom: 8px;
-  padding: 12px;
-  background: var(--color-brutalist-white);
-  transition: all 0.1s;
+  display: flex;
+  gap: 16px;
+  padding: 16px 0;
   position: relative;
-  padding-left: 20px;
+  margin-left: 24px;
 }
 
-.log-entry:hover {
-  background: #f0f9ff;
-  transform: translateX(4px);
-}
-
+/* Timeline vertical line */
 .log-entry::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  background: var(--color-brutalist-black);
+  left: 20px;
+  top: 56px;
+  bottom: -16px;
+  width: 2px;
+  background: #e5e7eb;
 }
 
-.log-entry.info::before {
-  background: #3b82f6;
+.log-entry:last-child::before {
+  display: none;
 }
 
-.log-entry.success::before {
-  background: #10b981;
+/* Timeline circular icon */
+.log-entry-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  border: 3px solid;
+  background: var(--color-brutalist-white);
+  position: relative;
+  z-index: 1;
 }
 
-.log-entry.warning::before {
-  background: #f59e0b;
+.log-entry-icon.info {
+  border-color: #93c5fd;
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
 }
 
-.log-entry.error::before {
-  background: #ef4444;
+.log-entry-icon.success {
+  border-color: #6ee7b7;
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+}
+
+.log-entry-icon.warning {
+  border-color: #fcd34d;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+}
+
+.log-entry-icon.error {
+  border-color: #fca5a5;
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+}
+
+/* Log entry content */
+.log-entry-content {
+  flex: 1;
+  min-width: 0;
 }
 
 .log-entry-header {
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.log-entry-header-left {
+  display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  flex-wrap: wrap;
 }
 
 .log-entry-timestamp {
-  font-size: 9px;
+  font-size: 11px;
   color: #6b7280;
-  font-weight: bold;
 }
 
 .log-entry-level {
-  font-size: 8px;
+  font-size: 9px;
   font-weight: bold;
   text-transform: uppercase;
-  padding: 2px 6px;
+  padding: 3px 10px;
   border: 2px solid var(--color-brutalist-black);
 }
 
 .log-entry-level.info {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--color-brutalist-white);
+  color: var(--color-brutalist-black);
+  border-color: var(--color-brutalist-black);
 }
 
 .log-entry-level.success {
   background: #d1fae5;
   color: #065f46;
+  border-color: #10b981;
 }
 
 .log-entry-level.warning {
   background: #fef3c7;
   color: #92400e;
+  border-color: #f59e0b;
 }
 
 .log-entry-level.error {
   background: #fee2e2;
   color: #991b1b;
+  border-color: #ef4444;
 }
 
 .log-entry-title {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: bold;
-  flex: 1;
+  color: var(--color-brutalist-black);
+  margin-bottom: 4px;
 }
 
 .log-entry-copy-btn {
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-brutalist-black);
-  color: var(--color-brutalist-white);
-  border: none;
+  background: var(--color-brutalist-white);
+  color: #6b7280;
+  border: 2px solid #e5e7eb;
   cursor: pointer;
   flex-shrink: 0;
   opacity: 0;
-  transition: all 0.1s;
+  transition: all 0.15s;
 }
 
 .log-entry:hover .log-entry-copy-btn {
@@ -1036,34 +1073,59 @@
 }
 
 .log-entry-copy-btn:hover {
-  background: #3b82f6;
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  color: var(--color-brutalist-black);
 }
 
 .log-entry-description {
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.5;
-  color: #374151;
-  margin-bottom: 8px;
+  color: #4b5563;
+  margin-bottom: 10px;
 }
 
 .log-entry-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 9px;
-  color: #6b7280;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
+/* Progress badge */
 .log-entry-progress {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  font-size: 11px;
+  color: #3b82f6;
+  background: #eff6ff;
+  padding: 4px 10px;
+  border: 2px solid #bfdbfe;
+  font-weight: 600;
 }
 
+.log-entry-progress::before {
+  content: '●';
+  font-size: 8px;
+}
+
+/* Agent badge */
 .log-entry-agent {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  font-size: 11px;
+  color: #6b7280;
+  background: #f9fafb;
+  padding: 4px 10px;
+  border: 2px solid #e5e7eb;
+  font-weight: 500;
+}
+
+.log-entry-agent::before {
+  content: '⚡';
+  font-size: 10px;
 }
 
 /* Empty logs state */

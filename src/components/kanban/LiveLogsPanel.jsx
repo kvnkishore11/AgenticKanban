@@ -127,15 +127,29 @@ const LiveLogsPanel = ({ taskId, maxHeight = '500px', autoScrollDefault = true }
     const levelUpper = (level || 'INFO').toUpperCase();
     switch (levelUpper) {
       case 'ERROR':
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
+        return '❌';
       case 'WARNING':
-        return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+        return '⚠️';
       case 'SUCCESS':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return '✓';
       case 'DEBUG':
-        return <Info className="h-4 w-4 text-gray-500" />;
+        return '🔍';
       default:
-        return <Circle className="h-4 w-4 text-blue-500 fill-current" />;
+        return '●';
+    }
+  };
+
+  const getLogLevelClass = (level) => {
+    const levelUpper = (level || 'INFO').toUpperCase();
+    switch (levelUpper) {
+      case 'ERROR':
+        return 'error';
+      case 'WARNING':
+        return 'warning';
+      case 'SUCCESS':
+        return 'success';
+      default:
+        return 'info';
     }
   };
 
@@ -157,54 +171,56 @@ const LiveLogsPanel = ({ taskId, maxHeight = '500px', autoScrollDefault = true }
 
   const renderLogEntry = (log) => {
     const isExpanded = expandedLogs.has(log.id);
-    const levelColor = getLogLevelColor(log.level);
     const levelIcon = getLogLevelIcon(log.level);
+    const levelClass = getLogLevelClass(log.level);
 
     // Determine if log message is long (needs expand/collapse)
     const messageLength = (log.message || '').length;
     const isLongMessage = messageLength > 200;
 
     return (
-      <div
-        key={log.id}
-        className={`flex items-start space-x-2 p-2 border-l-2 ${levelColor} rounded text-xs`}
-      >
-        {/* Level Icon */}
-        <div className="flex-shrink-0 mt-0.5">
+      <div key={log.id} className="log-entry">
+        {/* Timeline Icon */}
+        <div className={`log-entry-icon ${levelClass}`}>
           {levelIcon}
         </div>
 
         {/* Log Content */}
-        <div className="flex-1 min-w-0">
-          {/* Timestamp and Level */}
-          <div className="flex items-center space-x-2 text-xs font-medium mb-1">
-            <span className="text-gray-500">{formatTimestamp(log.timestamp)}</span>
-            <span className="px-1.5 py-0.5 rounded bg-white border">
-              {(log.level || 'INFO').toUpperCase()}
-            </span>
-            {log.tool_name && (
-              <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-200 font-mono">
-                {log.tool_name}
+        <div className="log-entry-content">
+          {/* Header: Timestamp, Level Badge, Copy Button */}
+          <div className="log-entry-header">
+            <div className="log-entry-header-left">
+              <span className="log-entry-timestamp">{formatTimestamp(log.timestamp)}</span>
+              <span className={`log-entry-level ${levelClass}`}>
+                {(log.level || 'INFO').toUpperCase()}
               </span>
-            )}
+            </div>
+            <button
+              type="button"
+              onClick={() => handleCopyToClipboard(log.message || '')}
+              className="log-entry-copy-btn"
+              title="Copy log message"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </button>
           </div>
 
-          {/* Current Step (if available) */}
+          {/* Current Step (Title) */}
           {log.current_step && (
-            <div className="text-xs font-semibold mb-1 text-gray-700">
+            <div className="log-entry-title">
               {log.current_step}
             </div>
           )}
 
-          {/* Message */}
-          <div className="text-xs text-gray-800 break-words">
+          {/* Message (Description) */}
+          <div className="log-entry-description">
             {isLongMessage && !isExpanded ? (
               <div>
                 <p className="line-clamp-3">{log.message}</p>
                 <button
                   type="button"
                   onClick={() => toggleLogExpansion(log.id)}
-                  className="flex items-center text-blue-600 hover:text-blue-800 mt-1"
+                  className="flex items-center text-blue-600 hover:text-blue-800 mt-1 text-xs"
                 >
                   <ChevronRight className="h-3 w-3 mr-1" />
                   <span>Show more</span>
@@ -217,7 +233,7 @@ const LiveLogsPanel = ({ taskId, maxHeight = '500px', autoScrollDefault = true }
                   <button
                     type="button"
                     onClick={() => toggleLogExpansion(log.id)}
-                    className="flex items-center text-blue-600 hover:text-blue-800 mt-1"
+                    className="flex items-center text-blue-600 hover:text-blue-800 mt-1 text-xs"
                   >
                     <ChevronDown className="h-3 w-3 mr-1" />
                     <span>Show less</span>
@@ -227,30 +243,18 @@ const LiveLogsPanel = ({ taskId, maxHeight = '500px', autoScrollDefault = true }
             )}
           </div>
 
-          {/* Metadata (Progress, Workflow info) */}
+          {/* Metadata Badges (Progress, Workflow info) */}
           {(log.progress_percent !== undefined || log.workflow_name) && (
-            <div className="flex items-center space-x-2 mt-1 text-xs text-gray-600">
+            <div className="log-entry-meta">
               {log.progress_percent !== undefined && (
-                <span>Progress: {log.progress_percent}%</span>
+                <span className="log-entry-progress">{log.progress_percent}%</span>
               )}
               {log.workflow_name && (
-                <span className="font-mono bg-gray-100 px-1 py-0.5 rounded">
-                  {log.workflow_name}
-                </span>
+                <span className="log-entry-agent">{log.workflow_name}</span>
               )}
             </div>
           )}
         </div>
-
-        {/* Copy button */}
-        <button
-          type="button"
-          onClick={() => handleCopyToClipboard(log.message || '')}
-          className="flex-shrink-0 p-1 hover:bg-gray-200 rounded transition-colors"
-          title="Copy log message"
-        >
-          <Copy className="h-3 w-3 text-gray-600" />
-        </button>
       </div>
     );
   };
@@ -382,18 +386,18 @@ const LiveLogsPanel = ({ taskId, maxHeight = '500px', autoScrollDefault = true }
       {/* Logs Container */}
       <div
         ref={logsContainerRef}
-        className="overflow-y-auto bg-gray-50 p-2 space-y-1 flex-1"
+        className="logs-container flex-1"
         style={{ maxHeight }}
       >
         {filteredLogs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-gray-500">
-            <Info className="h-8 w-8 mb-2" />
-            <p className="text-sm font-medium">No logs available</p>
-            <p className="text-xs mt-1">
+          <div className="empty-logs">
+            <div className="empty-logs-icon">📭</div>
+            <div className="empty-logs-text">No Logs Available</div>
+            <div className="empty-logs-subtext">
               {allLogs.length === 0
                 ? 'Waiting for workflow to start...'
                 : 'No logs match the current filters'}
-            </p>
+            </div>
           </div>
         ) : (
           <>

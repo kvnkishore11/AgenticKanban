@@ -75,22 +75,38 @@ const WorkflowLogViewer = ({
     prevLogsLengthRef.current = safeLogs.length;
   }, [safeLogs, isAutoScroll]);
 
-  // Get icon for log level
+  // Get emoji icon for log level
   const getLogLevelIcon = (level) => {
     switch (level?.toUpperCase()) {
       case 'ERROR':
-        return <AlertCircle className="h-3 w-3 text-red-500" />;
+        return '❌';
       case 'WARNING':
-        return <AlertTriangle className="h-3 w-3 text-yellow-500" />;
+        return '⚠️';
       case 'SUCCESS':
-        return <CheckCircle className="h-3 w-3 text-green-500" />;
+        return '✓';
+      case 'DEBUG':
+        return '🔍';
       case 'INFO':
       default:
-        return <Info className="h-3 w-3 text-blue-500" />;
+        return '●';
     }
   };
 
-  // Get color class for log level
+  // Get CSS class for log level
+  const getLogLevelClass = (level) => {
+    switch (level?.toUpperCase()) {
+      case 'ERROR':
+        return 'error';
+      case 'WARNING':
+        return 'warning';
+      case 'SUCCESS':
+        return 'success';
+      default:
+        return 'info';
+    }
+  };
+
+  // Get color class for log level (legacy)
   const getLogLevelColor = (level) => {
     switch (level?.toUpperCase()) {
       case 'ERROR':
@@ -327,7 +343,7 @@ const WorkflowLogViewer = ({
           <div
             ref={logContainerRef}
             onScroll={handleScroll}
-            className="overflow-y-auto font-mono text-xs kanban-scroll"
+            className="overflow-y-auto kanban-scroll"
             style={{ maxHeight }}
           >
             {filteredLogs.length === 0 ? (
@@ -376,68 +392,69 @@ const WorkflowLogViewer = ({
                 ))}
               </div>
             ) : (
-              // Simple view (original)
-              <div className="divide-y divide-gray-100">
-                {filteredLogs.map((log, index) => (
-                  <div
-                    key={log.id || index}
-                    className={`p-1.5 hover:bg-gray-50 transition-all duration-150 ease-in-out border-l-2 ${
-                      getLogLevelColor(log.level)
-                    }`}
-                  >
-                    <div className="flex items-start space-x-2">
-                      {/* Icon */}
-                      <div className="mt-0.5">
-                        {getLogLevelIcon(log.level)}
+              // Simple view with timeline
+              <div className="logs-container">
+                {filteredLogs.map((log, index) => {
+                  const levelIcon = getLogLevelIcon(log.level);
+                  const levelClass = getLogLevelClass(log.level);
+
+                  return (
+                    <div key={log.id || index} className="log-entry">
+                      {/* Timeline Icon */}
+                      <div className={`log-entry-icon ${levelClass}`}>
+                        {levelIcon}
                       </div>
 
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline justify-between">
-                          {/* Message */}
-                          <div className="flex-1 min-w-0">
-                            <span className="text-gray-800 break-words">
-                              {log.message}
+                      {/* Log Content */}
+                      <div className="log-entry-content">
+                        {/* Header: Timestamp, Level Badge */}
+                        <div className="log-entry-header">
+                          <div className="log-entry-header-left">
+                            {showTimestamps && log.timestamp && (
+                              <span className="log-entry-timestamp">
+                                {formatTimestamp(log.timestamp)}
+                              </span>
+                            )}
+                            <span className={`log-entry-level ${levelClass}`}>
+                              {(log.level || 'INFO').toUpperCase()}
                             </span>
                           </div>
-
-                          {/* Timestamp */}
-                          {showTimestamps && log.timestamp && (
-                            <span className="text-gray-400 text-xs ml-2 whitespace-nowrap">
-                              {formatTimestamp(log.timestamp)}
-                            </span>
-                          )}
                         </div>
 
-                        {/* Additional Info */}
-                        <div className="mt-1 flex flex-wrap gap-2 text-xs">
-                          {log.current_step && (
-                            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
-                              Step: {log.current_step}
-                            </span>
-                          )}
-                          {log.progress_percent !== undefined && (
-                            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
-                              Progress: {log.progress_percent}%
-                            </span>
-                          )}
-                          {log.workflow_name && (
-                            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
-                              {log.workflow_name}
-                            </span>
-                          )}
+                        {/* Current Step (Title) */}
+                        {log.current_step && (
+                          <div className="log-entry-title">
+                            {log.current_step}
+                          </div>
+                        )}
+
+                        {/* Message (Description) */}
+                        <div className="log-entry-description">
+                          {log.message}
                         </div>
+
+                        {/* Metadata Badges */}
+                        {(log.progress_percent !== undefined || log.workflow_name) && (
+                          <div className="log-entry-meta">
+                            {log.progress_percent !== undefined && (
+                              <span className="log-entry-progress">{log.progress_percent}%</span>
+                            )}
+                            {log.workflow_name && (
+                              <span className="log-entry-agent">{log.workflow_name}</span>
+                            )}
+                          </div>
+                        )}
 
                         {/* Error Details */}
                         {log.details && (
-                          <div className="mt-1 p-2 bg-gray-100 rounded text-gray-600 text-xs">
+                          <div className="mt-2 p-2 bg-red-50 border-2 border-red-200 text-red-800 text-xs">
                             {log.details}
                           </div>
                         )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
