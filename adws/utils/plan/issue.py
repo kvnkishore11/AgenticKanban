@@ -1,0 +1,106 @@
+"""Issue fetching and classification utilities for plan workflow."""
+
+import sys
+import os
+import json
+import logging
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from adw_modules.state import ADWState
+from adw_modules.websocket_client import WebSocketNotifier
+from adw_modules.github import fetch_issue_safe, make_issue_comment_safe
+from adw_modules.workflow_ops import classify_issue, format_issue_message
+
+from .types import IssueContext
+
+
+def fetch_and_classify(
+    issue_number: str,
+    adw_id: str,
+    state: ADWState,
+    notifier: WebSocketNotifier,
+    logger: logging.Logger
+) -> IssueContext:
+    """Fetch issue from GitHub/Kanban and classify it.
+
+    Uses existing classification from state if available (kanban mode).
+    Otherwise classifies via GitHub API.
+
+    Args:
+        issue_number: Issue number to fetch
+        adw_id: ADW identifier
+        state: ADW state object
+        notifier: WebSocket notifier for progress updates
+        logger: Logger instance
+
+    Returns:
+        IssueContext with issue data and classification
+
+    Raises:
+        SystemExit: If issue cannot be fetched or classified
+    """
+    # Fetch issue details (kanban-aware)
+    notifier.notify_progress("adw_plan_iso", 10, "Fetching issue details", "Retrieving issue information from GitHub or kanban")
+    issue = fetch_issue_safe(issue_number, state)
+
+    if issue is None:
+        logger.error("Could not fetch issue data from GitHub or kanban source")
+        notifier.notify_error("adw_plan_iso", "Failed to fetch issue data", "Fetching issue")
+        sys.exit(1)
+
+    logger.debug(f"Fetched issue: {issue.model_dump_json(indent=2, by_alias=True)}")
+    make_issue_comment_safe(
+        issue_number, format_issue_message(adw_id, "ops", "Starting isolated planning phase"), state
+    )
+
+    make_issue_comment_safe(
+        issue_number,
+        f"{adw_id}_ops: Using state\n```json\n{json.dumps(state.data, indent=2)}\n```",
+        state,
+    )
+
+    # Check if issue type is already provided from kanban (bypass GitHub classification)
+    notifier.notify_progress("adw_plan_iso", 20, "Classifying issue", "Determining issue type (feature/bug/chore)")
+    existing_issue_class = state.get("issue_class")
+
+    if existing_issue_class:
+        # Issue type was provided by kanban via WebSocket trigger
+        issue_command = existing_issue_class
+        logger.info(f"Using kanban-provided issue type: {issue_command}")
+        notifier.notify_log("adw_plan_iso", f"Using kanban-provided issue type: {issue_command}", "INFO")
+        make_issue_comment_safe(
+            issue_number,
+            format_issue_message(adw_id, "ops", f"Using kanban-provided issue type: {issue_command}"),
+            state,
+        )
+    else:
+        # Fallback to GitHub issue classification
+        logger.info("No issue type provided by kanban, classifying GitHub issue")
+        notifier.notify_log("adw_plan_iso", "Classifying GitHub issue type", "INFO")
+        issue_command, error = classify_issue(issue, adw_id, logger)
+
+        if error:
+            logger.error(f"Error classifying issue: {error}")
+            notifier.notify_error("adw_plan_iso", f"Error classifying issue: {error}", "Classifying issue")
+            make_issue_comment_safe(
+                issue_number,
+                format_issue_message(adw_id, "ops", f"Error classifying issue: {error}"),
+                state,
+            )
+            sys.exit(1)
+
+        state.update(issue_class=issue_command)
+        state.save("adw_plan_iso")
+        logger.info(f"Issue classified as: {issue_command}")
+        notifier.notify_log("adw_plan_iso", f"Issue classified as: {issue_command}", "SUCCESS")
+        make_issue_comment_safe(
+            issue_number,
+            format_issue_message(adw_id, "ops", f"Issue classified as: {issue_command}"),
+            state,
+        )
+
+    return IssueContext(
+        issue=issue,
+        issue_command=issue_command
+    )
