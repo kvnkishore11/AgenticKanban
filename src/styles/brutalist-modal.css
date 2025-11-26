@@ -622,18 +622,26 @@
   min-width: 0;
 }
 
+.stage-info-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
 .stage-info-name {
   font-size: 14px;
   font-weight: bold;
   text-transform: uppercase;
-  margin-bottom: 4px;
 }
 
 .stage-info-status {
   font-size: 10px;
   font-weight: bold;
-  color: #6b7280;
-  margin-bottom: 8px;
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+  padding: 2px 8px;
+  border: 2px solid #3b82f6;
 }
 
 .stage-info-progress {
@@ -648,6 +656,31 @@
   height: 100%;
   background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   transition: width 0.3s ease;
+}
+
+/* Latest log message in stage info banner */
+.stage-info-latest-log {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.05);
+  border: 2px solid var(--color-brutalist-black);
+  font-size: 11px;
+}
+
+.stage-log-icon {
+  flex-shrink: 0;
+}
+
+.stage-log-message {
+  flex: 1;
+  font-weight: 500;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ========================================
@@ -1025,6 +1058,18 @@
 .brutalist-footer-btn.merge {
   background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
   color: var(--color-brutalist-white);
+}
+
+.brutalist-footer-btn.merge-disabled {
+  background: #9ca3af;
+  color: var(--color-brutalist-white);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.brutalist-footer-btn.merge-disabled:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .brutalist-footer-btn.merged {

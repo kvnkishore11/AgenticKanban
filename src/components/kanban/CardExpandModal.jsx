@@ -643,21 +643,23 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                     : currentStageInfo?.icon || '📋'}
                 </div>
                 <div className="stage-info-content">
-                  <div className="stage-info-name">
-                    {selectedStage
-                      ? pipelineStages.find((s) => s.id === selectedStage)?.name + ' STAGE'
-                      : (currentStageInfo?.name || task.stage?.toUpperCase()) + ' STAGE'}
-                  </div>
-                  <div className="stage-info-status">
-                    {selectedStage
-                      ? getStageStatus(selectedStage) === 'completed'
+                  <div className="stage-info-header-row">
+                    <div className="stage-info-name">
+                      {selectedStage
+                        ? pipelineStages.find((s) => s.id === selectedStage)?.name + ' STAGE'
+                        : (currentStageInfo?.name || task.stage?.toUpperCase()) + ' STAGE'}
+                    </div>
+                    <div className="stage-info-status">
+                      {selectedStage
+                        ? getStageStatus(selectedStage) === 'completed'
+                          ? 'COMPLETED'
+                          : getStageStatus(selectedStage) === 'active'
+                          ? 'IN PROGRESS'
+                          : 'PENDING'
+                        : getStageStatus(currentStageInfo?.id) === 'completed'
                         ? 'COMPLETED'
-                        : getStageStatus(selectedStage) === 'active'
-                        ? 'IN PROGRESS'
-                        : 'PENDING'
-                      : getStageStatus(currentStageInfo?.id) === 'completed'
-                      ? 'COMPLETED'
-                      : 'IN PROGRESS'}
+                        : 'IN PROGRESS'}
+                    </div>
                   </div>
                   <div className="stage-info-progress">
                     <div
@@ -675,6 +677,16 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                       }}
                     ></div>
                   </div>
+                  {/* Latest log message for this stage */}
+                  {workflowLogs && workflowLogs.length > 0 && (
+                    <div className="stage-info-latest-log">
+                      <span className="stage-log-icon">📝</span>
+                      <span className="stage-log-message">
+                        {workflowLogs[workflowLogs.length - 1]?.message?.slice(0, 80) || 'Processing...'}
+                        {workflowLogs[workflowLogs.length - 1]?.message?.length > 80 ? '...' : ''}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -815,18 +827,19 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                 <span>TRIGGER</span>
               </button>
 
-              {isReadyToMerge && !task.metadata?.merge_completed && (
+              {/* MERGE TO MAIN - Always visible, disabled when not ready */}
+              {!task.metadata?.merge_completed ? (
                 <button
                   type="button"
                   onClick={handleMerge}
-                  className="brutalist-footer-btn merge"
+                  disabled={!isReadyToMerge}
+                  className={`brutalist-footer-btn ${isReadyToMerge ? 'merge' : 'merge-disabled'}`}
+                  title={isReadyToMerge ? 'Merge to main branch' : 'Complete all stages to merge'}
                 >
                   <GitMerge size={16} />
-                  <span>MERGE</span>
+                  <span>MERGE TO MAIN</span>
                 </button>
-              )}
-
-              {isReadyToMerge && task.metadata?.merge_completed && (
+              ) : (
                 <div className="brutalist-footer-btn merged">
                   <CheckCircle size={16} />
                   <span>MERGED</span>
