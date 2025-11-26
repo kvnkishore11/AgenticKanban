@@ -290,21 +290,39 @@ async def get_adw_plan(adw_id: str):
     try:
         logger.info(f"Fetching plan for ADW ID: {adw_id}")
 
-        # Get specs directory where plan files are stored
-        specs_dir = get_specs_directory()
-        logger.info(f"Searching for plan files in specs directory: {specs_dir}")
+        # Get current file path to determine if we're in a worktree
+        current_file = Path(__file__).resolve()
+        current_root = current_file.parent.parent.parent
 
-        if not specs_dir.exists():
-            logger.error(f"Specs directory not found: {specs_dir}")
-            raise HTTPException(
-                status_code=404,
-                detail=f"Specs directory not found at path: {specs_dir}"
-            )
+        # Build list of directories to search
+        specs_directories = []
+
+        # Add main project specs directory
+        main_specs_dir = get_specs_directory()
+        specs_directories.append(main_specs_dir)
+
+        # If we're in a worktree, also check the worktree's local specs directory
+        path_parts = current_root.parts
+        if 'trees' in path_parts:
+            worktree_specs_dir = current_root / "specs"
+            if worktree_specs_dir.exists():
+                specs_directories.append(worktree_specs_dir)
+                logger.info(f"Also searching worktree specs directory: {worktree_specs_dir}")
+
+        logger.info(f"Searching for plan files in {len(specs_directories)} directories")
 
         # Search for plan files matching the pattern: issue-*-adw-{adw_id}-sdlc_planner-*.md
         pattern = f"issue-*-adw-{adw_id}-sdlc_planner-*.md"
-        matching_files = list(specs_dir.glob(pattern))
-        logger.info(f"Found {len(matching_files)} files matching pattern '{pattern}'")
+        matching_files = []
+
+        for specs_dir in specs_directories:
+            if specs_dir.exists():
+                logger.info(f"Searching in: {specs_dir}")
+                files = list(specs_dir.glob(pattern))
+                matching_files.extend(files)
+                logger.info(f"Found {len(files)} files in {specs_dir}")
+
+        logger.info(f"Total files found matching pattern '{pattern}': {len(matching_files)}")
 
         # If multiple files found, use the most recently modified one
         plan_file = None
