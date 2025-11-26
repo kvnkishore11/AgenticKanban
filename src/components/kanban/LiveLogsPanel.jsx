@@ -256,7 +256,7 @@ const LiveLogsPanel = ({ taskId, maxHeight = '500px', autoScrollDefault = true }
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+    <div className="bg-white overflow-hidden h-full flex flex-col">
       {/* Header Controls */}
       <div className="flex items-center justify-between p-2 bg-gray-50 border-b border-gray-200">
         {/* Left: Connection status and log count */}
@@ -382,7 +382,7 @@ const LiveLogsPanel = ({ taskId, maxHeight = '500px', autoScrollDefault = true }
       {/* Logs Container */}
       <div
         ref={logsContainerRef}
-        className="overflow-y-auto bg-gray-50 p-2 space-y-1"
+        className="overflow-y-auto bg-gray-50 p-2 space-y-1 flex-1"
         style={{ maxHeight }}
       >
         {filteredLogs.length === 0 ? (

@@ -189,7 +189,7 @@ const StageLogsViewer = ({
     (!stageData?.logs || stageData.logs.length === 0);
 
   return (
-    <div className="stage-logs-viewer border border-gray-200 rounded-lg bg-white shadow-sm">
+    <div className="stage-logs-viewer bg-white h-full flex flex-col">
       {/* Tabs */}
       <div className="flex items-center border-b border-gray-200 bg-gray-50 overflow-x-auto">
         {stages.map((stage) => {

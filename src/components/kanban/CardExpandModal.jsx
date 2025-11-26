@@ -635,67 +635,13 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                 </div>
               </div>
 
-              {/* STAGE INFO BANNER - Always show current stage */}
-              <div className="stage-info-banner">
-                <div className="stage-info-icon">
-                  {selectedStage
-                    ? pipelineStages.find((s) => s.id === selectedStage)?.icon
-                    : currentStageInfo?.icon || '📋'}
-                </div>
-                <div className="stage-info-content">
-                  <div className="stage-info-header-row">
-                    <div className="stage-info-name">
-                      {selectedStage
-                        ? pipelineStages.find((s) => s.id === selectedStage)?.name + ' STAGE'
-                        : (currentStageInfo?.name || task.stage?.toUpperCase()) + ' STAGE'}
-                    </div>
-                    <div className="stage-info-status">
-                      {selectedStage
-                        ? getStageStatus(selectedStage) === 'completed'
-                          ? 'COMPLETED'
-                          : getStageStatus(selectedStage) === 'active'
-                          ? 'IN PROGRESS'
-                          : 'PENDING'
-                        : getStageStatus(currentStageInfo?.id) === 'completed'
-                        ? 'COMPLETED'
-                        : 'IN PROGRESS'}
-                    </div>
-                  </div>
-                  <div className="stage-info-progress">
-                    <div
-                      className="stage-info-progress-fill"
-                      style={{
-                        width: selectedStage
-                          ? getStageStatus(selectedStage) === 'completed'
-                            ? '100%'
-                            : getStageStatus(selectedStage) === 'active'
-                            ? '50%'
-                            : '0%'
-                          : getStageStatus(currentStageInfo?.id) === 'completed'
-                          ? '100%'
-                          : '50%'
-                      }}
-                    ></div>
-                  </div>
-                  {/* Latest log message for this stage */}
-                  {workflowLogs && workflowLogs.length > 0 && (
-                    <div className="stage-info-latest-log">
-                      <span className="stage-log-icon">📝</span>
-                      <span className="stage-log-message">
-                        {workflowLogs[workflowLogs.length - 1]?.message?.slice(0, 80) || 'Processing...'}
-                        {workflowLogs[workflowLogs.length - 1]?.message?.length > 80 ? '...' : ''}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* LOGS PANEL */}
+              {/* LOGS PANEL (Activity Log) */}
               <div className="logs-panel">
                 {/* Logs Header */}
                 <div className="logs-header">
                   <div className="logs-header-left">
-                    <div className="logs-title">WORKFLOW LOGS</div>
+                    <div className="logs-header-icon">📋</div>
+                    <div className="logs-title">ACTIVITY LOG</div>
                     <div className="logs-count">({workflowLogs.length})</div>
                     <div className="logs-tabs">
                       <button
@@ -734,29 +680,67 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                   </div>
                 </div>
 
+                {/* STAGE INFO BANNER - Inside Activity Log */}
+                <div className="stage-info-banner">
+                  <div className="stage-info-icon">
+                    {selectedStage
+                      ? pipelineStages.find((s) => s.id === selectedStage)?.icon
+                      : currentStageInfo?.icon || '📋'}
+                  </div>
+                  <div className="stage-info-content">
+                    <div className="stage-info-header-row">
+                      <div className="stage-info-name">
+                        {selectedStage
+                          ? pipelineStages.find((s) => s.id === selectedStage)?.name + ' STAGE'
+                          : (currentStageInfo?.name || task.stage?.toUpperCase()) + ' STAGE'}
+                        <span className="stage-info-status-inline">
+                          {' — '}
+                          {selectedStage
+                            ? getStageStatus(selectedStage) === 'completed'
+                              ? 'COMPLETED'
+                              : getStageStatus(selectedStage) === 'active'
+                              ? 'IN PROGRESS'
+                              : 'PENDING'
+                            : getStageStatus(currentStageInfo?.id) === 'completed'
+                            ? 'COMPLETED'
+                            : 'IN PROGRESS'}
+                        </span>
+                      </div>
+                      <div className="stage-info-percent">
+                        {Math.round(calculateProgress())}%
+                        <span className="stage-info-percent-label">COMPLETE</span>
+                      </div>
+                    </div>
+                    <div className="stage-info-description">
+                      {workflowLogs && workflowLogs.length > 0
+                        ? workflowLogs[workflowLogs.length - 1]?.message?.slice(0, 60) || 'Processing...'
+                        : 'Building implementation plan using AI agent'}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Logs Toolbar */}
                 <div className="logs-toolbar">
-                  <input
-                    type="text"
-                    placeholder="SEARCH LOGS..."
-                    className="logs-search-input"
-                  />
-                  <button type="button" className="logs-toolbar-btn active">
-                    ▽ ALL
-                  </button>
-                  <button type="button" className="logs-toolbar-btn">
-                    ↓ AUTO
-                  </button>
-                  <button type="button" className="logs-toolbar-btn">
-                    ⬇
-                  </button>
-                  <button
-                    type="button"
-                    className="logs-toolbar-btn"
-                    onClick={() => clearWorkflowLogsForTask(task.id)}
-                  >
-                    🗑
-                  </button>
+                  <div className="logs-toolbar-left">
+                    <div className="logs-streaming-indicator">
+                      <span className="streaming-icon">📡</span>
+                      <span className="streaming-label">Streaming</span>
+                    </div>
+                    <div className="logs-entries-count">{workflowLogs.length} entries</div>
+                  </div>
+                  <div className="logs-toolbar-right">
+                    <input
+                      type="text"
+                      placeholder="Filter..."
+                      className="logs-search-input"
+                    />
+                    <button type="button" className="logs-toolbar-btn active">
+                      AUTO
+                    </button>
+                    <button type="button" className="logs-toolbar-btn">
+                      ⬇
+                    </button>
+                  </div>
                 </div>
 
                 {/* Logs Container */}
