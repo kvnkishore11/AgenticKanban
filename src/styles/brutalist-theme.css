@@ -611,7 +611,7 @@ h1, h2, h3, h4, h5, h6,
   border-color: #3b82f6;
 }
 
-/* Compact Log Preview - Single row */
+/* Compact Log Preview - Two rows */
 .brutalist-log-preview-compact {
   margin-top: 10px;
   padding: 6px 8px;
@@ -621,8 +621,7 @@ h1, h2, h3, h4, h5, h6,
   display: flex;
   align-items: center;
   gap: 6px;
-  white-space: nowrap;
-  overflow: hidden;
+  flex-wrap: wrap;
 }
 
 .brutalist-log-preview-compact .brutalist-log-preview-icon {
@@ -658,13 +657,13 @@ h1, h2, h3, h4, h5, h6,
   color: #ef4444;
 }
 
-/* Mini progress bar in log preview */
+/* Mini progress bar in log preview - full width on new line */
 .brutalist-log-progress-mini {
-  width: 40px;
+  width: 100%;
   height: 4px;
   background: #e0e0e0;
   border: 1px solid #999;
-  flex-shrink: 0;
+  margin-top: 4px;
 }
 
 .brutalist-log-progress-fill {
