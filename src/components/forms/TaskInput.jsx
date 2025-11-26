@@ -303,7 +303,7 @@ const TaskInput = () => {
     <div className="modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-5">
       <div
         ref={modalRef}
-        className="bg-white border-[6px] border-black max-w-[1100px] w-full max-h-[95vh] flex flex-col"
+        className="bg-white border-[6px] border-black max-w-[1200px] w-full max-h-[98vh] flex flex-col"
         style={{ boxShadow: '12px 12px 0 rgba(0,0,0,0.3)', fontFamily: "'Courier New', monospace" }}
         tabIndex="-1"
       >
@@ -458,7 +458,7 @@ const TaskInput = () => {
               <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[2px] mb-2.5">
                 DESCRIPTION <span className="text-red-500">*</span>
               </label>
-              <div className="border-[3px] border-black flex-1 flex flex-col min-h-[420px]">
+              <div className="border-[3px] border-black flex-1 flex flex-col min-h-[520px]">
                 <RichTextEditor
                   value={description}
                   onChange={setDescription}
@@ -517,76 +517,89 @@ const TaskInput = () => {
                 </label>
                 <div
                   {...getRootProps()}
-                  className={`border-[3px] border-dashed p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center flex-1 min-h-[180px]
+                  className={`border-[3px] border-dashed p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[80px]
                     ${isDragActive
                       ? 'border-black bg-white -translate-x-0.5 -translate-y-0.5 shadow-[2px_2px_0_#000]'
                       : 'border-gray-300 bg-gray-50 hover:border-black hover:bg-white hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_#000]'
                     }`}
                 >
                   <input {...getInputProps()} />
-                  <Paperclip className="h-9 w-9 text-gray-300 mb-3" />
-                  <div className="text-[10px] font-bold uppercase tracking-[1px] text-gray-500">
+                  <Paperclip className="h-6 w-6 text-gray-300 mb-2" />
+                  <div className="text-[9px] font-bold uppercase tracking-[1px] text-gray-500">
                     {isDragActive ? 'Drop files here...' : 'Drop files or click'}
                   </div>
-                  <div className="text-[9px] text-gray-400 mt-1.5 uppercase">
+                  <div className="text-[8px] text-gray-400 mt-1 uppercase">
                     PNG, JPG, PDF up to 10MB
                   </div>
                 </div>
+
+                {/* Image Previews Grid */}
+                {images.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2 mt-3">
+                    {images.map((image) => (
+                      <div
+                        key={image.id}
+                        className="relative aspect-square border-[3px] border-black overflow-hidden bg-gray-100 group"
+                      >
+                        <img
+                          src={image.url}
+                          alt={image.name}
+                          className="w-full h-full object-cover cursor-crosshair"
+                          onClick={(e) => handleImageClick(image.id, e)}
+                          title="Click to add annotation"
+                        />
+
+                        {/* Annotation markers */}
+                        {imageAnnotations[image.id]?.map((annotation) => (
+                          <div
+                            key={annotation.id}
+                            className="absolute w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-lg cursor-pointer transform -translate-x-1.5 -translate-y-1.5 hover:bg-red-600"
+                            style={{
+                              left: `${annotation.x}%`,
+                              top: `${annotation.y}%`,
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAnnotatingImage({ imageId: image.id, annotationId: annotation.id });
+                            }}
+                            title={annotation.note || 'Click to edit annotation'}
+                          />
+                        ))}
+
+                        {/* Filename at bottom */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/80 text-white text-[7px] px-1.5 py-1 uppercase tracking-[0.5px] truncate">
+                          {image.name}
+                        </div>
+
+                        {/* Hover overlay with remove button */}
+                        <div className="absolute inset-0 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeImage(image.id);
+                            }}
+                            className="w-7 h-7 bg-white border-2 border-black text-black text-sm font-bold flex items-center justify-center hover:bg-red-500 hover:text-white hover:border-red-500 transition-colors"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Add more button */}
+                    <div
+                      onClick={() => document.querySelector('input[type="file"]')?.click()}
+                      className="aspect-square border-[3px] border-dashed border-gray-300 bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:border-black hover:bg-white transition-all"
+                    >
+                      <span className="text-xl text-gray-400">+</span>
+                      <span className="text-[7px] text-gray-400 mt-1 uppercase">Add more</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
-
-          {/* Uploaded Images Preview */}
-          {images.length > 0 && (
-            <div className="mt-6 space-y-4">
-              {images.map((image) => (
-                <div key={image.id} className="border-[3px] border-black p-4">
-                  <div className="relative inline-block">
-                    <img
-                      src={image.url}
-                      alt={image.name}
-                      className="max-w-full h-48 object-contain border border-gray-200 cursor-crosshair"
-                      onClick={(e) => handleImageClick(image.id, e)}
-                      title="Click to add annotation"
-                    />
-
-                    {/* Annotation markers */}
-                    {imageAnnotations[image.id]?.map((annotation) => (
-                      <div
-                        key={annotation.id}
-                        className="absolute w-4 h-4 bg-red-500 rounded-full border-2 border-white shadow-lg cursor-pointer transform -translate-x-2 -translate-y-2 hover:bg-red-600"
-                        style={{
-                          left: `${annotation.x}%`,
-                          top: `${annotation.y}%`,
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setAnnotatingImage({ imageId: image.id, annotationId: annotation.id });
-                        }}
-                        title={annotation.note || 'Click to edit annotation'}
-                      />
-                    ))}
-
-                    {/* Remove image button */}
-                    <button
-                      type="button"
-                      onClick={() => removeImage(image.id)}
-                      className="absolute top-2 right-2 bg-red-500 text-white w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between text-xs">
-                    <span className="text-gray-600 truncate">{image.name}</span>
-                    <span className="text-gray-400 uppercase tracking-wider">
-                      {imageAnnotations[image.id]?.length || 0} annotation(s)
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Brutalist Footer */}
