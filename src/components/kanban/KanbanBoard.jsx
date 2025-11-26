@@ -121,11 +121,6 @@ const KanbanBoard = ({ searchQuery = '' }) => {
               {stageTasks.length === 0 && (
                 <div className="brutalist-empty-column">EMPTY</div>
               )}
-
-              {/* Add Task at bottom */}
-              <div className="brutalist-add-task" onClick={toggleTaskInput}>
-                + NEW
-              </div>
             </div>
           </div>
         );
@@ -154,11 +149,6 @@ const KanbanBoard = ({ searchQuery = '' }) => {
               {stageTasks.length === 0 && (
                 <div className="brutalist-empty-column">EMPTY</div>
               )}
-
-              {/* Add Task at bottom */}
-              <div className="brutalist-add-task" onClick={toggleTaskInput}>
-                + NEW
-              </div>
             </div>
           </div>
         );

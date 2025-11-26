@@ -706,6 +706,7 @@ h1, h2, h3, h4, h5, h6,
   cursor: pointer;
   background: var(--color-brutalist-white);
   transition: all 0.1s;
+  margin-bottom: 12px;
 }
 
 .brutalist-add-task:hover {
