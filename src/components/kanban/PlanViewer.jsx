@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
+import MDEditor from '@uiw/react-md-editor';
 import { X, Copy, FileText, RefreshCw } from 'lucide-react';
 
 /**
@@ -131,8 +131,17 @@ const PlanViewer = ({
               </div>
             </div>
           ) : (
-            <div className="prose prose-sm max-w-none">
-              <ReactMarkdown>{planContent}</ReactMarkdown>
+            <div data-color-mode="light">
+              <MDEditor.Markdown
+                source={planContent}
+                style={{
+                  padding: '16px',
+                  backgroundColor: 'white',
+                  color: '#1f2937',
+                  fontSize: '14px',
+                  lineHeight: '1.6'
+                }}
+              />
             </div>
           )}
         </div>
