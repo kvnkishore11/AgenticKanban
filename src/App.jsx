@@ -12,7 +12,7 @@ import CommandsPalette from './components/CommandsPalette';
 import SettingsModal from './components/forms/SettingsModal';
 import CompletedTasksModal from './components/kanban/CompletedTasksModal';
 import ErrorBoundary from './components/ui/ErrorBoundary';
-import { Folder, Plus, Settings, HelpCircle, Terminal, CheckCircle } from 'lucide-react';
+import { Search } from 'lucide-react';
 import './styles/kanban.css';
 
 /**
@@ -28,13 +28,24 @@ function App() {
     clearError,
     isLoading,
     initializeWebSocket,
-    deselectProject
+    deselectProject,
+    tasks,
+    getWebSocketStatus
   } = useKanbanStore();
 
   const [showCommandsPalette, setShowCommandsPalette] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
+  const [showDropdownMenu, setShowDropdownMenu] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const wsInitialized = useRef(false);
+
+  // Get WebSocket status
+  const wsStatus = getWebSocketStatus();
+
+  // Calculate task stats
+  const activeTasks = tasks.filter(t => t.stage !== 'completed' && t.stage !== 'backlog').length;
+  const totalTasks = tasks.length;
 
   useEffect(() => {
     // Initialize the application
@@ -54,78 +65,122 @@ function App() {
     // The websocketService will be cleaned up when the browser tab/window closes
   }, []); // Empty dependency array: only run once on mount. wsInitialized.current ref prevents duplicate initialization.
 
+  // Handle keyboard shortcut for search
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        document.getElementById('searchBar')?.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <header className="app-header">
-        <div className="px-2 sm:px-4">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <div
-                className={`flex items-center space-x-2 ${
-                  selectedProject
-                    ? 'cursor-pointer hover:opacity-75 transition-opacity'
-                    : ''
-                }`}
-                onClick={selectedProject ? deselectProject : undefined}
-                title={selectedProject ? 'Return to project selection' : ''}
-              >
-                <Folder className="h-8 w-8 text-primary-600" />
-                <h1 className="text-xl font-bold text-gray-900">
-                  AgenticKanban
-                </h1>
-              </div>
-              {selectedProject && (
-                <div className="text-sm text-gray-500">
-                  {selectedProject.name}
-                </div>
-              )}
+      <div className="brutalist-app">
+      {/* Brutalist Header */}
+      <header className="brutalist-header">
+        <div className="brutalist-header-content">
+          <div className="brutalist-header-left">
+            <div
+              className={`brutalist-project-name ${selectedProject ? 'cursor-pointer' : ''}`}
+              onClick={selectedProject ? deselectProject : undefined}
+              title={selectedProject ? 'Return to project selection' : ''}
+            >
+              KANBAN.V4
             </div>
 
-            <div className="flex items-center space-x-4">
-              {selectedProject && (
-                <>
-                  <button
-                    onClick={toggleTaskInput}
-                    className="btn-primary flex items-center space-x-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>New Task</span>
-                  </button>
+            {selectedProject && (
+              <>
+                <div className="brutalist-stats">
+                  <div className="brutalist-stat">
+                    <span className="brutalist-stat-value">{String(activeTasks).padStart(2, '0')}</span>
+                    <span>ACTIVE</span>
+                  </div>
+                  <div className="brutalist-stat">
+                    <span className="brutalist-stat-value">{String(totalTasks).padStart(2, '0')}</span>
+                    <span>TOTAL</span>
+                  </div>
+                </div>
 
-                  <button
-                    onClick={() => setShowCommandsPalette(true)}
-                    className="btn-secondary flex items-center space-x-2"
-                    title="View available Claude commands"
-                  >
-                    <Terminal className="h-4 w-4" />
-                    <span>Commands</span>
-                  </button>
+                <div className="brutalist-search-container">
+                  <Search className="brutalist-search-icon" size={16} />
+                  <input
+                    type="text"
+                    id="searchBar"
+                    className="brutalist-search-bar"
+                    placeholder="SEARCH TASKS..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
 
-                  <button
-                    onClick={() => setShowCompletedTasks(true)}
-                    className="btn-secondary flex items-center space-x-2"
-                    title="View completed tasks"
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    <span>Completed</span>
-                  </button>
-                </>
-              )}
+                <div className="brutalist-connection-status">
+                  <div className={`brutalist-status-dot ${wsStatus.connected ? '' : 'disconnected'}`}></div>
+                  <span>{wsStatus.connected ? 'CONNECTED' : 'DISCONNECTED'}</span>
+                </div>
+              </>
+            )}
+          </div>
 
-              <button
-                onClick={() => setShowSettingsModal(true)}
-                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                title="Open settings"
-                aria-label="Open settings"
-              >
-                <Settings className="h-5 w-5" />
-              </button>
+          <div className="brutalist-header-right">
+            {selectedProject && (
+              <>
+                <button
+                  className="brutalist-icon-btn"
+                  onClick={toggleTaskInput}
+                  title="New Task"
+                >
+                  +
+                </button>
+                <button
+                  className="brutalist-icon-btn"
+                  onClick={() => setShowCommandsPalette(true)}
+                  title="Commands"
+                >
+                  /
+                </button>
+                <button
+                  className="brutalist-icon-btn"
+                  onClick={() => setShowCompletedTasks(true)}
+                  title="Completed Tasks"
+                >
+                  =
+                </button>
+              </>
+            )}
+            <button
+              className="brutalist-icon-btn"
+              onClick={() => setShowSettingsModal(true)}
+              title="Settings"
+            >
+              *
+            </button>
+            <button
+              className={`brutalist-menu-btn ${showDropdownMenu ? 'active' : ''}`}
+              onClick={() => setShowDropdownMenu(!showDropdownMenu)}
+            >
+              ⋮
+            </button>
 
-              <button className="p-2 text-gray-400 hover:text-gray-600">
-                <HelpCircle className="h-5 w-5" />
-              </button>
+            <div className={`brutalist-dropdown-menu ${showDropdownMenu ? 'active' : ''}`}>
+              <div className="brutalist-dropdown-item success" onClick={() => { setShowDropdownMenu(false); }}>
+                <span>▶</span><span>RESUME WORKFLOW</span>
+              </div>
+              <div className="brutalist-dropdown-item warning" onClick={() => { setShowDropdownMenu(false); }}>
+                <span>⏸</span><span>PAUSE WORKFLOW</span>
+              </div>
+              <div className="brutalist-dropdown-item" onClick={() => { setShowDropdownMenu(false); }}>
+                <span>🔄</span><span>RESTART WORKFLOW</span>
+              </div>
+              <div className="brutalist-dropdown-item" onClick={() => { setShowDropdownMenu(false); }}>
+                <span>⏹</span><span>STOP WORKFLOW</span>
+              </div>
+              <div className="brutalist-dropdown-item danger" onClick={() => { setShowDropdownMenu(false); }}>
+                <span>🗑</span><span>DELETE ALL TASKS</span>
+              </div>
             </div>
           </div>
         </div>
@@ -133,44 +188,31 @@ function App() {
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border-l-4 border-red-400 p-4 mx-2 sm:mx-4 mt-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-red-700">{error}</p>
-              <button
-                onClick={clearError}
-                className="mt-2 text-sm text-red-600 hover:text-red-500 underline"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
+        <div className="brutalist-error-display">
+          <span className="brutalist-error-icon">⚠</span>
+          <span className="brutalist-error-text">{error}</span>
+          <button onClick={clearError} className="brutalist-error-dismiss">DISMISS</button>
         </div>
       )}
 
       {/* Loading Overlay */}
       {isLoading && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 flex items-center space-x-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-            <span className="text-gray-700">Loading...</span>
+        <div className="brutalist-loading-overlay">
+          <div className="brutalist-loading-box">
+            <span className="brutalist-loading-spinner">⟳</span>
+            <span>LOADING...</span>
           </div>
         </div>
       )}
 
-      {/* Main Content */}
-      <main className="px-2 sm:px-4 py-8 flex-1">
+      {/* Main Content - Brutalist Board Container */}
+      <main className="brutalist-board-container">
         {!selectedProject ? (
           <ProjectSelector />
         ) : (
           <>
             {showTaskInput && <TaskInput />}
-            <KanbanBoard />
+            <KanbanBoard searchQuery={searchQuery} />
           </>
         )}
       </main>
@@ -193,14 +235,13 @@ function App() {
         onClose={() => setShowCompletedTasks(false)}
       />
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-16">
-        <div className="px-2 sm:px-4 py-4">
-          <div className="text-center text-sm text-gray-500">
-            AgenticKanban - AI-Driven Development Workflow Management
-          </div>
-        </div>
-      </footer>
+      {/* Click outside handler for dropdown */}
+      {showDropdownMenu && (
+        <div
+          className="brutalist-dropdown-backdrop"
+          onClick={() => setShowDropdownMenu(false)}
+        />
+      )}
       </div>
     </ErrorBoundary>
   );

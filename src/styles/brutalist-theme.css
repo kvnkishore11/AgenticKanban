@@ -35,13 +35,14 @@
 /* ========================================
    2. GLOBAL BRUTALIST TYPOGRAPHY
    ======================================== */
-body {
+.brutalist-app {
   font-family: var(--font-brutalist) !important;
   background: var(--color-brutalist-white);
   color: var(--color-brutalist-black);
+  min-height: 100vh;
 }
 
-* {
+.brutalist-app * {
   font-family: var(--font-brutalist) !important;
   border-radius: 0 !important; /* NO rounded corners anywhere */
 }
@@ -229,9 +230,11 @@ h1, h2, h3, h4, h5, h6,
 .brutalist-icon-btn {
   background: var(--color-brutalist-white);
   border: var(--border-medium) solid var(--color-brutalist-white);
+  color: var(--color-brutalist-black);
   width: 36px;
   height: 36px;
-  font-size: 16px;
+  font-size: 18px;
+  font-weight: bold;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -242,14 +245,17 @@ h1, h2, h3, h4, h5, h6,
 .brutalist-icon-btn:hover {
   background: var(--color-brutalist-black);
   color: var(--color-brutalist-white);
+  border-color: var(--color-brutalist-black);
 }
 
 .brutalist-menu-btn {
   background: var(--color-brutalist-white);
   border: var(--border-medium) solid var(--color-brutalist-white);
+  color: var(--color-brutalist-black);
   width: 36px;
   height: 36px;
   font-size: 20px;
+  font-weight: bold;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -347,7 +353,7 @@ h1, h2, h3, h4, h5, h6,
 .brutalist-column-header {
   background: var(--color-brutalist-black);
   color: var(--color-brutalist-white);
-  padding: 14px var(--spacing-lg);
+  padding: 16px 20px;
   font-size: 14px;
   font-weight: bold;
   text-transform: uppercase;
@@ -356,39 +362,49 @@ h1, h2, h3, h4, h5, h6,
   align-items: center;
   border-bottom: var(--border-ultra) solid var(--color-brutalist-black);
   cursor: pointer;
-  min-height: 60px;
+  min-height: 64px;
   transition: background 0.1s;
 }
 
 .brutalist-column-header:hover {
-  background: #333;
+  filter: brightness(1.1);
 }
 
 .brutalist-column-title {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .brutalist-column-icon {
-  font-size: 20px;
+  font-size: 22px;
 }
 
 .brutalist-column-count {
   font-size: 16px;
   background: var(--color-brutalist-white);
   color: var(--color-brutalist-black);
-  padding: 3px 10px;
+  padding: 4px 12px;
+  font-weight: bold;
 }
 
 .brutalist-column-tasks {
-  padding: 10px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
   flex: 1;
   overflow-y: auto;
 }
+
+/* Column left stripe indicator */
+.brutalist-column.backlog { border-left: 6px solid #6b7280; }
+.brutalist-column.plan { border-left: 6px solid #3b82f6; }
+.brutalist-column.build { border-left: 6px solid #f59e0b; }
+.brutalist-column.test { border-left: 6px solid #10b981; }
+.brutalist-column.review { border-left: 6px solid #8b5cf6; }
+.brutalist-column.document { border-left: 6px solid #ec4899; }
+.brutalist-column.ready-to-merge { border-left: 6px solid #14b8a6; }
+.brutalist-column.errored { border-left: 6px solid #ef4444; }
 
 /* Column-specific colors */
 .brutalist-column.backlog .brutalist-column-header {
@@ -426,12 +442,16 @@ h1, h2, h3, h4, h5, h6,
 /* ========================================
    8. BRUTALIST TASK CARDS
    ======================================== */
+/* ========================================
+   BRUTALIST TASK CARD - Refined Design
+   ======================================== */
 .brutalist-task-card {
   background: var(--color-brutalist-white);
   border: var(--border-thick) solid var(--color-brutalist-black);
   cursor: pointer;
   transition: all 0.1s;
   position: relative;
+  margin-bottom: 10px;
 }
 
 .brutalist-task-card:hover {
@@ -439,57 +459,69 @@ h1, h2, h3, h4, h5, h6,
   box-shadow: var(--shadow-brutalist-hover);
 }
 
+/* Card Header - Issue Number + Task ID */
 .brutalist-task-card-header {
-  padding: var(--spacing-sm) 10px;
+  padding: 12px 16px;
   border-bottom: var(--border-medium) solid var(--color-brutalist-black);
   display: flex;
   justify-content: space-between;
+  align-items: center;
   background: #f8f8f8;
 }
 
 .brutalist-task-number {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: 12px;
 }
 
 .brutalist-issue-num {
-  font-size: 20px;
+  font-size: 28px;
   font-weight: bold;
+  line-height: 1;
 }
 
 .brutalist-task-id {
-  font-size: 10px;
+  font-size: 11px;
   background: var(--color-brutalist-black);
   color: var(--color-brutalist-white);
-  padding: 3px var(--spacing-xs);
-}
-
-.brutalist-task-card-body {
-  padding: 10px;
-}
-
-.brutalist-task-title {
-  font-size: 14px;
+  padding: 4px 8px;
   font-weight: bold;
-  margin-bottom: var(--spacing-xs);
-  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
+/* Card Body */
+.brutalist-task-card-body {
+  padding: 16px;
+}
+
+/* Task Title */
+.brutalist-task-title {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: -0.5px;
+  line-height: 1.3;
+}
+
+/* Pipeline Indicator - P B T R D boxes */
 .brutalist-pipeline-indicator {
   display: flex;
-  gap: 3px;
-  margin-bottom: var(--spacing-xs);
-  padding: 5px;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 8px;
   background: #f0f0f0;
   border: var(--border-thin) solid var(--color-brutalist-black);
 }
 
 .brutalist-pipeline-stage {
-  flex: 1;
-  padding: 4px 2px;
-  text-align: center;
-  font-size: 9px;
+  width: 44px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
   font-weight: bold;
   border: var(--border-thin) solid var(--color-brutalist-black);
   background: var(--color-brutalist-white);
@@ -499,40 +531,48 @@ h1, h2, h3, h4, h5, h6,
 .brutalist-pipeline-stage.completed {
   background: #3b82f6;
   color: var(--color-brutalist-white);
+  border-color: #3b82f6;
 }
 
 .brutalist-pipeline-stage.active {
   background: #f59e0b;
   color: var(--color-brutalist-black);
+  border-color: #f59e0b;
 }
 
+/* Task Description */
 .brutalist-task-description {
-  font-size: 12px;
-  line-height: 1.4;
-  margin-bottom: var(--spacing-sm);
-  color: #444;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+  color: #333;
 }
 
+/* Meta Footer - Badges and Labels */
 .brutalist-task-meta-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: var(--spacing-xs);
-  padding-top: var(--spacing-xs);
+  gap: 8px;
+  padding-top: 12px;
   border-top: var(--border-thin) solid var(--color-brutalist-black);
 }
 
 .brutalist-task-meta-badges {
   display: flex;
-  gap: 4px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .brutalist-meta-badge {
   background: #e0e0e0;
-  padding: 3px var(--spacing-xs);
+  padding: 6px 10px;
   border: var(--border-thin) solid var(--color-brutalist-black);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .brutalist-meta-badge.time {
@@ -545,17 +585,21 @@ h1, h2, h3, h4, h5, h6,
   border-color: #3b82f6;
 }
 
+/* Task Labels - BUG / FEATURE */
 .brutalist-task-labels {
   display: flex;
-  gap: 4px;
+  gap: 6px;
 }
 
 .brutalist-label {
-  padding: 4px 7px;
-  font-size: 9px;
+  padding: 6px 10px;
+  font-size: 11px;
   font-weight: bold;
   border: var(--border-thin) solid var(--color-brutalist-black);
   text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .brutalist-label.bug {
@@ -570,20 +614,22 @@ h1, h2, h3, h4, h5, h6,
   border-color: #3b82f6;
 }
 
+/* Live Log Preview */
 .brutalist-live-log-preview {
-  margin-top: var(--spacing-sm);
-  padding: var(--spacing-xs) var(--spacing-sm);
+  margin-top: 12px;
+  padding: 10px 12px;
   background: #f8f8f8;
   border: var(--border-thin) solid var(--color-brutalist-black);
-  font-size: 9px;
+  font-size: 11px;
   display: flex;
   align-items: center;
-  min-height: 24px;
+  min-height: 32px;
 }
 
 .brutalist-live-log-preview::before {
   content: '⚡';
-  margin-right: var(--spacing-xs);
+  margin-right: 8px;
+  font-size: 12px;
 }
 
 .brutalist-log-preview-text {
@@ -1127,4 +1173,182 @@ h1, h2, h3, h4, h5, h6,
   .brutalist-task-card {
     border-width: var(--border-medium);
   }
+}
+
+/* ========================================
+   15. BRUTALIST BOARD LAYOUT
+   ======================================== */
+.brutalist-board {
+  display: flex;
+  min-width: 100%;
+  height: calc(100vh - 68px);
+  border-bottom: var(--border-ultra) solid var(--color-brutalist-black);
+  overflow-x: auto;
+}
+
+.brutalist-column {
+  min-width: 320px;
+  max-width: 320px;
+  border-right: var(--border-ultra) solid var(--color-brutalist-black);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-brutalist-white);
+}
+
+.brutalist-column:last-child {
+  border-right: none;
+}
+
+/* Column-specific colors */
+.brutalist-column.backlog .brutalist-column-header { background: #6b7280; }
+.brutalist-column.plan .brutalist-column-header { background: #3b82f6; }
+.brutalist-column.build .brutalist-column-header { background: #f59e0b; }
+.brutalist-column.test .brutalist-column-header { background: #10b981; }
+.brutalist-column.review .brutalist-column-header { background: #8b5cf6; }
+.brutalist-column.document .brutalist-column-header { background: #ec4899; }
+.brutalist-column.ready-to-merge .brutalist-column-header { background: #14b8a6; }
+.brutalist-column.errored .brutalist-column-header { background: #ef4444; }
+
+.brutalist-empty-column {
+  text-align: center;
+  padding: 32px;
+  opacity: 0.3;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* ========================================
+   16. BRUTALIST CARD MENU & DROPDOWN
+   ======================================== */
+.brutalist-card-menu-btn {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-weight: bold;
+}
+
+.brutalist-card-menu-btn:hover {
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+}
+
+.brutalist-card-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--color-brutalist-white);
+  border: var(--border-thick) solid var(--color-brutalist-black);
+  min-width: 120px;
+  z-index: 100;
+  box-shadow: var(--shadow-brutalist-menu);
+}
+
+.brutalist-card-dropdown-item {
+  padding: 8px 12px;
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-bottom: var(--border-thin) solid var(--color-brutalist-black);
+}
+
+.brutalist-card-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.brutalist-card-dropdown-item:hover {
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+}
+
+.brutalist-card-dropdown-item.danger:hover {
+  background: #ef4444;
+}
+
+.brutalist-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+/* ========================================
+   17. BRUTALIST ERROR & LOADING
+   ======================================== */
+.brutalist-error-display {
+  background: #fee2e2;
+  border: var(--border-thick) solid #ef4444;
+  padding: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.brutalist-error-icon {
+  font-size: 20px;
+}
+
+.brutalist-error-text {
+  flex: 1;
+}
+
+.brutalist-error-dismiss {
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+  border: none;
+  padding: 6px 12px;
+  font-weight: bold;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.brutalist-loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+}
+
+.brutalist-loading-box {
+  background: var(--color-brutalist-white);
+  border: var(--border-ultra) solid var(--color-brutalist-black);
+  padding: var(--spacing-xl);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.brutalist-loading-spinner {
+  font-size: 24px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ========================================
+   18. BRUTALIST DROPDOWN BACKDROP
+   ======================================== */
+.brutalist-dropdown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+}
+
+/* ========================================
+   19. CURSOR UTILITIES
+   ======================================== */
+.cursor-pointer {
+  cursor: pointer;
 }

@@ -12,31 +12,12 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useKanbanStore } from '../../stores/kanbanStore';
-import {
-  Clock,
-  MoreHorizontal,
-  Play,
-  CheckCircle,
-  Edit,
-  Activity,
-  FileText,
-  Workflow,
-  GitMerge,
-  Eye,
-  GitPullRequest,
-  Maximize2,
-  Pause,
-  AlertCircle,
-  Copy
-} from 'lucide-react';
 import CardExpandModal from './CardExpandModal';
-import StageProgressionIndicator from './StageProgressionIndicator';
 import { useStageTransition } from '../../hooks/useStageTransition';
 
 const KanbanCard = ({ task, onEdit }) => {
   const {
     deleteTask,
-    getPipelineById,
     getWebSocketStatus,
     triggerWorkflowForTask,
     getWorkflowProgressForTask,
@@ -46,7 +27,6 @@ const KanbanCard = ({ task, onEdit }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showExpandModal, setShowExpandModal] = useState(false);
 
-  const pipeline = getPipelineById(task.pipelineId);
   const websocketStatus = getWebSocketStatus();
   const workflowProgress = getWorkflowProgressForTask(task.id);
   const workflowLogs = getWorkflowLogsForTask(task.id);
@@ -54,55 +34,22 @@ const KanbanCard = ({ task, onEdit }) => {
   // Use stage transition hook for animations
   const { getTransitionClass, getGlowClass, shouldPulse } = useStageTransition(task, workflowProgress);
 
-  // Format dynamic pipeline names for display
-  const formatPipelineName = (pipelineId) => {
-    if (!pipelineId) return 'Unknown Pipeline';
-
-    // Handle dynamic pipeline names (e.g., "adw_plan_implement_test")
-    if (pipelineId.startsWith('adw_')) {
-      const stages = pipelineId.replace('adw_', '').split('_');
-      const capitalizedStages = stages.map(stage =>
-        stage.charAt(0).toUpperCase() + stage.slice(1)
-      );
-      return `ADW: ${capitalizedStages.join(' → ')}`;
-    }
-
-    // Fallback to existing pipeline lookup or display the ID itself
-    return pipeline?.name || pipelineId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  };
-
-  const getStatusIcon = () => {
-    // Default status based on task state
-    switch (task.stage) {
-      case 'errored':
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
-      case 'document':
-        return task.progress === 100 ?
-          <CheckCircle className="h-4 w-4 text-green-500" /> :
-          <Play className="h-4 w-4 text-blue-500" />;
-      default:
-        return task.progress > 0 ?
-          <Play className="h-4 w-4 text-blue-500" /> :
-          <Pause className="h-4 w-4 text-gray-400" />;
-    }
-  };
-
   const formatTimeAgo = (dateString) => {
     const now = new Date();
     const date = new Date(dateString);
     const diffInMinutes = Math.floor((now - date) / (1000 * 60));
 
     if (diffInMinutes < 1) return 'Just now';
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInMinutes < 60) return `${diffInMinutes}M`;
 
     const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `${diffInHours}h ago`;
+    if (diffInHours < 24) return `${diffInHours}H`;
 
     const diffInDays = Math.floor(diffInHours / 24);
-    return `${diffInDays}d ago`;
+    return `${diffInDays}D`;
   };
 
-  // Get stage abbreviation for compact badge display
+  // Get stage abbreviation for pipeline indicator
   const getStageAbbreviation = (stage) => {
     const abbreviations = {
       'plan': 'P',
@@ -116,43 +63,27 @@ const KanbanCard = ({ task, onEdit }) => {
     return abbreviations[stage.toLowerCase()] || stage.charAt(0).toUpperCase();
   };
 
-  // Render stage badges for ADW pipelines
-  const renderStageBadges = (pipelineId) => {
-    if (!pipelineId || !pipelineId.startsWith('adw_')) {
-      return null;
+  // Get pipeline stages from pipelineId
+  const getPipelineStages = () => {
+    if (!task.pipelineId || !task.pipelineId.startsWith('adw_')) {
+      return ['P', 'B', 'T', 'R', 'D'];
     }
+    const stages = task.pipelineId.replace('adw_', '').split('_');
+    return stages.map(s => getStageAbbreviation(s));
+  };
 
-    const stages = pipelineId.replace('adw_', '').split('_');
-
-    return (
-      <div className="flex items-center space-x-1">
-        {stages.map((stage, index) => {
-          const isCurrentStage = task.stage === stage;
-          return (
-            <span
-              key={index}
-              className={`inline-flex items-center justify-center w-8 border rounded px-1.5 py-0.5 text-xs font-bold shadow-sm ${
-                isCurrentStage
-                  ? 'bg-slate-800 border-slate-800 text-slate-50'
-                  : 'border-gray-400 text-gray-900'
-              }`}
-            >
-              {getStageAbbreviation(stage)}
-            </span>
-          );
-        })}
-      </div>
-    );
+  // Get current stage index
+  const getCurrentStageIndex = () => {
+    const stageMap = { 'plan': 0, 'build': 1, 'implement': 1, 'test': 2, 'review': 3, 'document': 4 };
+    return stageMap[task.stage] ?? -1;
   };
 
   const handleCardClick = () => {
-    // Open modal instead of toggling selected state
     setShowExpandModal(true);
   };
 
   const handleTriggerWorkflow = async () => {
     try {
-      // issue_number is required for ADW proper workflow identification
       await triggerWorkflowForTask(task.id, { issue_number: String(task.id) });
     } catch (error) {
       console.error('Failed to trigger workflow:', error);
@@ -174,238 +105,126 @@ const KanbanCard = ({ task, onEdit }) => {
   const glowClass = getGlowClass();
   const pulseClass = shouldPulse() ? 'card-pulse' : '';
 
+  // Get latest log for preview
+  const latestLog = workflowLogs && workflowLogs.length > 0 ? workflowLogs[workflowLogs.length - 1] : null;
+
+  // Determine task type (bug or feature)
+  const isBug = task.metadata?.work_item_type === 'bug' || task.title?.toLowerCase().includes('bug') || task.title?.toLowerCase().includes('fix');
+
+  // Calculate progress percentage
+  const progressPercent = task.progress || (workflowProgress?.percentage ?? 0);
+
+  const pipelineStages = getPipelineStages();
+  const currentStageIdx = getCurrentStageIndex();
+
   return (
     <div
-      className={`kanban-card ${isCompleted ? 'completed-card' : ''} ${transitionClass} ${glowClass} ${pulseClass}`}
+      className={`brutalist-task-card ${transitionClass} ${glowClass} ${pulseClass}`}
       onClick={handleCardClick}
     >
-      <div className="p-4">
-        {/* Minimal view for completed tasks */}
-        {isCompleted ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <div>
-                <div className="text-sm font-bold text-gray-900">
-                  ADW {task.metadata?.adw_id || `#${task.id}`}
-                </div>
-                <div className="text-xs font-semibold text-gray-700">Completed</div>
-              </div>
-            </div>
-            <div className="text-xs text-gray-600">
-              {formatTimeAgo(task.updatedAt)}
-            </div>
-          </div>
-        ) : (
-          <>
-        {/* ADW Header - Display ADW ID and Trigger Button at the top */}
-        {task.metadata?.adw_id && (
-          <div className="adw-header mb-3 pb-2 border-b border-gray-600">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 flex-1 min-w-0">
-                <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                  {task.id}
-                </span>
-                <span className="text-xs font-mono font-bold bg-slate-700 px-2 py-1 rounded text-white truncate">
-                  {task.metadata?.adw_id}
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigator.clipboard.writeText(task.metadata?.adw_id);
-                  }}
-                  className="p-1 hover:bg-gray-700 rounded transition-colors"
-                  title="Copy ADW ID"
-                >
-                  <Copy className="h-3 w-3 text-white" />
-                </button>
-              </div>
+      {/* Card Header with Issue Number and Task ID */}
+      <div className="brutalist-task-card-header">
+        <div className="brutalist-task-number">
+          <span className="brutalist-issue-num">{task.id}</span>
+          <span className="brutalist-task-id">{task.metadata?.adw_id?.slice(0, 8).toUpperCase() || 'UNKNOWN'}</span>
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowMenu(!showMenu);
+          }}
+          className="brutalist-card-menu-btn"
+        >
+          ⋯
+        </button>
 
-              <div className="flex items-center space-x-1">
-                {/* Expand Button */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowExpandModal(true);
-                  }}
-                  className="p-1 text-gray-300 hover:text-blue-400 rounded transition-colors"
-                  title="Expand card"
-                >
-                  <Maximize2 className="h-4 w-4" />
-                </button>
-
-                {/* Trigger Workflow Button in Header */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleTriggerWorkflow();
-                  }}
-                  disabled={!websocketStatus.connected}
-                  className={`flex items-center space-x-1 text-xs rounded px-2 py-1 ${
-                    websocketStatus.connected
-                      ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                  }`}
-                  title={websocketStatus.connected ? 'Trigger Workflow' : 'WebSocket Disconnected'}
-                >
-                  <Play className="h-3 w-3" />
-                </button>
-              </div>
+        {/* Dropdown Menu */}
+        {showMenu && (
+          <div className="brutalist-card-dropdown">
+            <div className="brutalist-card-dropdown-item" onClick={(e) => { e.stopPropagation(); handleEditClick(); }}>
+              ✎ EDIT
+            </div>
+            <div className="brutalist-card-dropdown-item" onClick={(e) => { e.stopPropagation(); handleTriggerWorkflow(); }}>
+              ▶ TRIGGER
+            </div>
+            <div className="brutalist-card-dropdown-item danger" onClick={(e) => { e.stopPropagation(); deleteTask(task.id); setShowMenu(false); }}>
+              🗑 DELETE
             </div>
           </div>
         )}
+      </div>
 
-        {/* Card Header */}
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1 min-w-0">
-            <h4 className="text-sm font-bold text-gray-900 truncate">
-              {task.metadata?.summary || task.title}
-            </h4>
-            <div className="mt-1 flex items-center text-xs text-gray-700">
-              {task.pipelineId?.startsWith('adw_') ? (
-                renderStageBadges(task.pipelineId)
-              ) : (
-                <span>{formatPipelineName(task.pipelineId)}</span>
-              )}
-              {/* Workflow completion badge */}
-              {task.metadata?.workflow_name && task.metadata?.workflow_complete && (
-                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                  <CheckCircle className="h-3 w-3 mr-1" />
-                  Complete
-                </span>
-              )}
-              {/* Ready to merge badge for PR stage */}
-              {task.stage === 'pr' && task.metadata?.workflow_complete && (
-                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                  <GitPullRequest className="h-3 w-3 mr-1" />
-                  Ready to Merge
-                </span>
-              )}
-            </div>
-          </div>
+      {/* Card Body */}
+      <div className="brutalist-task-card-body">
+        {/* Title */}
+        <div className="brutalist-task-title">
+          {(task.metadata?.summary || task.title || '').toUpperCase()}
+        </div>
 
-          <div className="flex items-center space-x-1 ml-2">
-            {/* Menu Button */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowMenu(!showMenu);
-              }}
-              className="p-1 text-gray-400 hover:text-gray-600 rounded"
+        {/* Pipeline Stage Indicator (P B T R D) */}
+        <div className="brutalist-pipeline-indicator">
+          {pipelineStages.map((stage, i) => (
+            <div
+              key={i}
+              className={`brutalist-pipeline-stage ${
+                i < currentStageIdx ? 'completed' : i === currentStageIdx ? 'active' : ''
+              }`}
             >
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
+              {stage}
+            </div>
+          ))}
+        </div>
 
-            {showMenu && (
-              <div className="absolute right-0 top-6 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-32">
-                <div className="py-1">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEditClick();
-                    }}
-                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteTask(task.id);
-                      setShowMenu(false);
-                    }}
-                    className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
+        {/* Description */}
+        {task.description && (
+          <div className="brutalist-task-description">
+            {task.description.length > 100 ? task.description.slice(0, 100) + '...' : task.description}
+          </div>
+        )}
+
+        {/* Meta Footer */}
+        <div className="brutalist-task-meta-footer">
+          <div className="brutalist-task-meta-badges">
+            <span className="brutalist-meta-badge time">🕒 {formatTimeAgo(task.updatedAt)}</span>
+            {workflowProgress?.currentStep && (
+              <span className="brutalist-meta-badge status">⚡ {workflowProgress.currentStep.toUpperCase().slice(0, 4)}</span>
+            )}
+          </div>
+          <div className="brutalist-task-labels">
+            {isBug ? (
+              <span className="brutalist-label bug">🐛 BUG</span>
+            ) : (
+              <span className="brutalist-label feature">✨ FEATURE</span>
             )}
           </div>
         </div>
 
-        {/* Description - Full input prompt visible */}
-        {task.description && (
-          <div className="text-xs text-gray-800 mb-3 overflow-hidden">
-            <p className="whitespace-pre-wrap break-words line-clamp-3">
-              {task.description}
-            </p>
-          </div>
-        )}
-
-        {/* Current Substage Display */}
-        {workflowProgress?.currentStep && task.stage !== 'completed' && task.stage !== 'errored' && (
-          <div className="mb-3 flex items-center text-xs bg-blue-50 text-blue-700 px-2 py-1.5 rounded">
-            <Activity className="h-3 w-3 mr-1.5 flex-shrink-0" />
-            <span className="truncate">
-              <span className="font-medium">Currently:</span> {workflowProgress.currentStep}
-            </span>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="status-icon">
-              {getStatusIcon()}
-            </div>
-            <div className="flex items-center text-xs text-gray-700">
-              <Clock className="h-3 w-3 mr-1" />
-              <span>{formatTimeAgo(task.updatedAt)}</span>
+        {/* Live Log Preview */}
+        {latestLog && (
+          <div className="brutalist-live-log-preview">
+            <div className="brutalist-log-preview-text">
+              <span className={`brutalist-log-preview-level ${latestLog.level || 'info'}`}>
+                {(latestLog.level || 'INFO').toUpperCase()}
+              </span>
+              <span>{latestLog.message?.slice(0, 50) || 'Processing...'}</span>
             </div>
           </div>
-
-          {/* Workflow log indicators */}
-          {workflowLogs && workflowLogs.length > 0 && (
-            <div className="flex items-center space-x-2">
-              <div className="text-xs text-gray-600">
-                {workflowLogs.length} log{workflowLogs.length !== 1 ? 's' : ''}
-              </div>
-              {/* Show latest log type indicator */}
-              {(() => {
-                const latestLog = workflowLogs[workflowLogs.length - 1];
-                if (latestLog?.entry_type) {
-                  const typeColors = {
-                    system: 'bg-purple-100 text-purple-700 border-purple-300',
-                    assistant: 'bg-blue-100 text-blue-700 border-blue-300',
-                    user: 'bg-green-100 text-green-700 border-green-300',
-                    result: 'bg-amber-100 text-amber-700 border-amber-300',
-                  };
-                  const colorClass = typeColors[latestLog.entry_type] || 'bg-gray-100 text-gray-700 border-gray-300';
-                  return (
-                    <span className={`px-1.5 py-0.5 text-xs rounded border ${colorClass}`}>
-                      {latestLog.entry_type}
-                    </span>
-                  );
-                }
-                return null;
-              })()}
-            </div>
-          )}
-        </div>
-
-        {/* Expanded Details - Disabled in favor of modal view */}
-        {/* {isSelected && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            ... expanded content removed ...
-          </div>
-        )} */}
-        </>
         )}
       </div>
 
-      {/* Click outside handler */}
+      {/* Progress Bar at Bottom */}
+      {progressPercent > 0 && (
+        <div className="brutalist-context-progress">
+          <div className="brutalist-context-progress-bar" style={{ width: `${progressPercent}%` }}></div>
+        </div>
+      )}
+
+      {/* Click outside handler for menu */}
       {showMenu && (
         <div
-          className="fixed inset-0 z-0"
-          onClick={() => setShowMenu(false)}
+          className="brutalist-menu-backdrop"
+          onClick={(e) => { e.stopPropagation(); setShowMenu(false); }}
         />
       )}
 
