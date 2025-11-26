@@ -29,7 +29,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Set, Optional, Dict, Any
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -1776,7 +1776,7 @@ async def get_adw_plan(adw_id: str):
 
         # Fallback: If no plan file found by ADW ID, try to find by checking ADW state
         if not plan_file:
-            logger.info(f"No plan file found by ADW ID pattern, attempting fallback search")
+            logger.info("No plan file found by ADW ID pattern, attempting fallback search")
 
             # Try to get issue number from ADW state
             agents_dir = get_agents_directory()
