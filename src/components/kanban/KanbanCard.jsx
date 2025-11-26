@@ -85,19 +85,28 @@ const KanbanCard = ({ task, onEdit }) => {
     return abbreviations[stage.toLowerCase()] || stage.charAt(0).toUpperCase();
   };
 
-  // Get pipeline stages from pipelineId
+  // Get pipeline stages from queuedStages or pipelineId
   const getPipelineStages = () => {
-    if (!task.pipelineId || !task.pipelineId.startsWith('adw_')) {
-      return ['P', 'B', 'T', 'R', 'D'];
+    // Priority 1: Use queuedStages if available (most accurate)
+    if (task.queuedStages && task.queuedStages.length > 0) {
+      return task.queuedStages.map(s => getStageAbbreviation(s));
     }
-    const stages = task.pipelineId.replace('adw_', '').split('_');
-    return stages.map(s => getStageAbbreviation(s));
+
+    // Priority 2: Parse from pipelineId if it starts with 'adw_'
+    if (task.pipelineId && task.pipelineId.startsWith('adw_')) {
+      const stages = task.pipelineId.replace('adw_', '').split('_');
+      return stages.map(s => getStageAbbreviation(s));
+    }
+
+    // Fallback: Default 2 stages
+    return ['P', 'B'];
   };
 
-  // Get current stage index
+  // Get current stage index dynamically based on actual pipeline stages
   const getCurrentStageIndex = () => {
-    const stageMap = { 'plan': 0, 'build': 1, 'implement': 1, 'test': 2, 'review': 3, 'document': 4 };
-    return stageMap[task.stage] ?? -1;
+    const stages = getPipelineStages();
+    const currentStageAbbrev = getStageAbbreviation(task.stage);
+    return stages.indexOf(currentStageAbbrev);
   };
 
   const handleCardClick = () => {

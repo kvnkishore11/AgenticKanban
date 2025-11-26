@@ -20,7 +20,9 @@ import {
   ExternalLink,
   Play,
   GitMerge,
-  CheckCircle
+  CheckCircle,
+  Pencil,
+  XCircle
 } from 'lucide-react';
 import MDEditor from '@uiw/react-md-editor';
 import ReactMarkdown from 'react-markdown';
@@ -28,6 +30,26 @@ import StageLogsViewer from './StageLogsViewer';
 import LiveLogsPanel from './LiveLogsPanel';
 import adwDiscoveryService from '../../services/api/adwDiscoveryService';
 import fileOperationsService from '../../services/api/fileOperationsService';
+
+// Stage configuration mapping
+const STAGE_CONFIG = {
+  plan: { id: 'plan', name: 'PLAN', icon: '📋', abbrev: 'P' },
+  build: { id: 'implement', name: 'IMPL', icon: '🔨', abbrev: 'B' },
+  implement: { id: 'implement', name: 'IMPL', icon: '🔨', abbrev: 'B' },
+  test: { id: 'test', name: 'TEST', icon: '✏️', abbrev: 'T' },
+  review: { id: 'review', name: 'REV', icon: '👀', abbrev: 'R' },
+  document: { id: 'document', name: 'DOC', icon: '📄', abbrev: 'D' },
+  pr: { id: 'pr', name: 'PR', icon: '🔀', abbrev: 'PR' }
+};
+
+// Issue type badge configuration
+const ISSUE_TYPE_CONFIG = {
+  feature: { label: 'FEATURE', icon: '✨', className: 'type-feature' },
+  bug: { label: 'BUG', icon: '🐛', className: 'type-bug' },
+  chore: { label: 'CHORE', icon: '🔧', className: 'type-chore' },
+  patch: { label: 'PATCH', icon: '🩹', className: 'type-patch' },
+  task: { label: 'TASK', icon: '📋', className: 'type-task' }
+};
 
 const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   const {
@@ -75,14 +97,65 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
     };
   }, [isOpen, onClose]);
 
-  // Pipeline stages configuration
-  const pipelineStages = [
-    { id: 'plan', name: 'PLAN', icon: '📋', stage: 'plan' },
-    { id: 'implement', name: 'IMPL', icon: '🔨', stage: 'build' },
-    { id: 'test', name: 'TEST', icon: '🧪', stage: 'test' },
-    { id: 'review', name: 'REV', icon: '👀', stage: 'review' },
-    { id: 'document', name: 'DOC', icon: '📄', stage: 'document' }
-  ];
+  // Dynamically get pipeline stages from task's queuedStages or pipelineId
+  const getPipelineStages = () => {
+    // Priority 1: Use queuedStages if available (most accurate)
+    if (task.queuedStages && task.queuedStages.length > 0) {
+      return task.queuedStages.map(s => {
+        const config = STAGE_CONFIG[s.toLowerCase()];
+        return config ? {
+          id: config.id,
+          name: config.name,
+          icon: config.icon,
+          stage: s.toLowerCase() === 'implement' ? 'build' : s.toLowerCase(),
+          abbrev: config.abbrev
+        } : {
+          id: s,
+          name: s.toUpperCase().slice(0, 4),
+          icon: '📌',
+          stage: s.toLowerCase(),
+          abbrev: s.charAt(0).toUpperCase()
+        };
+      });
+    }
+
+    // Priority 2: Parse from pipelineId if it starts with 'adw_'
+    if (task.pipelineId && task.pipelineId.startsWith('adw_')) {
+      const stages = task.pipelineId.replace('adw_', '').split('_');
+      return stages.map(s => {
+        const config = STAGE_CONFIG[s.toLowerCase()];
+        return config ? {
+          id: config.id,
+          name: config.name,
+          icon: config.icon,
+          stage: s.toLowerCase() === 'implement' ? 'build' : s.toLowerCase(),
+          abbrev: config.abbrev
+        } : {
+          id: s,
+          name: s.toUpperCase().slice(0, 4),
+          icon: '📌',
+          stage: s.toLowerCase(),
+          abbrev: s.charAt(0).toUpperCase()
+        };
+      });
+    }
+
+    // Fallback: Default 2 stages (Plan and Build)
+    return [
+      { id: 'plan', name: 'PLAN', icon: '📋', stage: 'plan', abbrev: 'P' },
+      { id: 'implement', name: 'IMPL', icon: '🔨', stage: 'build', abbrev: 'B' }
+    ];
+  };
+
+  const pipelineStages = getPipelineStages();
+
+  // Get issue type configuration
+  const getIssueType = () => {
+    const type = (task.metadata?.issue_type || task.metadata?.work_item_type || 'task').toLowerCase();
+    return ISSUE_TYPE_CONFIG[type] || ISSUE_TYPE_CONFIG.task;
+  };
+
+  const issueType = getIssueType();
 
   const formatTimeAgo = (dateString) => {
     if (!dateString) return 'N/A';
@@ -101,20 +174,13 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   };
 
   const getStageStatus = (stageId) => {
-    const stageMapping = {
-      plan: 'plan',
-      implement: 'build',
-      test: 'test',
-      review: 'review',
-      document: 'document'
-    };
+    // Build stage order from pipeline stages
+    const stageOrder = pipelineStages.map(s => s.stage);
+    stageOrder.push('ready-to-merge'); // Always add at end
 
-    const mappedStage = stageMapping[stageId];
     const currentStage = task.stage;
-
-    const stageOrder = ['plan', 'build', 'test', 'review', 'document', 'ready-to-merge'];
     const currentIndex = stageOrder.indexOf(currentStage);
-    const stageIndex = stageOrder.indexOf(mappedStage);
+    const stageIndex = stageOrder.indexOf(stageId === 'implement' ? 'build' : stageId);
 
     if (currentIndex > stageIndex) return 'completed';
     if (currentIndex === stageIndex) return 'active';
@@ -122,7 +188,8 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   };
 
   const calculateProgress = () => {
-    const stageOrder = ['backlog', 'plan', 'build', 'test', 'review', 'document', 'ready-to-merge'];
+    // Build stage order from pipeline stages
+    const stageOrder = ['backlog', ...pipelineStages.map(s => s.stage), 'ready-to-merge'];
     const currentIndex = stageOrder.indexOf(task.stage);
     const progress = ((currentIndex + 1) / stageOrder.length) * 100;
     return Math.min(Math.max(progress, 0), 100);
@@ -272,6 +339,10 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                       </>
                     )}
                   </div>
+                </div>
+                <div className={`brutalist-issue-type-badge ${issueType.className}`}>
+                  <span className="issue-type-icon">{issueType.icon}</span>
+                  <span className="issue-type-label">{issueType.label}</span>
                 </div>
               </>
             )}
@@ -696,7 +767,8 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
               onClick={handleBackToDetails}
               className="brutalist-footer-btn secondary"
             >
-              BACK TO DETAILS
+              <ArrowLeft size={16} />
+              <span>BACK TO DETAILS</span>
             </button>
           ) : (
             <>
@@ -705,40 +777,25 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                 onClick={handleTriggerWorkflow}
                 disabled={!websocketStatus.connected}
                 className="brutalist-footer-btn primary"
-                style={{
-                  opacity: websocketStatus.connected ? 1 : 0.5,
-                  cursor: websocketStatus.connected ? 'pointer' : 'not-allowed'
-                }}
               >
-                <Play size={14} />
-                <span>TRIGGER WORKFLOW</span>
+                <Play size={16} />
+                <span>TRIGGER</span>
               </button>
 
               {isReadyToMerge && !task.metadata?.merge_completed && (
                 <button
                   type="button"
                   onClick={handleMerge}
-                  className="brutalist-footer-btn"
-                  style={{
-                    background: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
-                    color: '#fff'
-                  }}
+                  className="brutalist-footer-btn merge"
                 >
-                  <GitMerge size={14} />
-                  <span>MERGE TO MAIN</span>
+                  <GitMerge size={16} />
+                  <span>MERGE</span>
                 </button>
               )}
 
               {isReadyToMerge && task.metadata?.merge_completed && (
-                <div
-                  className="brutalist-footer-btn"
-                  style={{
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    color: '#fff',
-                    cursor: 'default'
-                  }}
-                >
-                  <CheckCircle size={14} />
+                <div className="brutalist-footer-btn merged">
+                  <CheckCircle size={16} />
                   <span>MERGED</span>
                 </div>
               )}
@@ -750,9 +807,10 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                     onEdit(task);
                     onClose();
                   }}
-                  className="brutalist-footer-btn primary"
+                  className="brutalist-footer-btn edit"
                 >
-                  EDIT TASK
+                  <Pencil size={16} />
+                  <span>EDIT</span>
                 </button>
               )}
 
@@ -761,7 +819,8 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                 onClick={onClose}
                 className="brutalist-footer-btn secondary"
               >
-                CLOSE
+                <XCircle size={16} />
+                <span>CLOSE</span>
               </button>
             </>
           )}
