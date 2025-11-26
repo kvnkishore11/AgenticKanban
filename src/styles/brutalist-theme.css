@@ -354,8 +354,8 @@ h1, h2, h3, h4, h5, h6,
   background: var(--color-brutalist-black);
   color: var(--color-brutalist-white);
   padding: 16px 20px;
-  font-size: 14px;
-  font-weight: bold;
+  font-size: 18px;
+  font-weight: 800;
   text-transform: uppercase;
   display: flex;
   justify-content: space-between;
@@ -364,6 +364,7 @@ h1, h2, h3, h4, h5, h6,
   cursor: pointer;
   min-height: 64px;
   transition: background 0.1s;
+  letter-spacing: 1px;
 }
 
 .brutalist-column-header:hover {
@@ -377,7 +378,7 @@ h1, h2, h3, h4, h5, h6,
 }
 
 .brutalist-column-icon {
-  font-size: 22px;
+  font-size: 26px;
 }
 
 .brutalist-column-count {
