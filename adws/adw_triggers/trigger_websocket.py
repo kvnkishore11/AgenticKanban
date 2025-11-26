@@ -19,6 +19,7 @@ Environment Requirements:
 
 import argparse
 import json
+import logging
 import os
 import shutil
 import signal
@@ -26,8 +27,10 @@ import subprocess
 import sys
 import time
 from datetime import datetime
-from typing import Set, Optional, Dict
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from pathlib import Path
+from typing import Set, Optional, Dict, Any
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 import uvicorn
@@ -103,7 +106,78 @@ app = FastAPI(
     description="WebSocket server for ADW workflow triggering from kanban apps"
 )
 
+# Configure CORS to allow requests from frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",  # Vite dev server default
+        f"http://localhost:{os.getenv('FRONTEND_PORT', '9202')}",  # Frontend port from env
+        "http://localhost:3000",  # Alternative frontend port
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 print(f"Starting ADW WebSocket Trigger on port {WEBSOCKET_PORT}")
+
+# Configure logging for plan endpoint
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+def get_agents_directory() -> Path:
+    """
+    Get the path to the agents directory.
+    Handles both main project and worktree environments.
+    """
+    current_file = Path(__file__).resolve()
+    current_root = current_file.parent.parent.parent
+
+    path_parts = current_root.parts
+    if 'trees' in path_parts:
+        trees_index = path_parts.index('trees')
+        main_project_root = Path(*path_parts[:trees_index])
+        agents_dir = main_project_root / "agents"
+    else:
+        agents_dir = current_root / "agents"
+
+    return agents_dir
+
+
+def get_specs_directory() -> Path:
+    """
+    Get the path to the specs directory.
+    Handles both main project and worktree environments.
+    """
+    current_file = Path(__file__).resolve()
+    current_root = current_file.parent.parent.parent
+
+    path_parts = current_root.parts
+    if 'trees' in path_parts:
+        trees_index = path_parts.index('trees')
+        main_project_root = Path(*path_parts[:trees_index])
+        specs_dir = main_project_root / "specs"
+    else:
+        specs_dir = current_root / "specs"
+
+    return specs_dir
+
+
+def read_adw_state(adw_dir: Path) -> Dict[str, Any]:
+    """
+    Read and parse the adw_state.json file from an ADW directory.
+    """
+    state_file = adw_dir / "adw_state.json"
+    if not state_file.exists():
+        return {}
+
+    try:
+        with open(state_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error reading ADW state from {state_file}: {e}")
+        return {}
 
 
 class ConnectionManager:
@@ -1614,6 +1688,127 @@ async def get_adw(adw_id: str):
         print(f"Error retrieving ADW {adw_id}: {e}")
         return JSONResponse(
             content={"error": f"Failed to retrieve ADW: {str(e)}"},
+            status_code=500
+        )
+
+
+@app.get("/api/adws/{adw_id}/plan")
+async def get_adw_plan(adw_id: str):
+    """Get plan file content for a specific ADW ID.
+
+    Args:
+        adw_id: The ADW ID to retrieve plan for
+
+    Returns:
+        JSON object with plan_content and plan_file fields, or 404 if not found
+    """
+    try:
+        logger.info(f"Fetching plan for ADW ID: {adw_id}")
+
+        # Get current file path to determine if we're in a worktree
+        current_file = Path(__file__).resolve()
+        current_root = current_file.parent.parent.parent
+
+        # Build list of directories to search
+        specs_directories = []
+
+        # Add main project specs directory
+        main_specs_dir = get_specs_directory()
+        specs_directories.append(main_specs_dir)
+
+        # If we're in a worktree, also check the worktree's local specs directory
+        path_parts = current_root.parts
+        if 'trees' in path_parts:
+            worktree_specs_dir = current_root / "specs"
+            if worktree_specs_dir.exists():
+                specs_directories.append(worktree_specs_dir)
+                logger.info(f"Also searching worktree specs directory: {worktree_specs_dir}")
+
+        logger.info(f"Searching for plan files in {len(specs_directories)} directories")
+
+        # Search for plan files matching the pattern: issue-*-adw-{adw_id}-sdlc_planner-*.md
+        pattern = f"issue-*-adw-{adw_id}-sdlc_planner-*.md"
+        matching_files = []
+
+        for specs_dir in specs_directories:
+            if specs_dir.exists():
+                logger.info(f"Searching in: {specs_dir}")
+                files = list(specs_dir.glob(pattern))
+                matching_files.extend(files)
+                logger.info(f"Found {len(files)} files in {specs_dir}")
+
+        logger.info(f"Total files found matching pattern '{pattern}': {len(matching_files)}")
+
+        # If multiple files found, use the most recently modified one
+        plan_file = None
+        if matching_files:
+            # Sort by modification time (most recent first)
+            matching_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+            plan_file = matching_files[0]
+            if len(matching_files) > 1:
+                logger.warning(f"Multiple plan files found for ADW ID {adw_id}, using most recent: {plan_file.name}")
+            else:
+                logger.info(f"Found plan file: {plan_file.name}")
+
+        # Fallback: If no plan file found by ADW ID, try to find by checking ADW state
+        if not plan_file:
+            logger.info(f"No plan file found by ADW ID pattern, attempting fallback search")
+
+            # Try to get issue number from ADW state
+            agents_dir = get_agents_directory()
+            adw_dir = agents_dir / adw_id
+
+            if adw_dir.exists():
+                adw_state = read_adw_state(adw_dir)
+                if adw_state and 'issue_number' in adw_state:
+                    issue_number = adw_state['issue_number']
+                    logger.info(f"Found issue number {issue_number} from ADW state, searching for plan files")
+
+                    # Search by issue number pattern in main specs directory
+                    fallback_pattern = f"issue-{issue_number}-adw-*-sdlc_planner-*.md"
+                    fallback_files = list(main_specs_dir.glob(fallback_pattern))
+
+                    if fallback_files:
+                        # Sort by modification time and use most recent
+                        fallback_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+                        plan_file = fallback_files[0]
+                        logger.info(f"Found plan file via fallback search: {plan_file.name}")
+
+        # If still no plan file found, return 404
+        if not plan_file:
+            logger.error(f"No plan file found for ADW ID '{adw_id}'")
+            # List available plan files for debugging
+            all_plan_files = list(main_specs_dir.glob("issue-*-sdlc_planner-*.md"))
+            if all_plan_files:
+                logger.info(f"Available plan files in specs directory: {[f.name for f in all_plan_files[:5]]}")
+            return JSONResponse(
+                content={"error": f"Plan file not found for ADW ID '{adw_id}'. No matching files in specs directory."},
+                status_code=404
+            )
+
+        # Read plan file content
+        try:
+            with open(plan_file, 'r', encoding='utf-8') as f:
+                plan_content = f.read()
+            logger.info(f"Successfully read plan file for {adw_id}, size: {len(plan_content)} bytes")
+        except Exception as e:
+            logger.error(f"Error reading plan file for {adw_id}: {e}", exc_info=True)
+            return JSONResponse(
+                content={"error": f"Error reading plan file: {str(e)}"},
+                status_code=500
+            )
+
+        # Return plan content and relative path
+        relative_plan_path = f"specs/{plan_file.name}"
+        return JSONResponse(content={
+            "plan_content": plan_content,
+            "plan_file": relative_plan_path
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting plan for {adw_id}: {e}", exc_info=True)
+        return JSONResponse(
+            content={"error": f"Failed to retrieve plan: {str(e)}"},
             status_code=500
         )
 
