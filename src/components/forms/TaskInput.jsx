@@ -1,10 +1,10 @@
 /**
- * @fileoverview Task creation form component for creating new work items
+ * @fileoverview Task creation/edit form component for managing work items
  *
- * Provides a comprehensive form interface for creating tasks with support for
+ * Provides a comprehensive form interface for creating and editing tasks with support for
  * work item types, stage selection, image attachments with annotations, and
  * clipboard paste functionality. Validates input and integrates with the kanban
- * store for task creation.
+ * store for task creation/updates.
  *
  * Brutalist UI design with bold typography and sharp edges.
  *
@@ -14,25 +14,36 @@
 import { useState, useEffect, useRef } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import { WORK_ITEM_TYPES, QUEUEABLE_STAGES, SDLC_STAGES } from '../../constants/workItems';
-import { X, Plus, Clipboard, GitMerge, Paperclip } from 'lucide-react';
+import { X, Plus, Clipboard, GitMerge, Paperclip, Pencil } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useClipboard } from '../../hooks/useClipboard';
 import RichTextEditor from '../ui/RichTextEditor';
 import { htmlToPlainText } from '../../utils/htmlUtils';
 
-const TaskInput = () => {
+/**
+ * TaskInput component - unified modal for creating and editing tasks
+ * @param {Object} props
+ * @param {Object} [props.task] - Task to edit (if provided, modal is in edit mode)
+ * @param {Function} [props.onClose] - Callback when modal is closed (for edit mode)
+ * @param {Function} [props.onSave] - Callback after task is saved (for edit mode)
+ */
+const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
+  const isEditMode = !!task;
+
   const {
     createTask,
+    updateTask,
     toggleTaskInput,
     validateTask,
   } = useKanbanStore();
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [workItemType, setWorkItemType] = useState(WORK_ITEM_TYPES.FEATURE);
-  const [queuedStages, setQueuedStages] = useState(['plan', 'implement']);
-  const [customAdwId, setCustomAdwId] = useState('');
-  const [images, setImages] = useState([]);
+  // Initialize state with task data if editing
+  const [title, setTitle] = useState(task?.title || '');
+  const [description, setDescription] = useState(task?.description || '');
+  const [workItemType, setWorkItemType] = useState(task?.workItemType || WORK_ITEM_TYPES.FEATURE);
+  const [queuedStages, setQueuedStages] = useState(task?.queuedStages || ['plan', 'implement']);
+  const [customAdwId, setCustomAdwId] = useState(task?.customAdwId || task?.adw_id || '');
+  const [images, setImages] = useState(task?.images || []);
   const [errors, setErrors] = useState([]);
   const [annotatingImage, setAnnotatingImage] = useState(null);
   const [imageAnnotations, setImageAnnotations] = useState({});
@@ -41,6 +52,28 @@ const TaskInput = () => {
   const [startImmediately, setStartImmediately] = useState(false);
   const [toast, setToast] = useState(null);
   const modalRef = useRef(null);
+
+  // Initialize image annotations from existing task data
+  useEffect(() => {
+    if (task?.images) {
+      const annotations = {};
+      task.images.forEach(img => {
+        if (img.annotations) {
+          annotations[img.id] = img.annotations;
+        }
+      });
+      setImageAnnotations(annotations);
+    }
+  }, [task]);
+
+  // Handle close - use onClose prop for edit mode, toggleTaskInput for create mode
+  const handleClose = () => {
+    if (isEditMode && onClose) {
+      onClose();
+    } else {
+      toggleTaskInput();
+    }
+  };
 
   // Clipboard support for image paste
   const {
@@ -72,7 +105,7 @@ const TaskInput = () => {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        toggleTaskInput();
+        handleClose();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         if (description.trim() && queuedStages.length > 0) {
@@ -83,7 +116,7 @@ const TaskInput = () => {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [toggleTaskInput, description, queuedStages]);
+  }, [isEditMode, onClose, toggleTaskInput, description, queuedStages]);
 
   // Image upload with react-dropzone
   const onDrop = (acceptedFiles) => {
@@ -226,18 +259,28 @@ const TaskInput = () => {
       return;
     }
 
-    createTask(taskData);
+    if (isEditMode) {
+      // Update existing task
+      updateTask(task.id, taskData);
+      if (onSave) {
+        onSave(taskData);
+      }
+      handleClose();
+    } else {
+      // Create new task
+      createTask(taskData);
 
-    // Reset form
-    setTitle('');
-    setDescription('');
-    setWorkItemType(WORK_ITEM_TYPES.FEATURE);
-    setQueuedStages(['plan', 'implement']);
-    setCustomAdwId('');
-    setImages([]);
-    setErrors([]);
-    setImageAnnotations({});
-    setAnnotatingImage(null);
+      // Reset form
+      setTitle('');
+      setDescription('');
+      setWorkItemType(WORK_ITEM_TYPES.FEATURE);
+      setQueuedStages(['plan', 'implement']);
+      setCustomAdwId('');
+      setImages([]);
+      setErrors([]);
+      setImageAnnotations({});
+      setAnnotatingImage(null);
+    }
   };
 
   // Toast notification helper
@@ -311,12 +354,14 @@ const TaskInput = () => {
         <div className="bg-black text-white px-7 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-white text-black flex items-center justify-center text-lg font-bold">
-              +
+              {isEditMode ? <Pencil size={18} /> : '+'}
             </div>
-            <span className="text-base font-bold uppercase tracking-[4px]">New Task</span>
+            <span className="text-base font-bold uppercase tracking-[4px]">
+              {isEditMode ? 'Edit Task' : 'New Task'}
+            </span>
           </div>
           <button
-            onClick={toggleTaskInput}
+            onClick={handleClose}
             className="w-9 h-9 flex items-center justify-center border-2 border-gray-500 text-gray-500 text-2xl hover:bg-white hover:text-black hover:border-white transition-all"
           >
             ✕
@@ -605,14 +650,16 @@ const TaskInput = () => {
         {/* Brutalist Footer */}
         <div className="px-7 py-4 bg-gray-100 border-t-[3px] border-black flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => showToast('Draft saved')}
-              className="px-5 py-3 border-[3px] border-transparent text-[11px] font-bold uppercase tracking-[1px] cursor-pointer transition-all flex items-center gap-2 text-gray-500 hover:border-black hover:text-black hover:bg-white"
-              style={{ fontFamily: "'Courier New', monospace" }}
-            >
-              💾 Draft
-            </button>
+            {!isEditMode && (
+              <button
+                type="button"
+                onClick={() => showToast('Draft saved')}
+                className="px-5 py-3 border-[3px] border-transparent text-[11px] font-bold uppercase tracking-[1px] cursor-pointer transition-all flex items-center gap-2 text-gray-500 hover:border-black hover:text-black hover:bg-white"
+                style={{ fontFamily: "'Courier New', monospace" }}
+              >
+                💾 Draft
+              </button>
+            )}
             <div className="flex items-center gap-1.5 text-[9px] text-gray-400 uppercase">
               <span className="px-1.5 py-0.5 bg-gray-200 border border-gray-300 text-[9px] font-bold">ESC</span>
               close
@@ -621,7 +668,7 @@ const TaskInput = () => {
           <div className="flex gap-2.5">
             <button
               type="button"
-              onClick={toggleTaskInput}
+              onClick={handleClose}
               className="px-5 py-3 border-[3px] border-black bg-white text-[11px] font-bold uppercase tracking-[1px] cursor-pointer transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_#000]"
               style={{ fontFamily: "'Courier New', monospace" }}
             >
@@ -634,7 +681,7 @@ const TaskInput = () => {
               className="px-7 py-3.5 border-[3px] border-black bg-black text-white text-[11px] font-bold uppercase tracking-[1px] cursor-pointer transition-all hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ fontFamily: "'Courier New', monospace" }}
             >
-              Create Task →
+              {isEditMode ? 'Save Changes →' : 'Create Task →'}
             </button>
           </div>
         </div>

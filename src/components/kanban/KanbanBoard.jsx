@@ -12,7 +12,7 @@
 import { useState } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import KanbanCard from './KanbanCard';
-import TaskEditModal from '../forms/TaskEditModal';
+import TaskInput from '../forms/TaskInput';
 
 // Brutalist stage icons (using emojis for simplicity)
 const stageIcons = {
@@ -154,9 +154,9 @@ const KanbanBoard = ({ searchQuery = '' }) => {
         );
       })}
 
-      {/* Task Edit Modal */}
+      {/* Task Edit Modal - uses same TaskInput component with edit mode */}
       {editingTask && (
-        <TaskEditModal
+        <TaskInput
           task={editingTask}
           onClose={handleEditModalClose}
           onSave={handleTaskUpdate}
