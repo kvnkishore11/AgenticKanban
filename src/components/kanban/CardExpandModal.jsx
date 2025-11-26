@@ -151,11 +151,35 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
 
   // Get issue type configuration
   const getIssueType = () => {
-    const type = (task.metadata?.issue_type || task.metadata?.work_item_type || 'task').toLowerCase();
+    // Check multiple possible metadata fields for issue type
+    // Priority: state_config.task.work_item_type > issue_type > work_item_type > type
+    const type = (
+      task.metadata?.state_config?.task?.work_item_type ||
+      task.metadata?.issue_type ||
+      task.metadata?.work_item_type ||
+      task.metadata?.type ||
+      task.type ||
+      'task'
+    ).toLowerCase();
     return ISSUE_TYPE_CONFIG[type] || ISSUE_TYPE_CONFIG.task;
   };
 
   const issueType = getIssueType();
+
+  // Get current active stage info for the stage info banner
+  const getCurrentStageInfo = () => {
+    const currentStageLower = task.stage?.toLowerCase();
+    // Find the stage in pipeline stages that matches current task stage
+    const matchingStage = pipelineStages.find(s =>
+      s.stage === currentStageLower ||
+      s.id === currentStageLower ||
+      (currentStageLower === 'build' && s.stage === 'implement') ||
+      (currentStageLower === 'implement' && s.stage === 'build')
+    );
+    return matchingStage || pipelineStages[0];
+  };
+
+  const currentStageInfo = getCurrentStageInfo();
 
   const formatTimeAgo = (dateString) => {
     if (!dateString) return 'N/A';
@@ -611,39 +635,48 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                 </div>
               </div>
 
-              {/* STAGE INFO BANNER */}
-              {selectedStage && (
-                <div className="stage-info-banner">
-                  <div className="stage-info-icon">
-                    {pipelineStages.find((s) => s.id === selectedStage)?.icon}
+              {/* STAGE INFO BANNER - Always show current stage */}
+              <div className="stage-info-banner">
+                <div className="stage-info-icon">
+                  {selectedStage
+                    ? pipelineStages.find((s) => s.id === selectedStage)?.icon
+                    : currentStageInfo?.icon || '📋'}
+                </div>
+                <div className="stage-info-content">
+                  <div className="stage-info-name">
+                    {selectedStage
+                      ? pipelineStages.find((s) => s.id === selectedStage)?.name + ' STAGE'
+                      : (currentStageInfo?.name || task.stage?.toUpperCase()) + ' STAGE'}
                   </div>
-                  <div className="stage-info-content">
-                    <div className="stage-info-name">
-                      {pipelineStages.find((s) => s.id === selectedStage)?.name}
-                    </div>
-                    <div className="stage-info-status">
-                      {getStageStatus(selectedStage) === 'completed'
+                  <div className="stage-info-status">
+                    {selectedStage
+                      ? getStageStatus(selectedStage) === 'completed'
                         ? 'COMPLETED'
                         : getStageStatus(selectedStage) === 'active'
                         ? 'IN PROGRESS'
-                        : 'PENDING'}
-                    </div>
-                    <div className="stage-info-progress">
-                      <div
-                        className="stage-info-progress-fill"
-                        style={{
-                          width:
-                            getStageStatus(selectedStage) === 'completed'
-                              ? '100%'
-                              : getStageStatus(selectedStage) === 'active'
-                              ? '50%'
-                              : '0%'
-                        }}
-                      ></div>
-                    </div>
+                        : 'PENDING'
+                      : getStageStatus(currentStageInfo?.id) === 'completed'
+                      ? 'COMPLETED'
+                      : 'IN PROGRESS'}
+                  </div>
+                  <div className="stage-info-progress">
+                    <div
+                      className="stage-info-progress-fill"
+                      style={{
+                        width: selectedStage
+                          ? getStageStatus(selectedStage) === 'completed'
+                            ? '100%'
+                            : getStageStatus(selectedStage) === 'active'
+                            ? '50%'
+                            : '0%'
+                          : getStageStatus(currentStageInfo?.id) === 'completed'
+                          ? '100%'
+                          : '50%'
+                      }}
+                    ></div>
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* LOGS PANEL */}
               <div className="logs-panel">

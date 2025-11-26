@@ -228,6 +228,7 @@
   flex-direction: column;
   overflow-y: auto;
   background: #fafafa;
+  height: 100%;
 }
 
 /* Section structure */
@@ -265,9 +266,10 @@
   letter-spacing: 0.5px;
 }
 
-/* Compact Info Section */
+/* Compact Info Section - Fixed height at top */
 .compact-info-section {
   background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  flex-shrink: 0;
 }
 
 .compact-info-grid {
@@ -332,9 +334,14 @@
   border-color: #b45309;
 }
 
-/* Description Section */
+/* Description Section - Expands to fill available space */
 .description-section {
   background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .description-content {
@@ -343,13 +350,16 @@
   padding: 12px;
   font-size: 11px;
   line-height: 1.6;
-  max-height: 300px;
+  flex: 1;
   overflow-y: auto;
+  min-height: 100px;
 }
 
-/* ADW Metadata Section */
+/* ADW Metadata Section - Always stays at bottom */
 .metadata-section {
   background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 .metadata-grid {
