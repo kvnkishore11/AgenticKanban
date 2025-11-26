@@ -3,6 +3,7 @@
 
 /* Brutalist Theme Import */
 @import './styles/brutalist-theme.css';
+@import './styles/brutalist-modal.css';
 
 /* TipTap WYSIWYG Editor Styles */
 .ProseMirror {

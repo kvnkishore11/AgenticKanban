@@ -1,8 +1,9 @@
 /**
- * @fileoverview Card Expand Modal Component
+ * @fileoverview Card Expand Modal Component - Brutalist Design
  *
- * Displays a large modal (70% width x 90% height) with comprehensive
- * card information including workflow status, logs, metadata, and actions.
+ * Displays a large brutalist-styled modal (1200px max-width x 90vh) with:
+ * - Left sidebar: Compact info, description, ADW metadata
+ * - Right panel: Pipeline stages, stage info banner, logs panel
  *
  * @module components/kanban/CardExpandModal
  */
@@ -11,26 +12,20 @@ import { useEffect, useState } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import {
   X,
-  Clock,
-  Play,
-  CheckCircle,
-  AlertCircle,
   Edit,
-  FileText,
-  GitMerge,
-  Eye,
   Copy,
-  GitPullRequest,
-  Activity,
-  ExternalLink,
   ArrowLeft,
-  RefreshCw
+  RefreshCw,
+  Eye,
+  ExternalLink,
+  Play,
+  GitMerge,
+  CheckCircle
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
 import MDEditor from '@uiw/react-md-editor';
+import ReactMarkdown from 'react-markdown';
 import StageLogsViewer from './StageLogsViewer';
 import LiveLogsPanel from './LiveLogsPanel';
-import StageProgressionIndicator from './StageProgressionIndicator';
 import adwDiscoveryService from '../../services/api/adwDiscoveryService';
 import fileOperationsService from '../../services/api/fileOperationsService';
 
@@ -52,24 +47,14 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   const [planError, setPlanError] = useState(null);
   const [ideOpenLoading, setIdeOpenLoading] = useState(false);
   const [ideOpenSuccess, setIdeOpenSuccess] = useState(false);
-  const [activeLogsTab, setActiveLogsTab] = useState('live'); // 'live' or 'historical'
+  const [activeLogsTab, setActiveLogsTab] = useState('live'); // 'live' or 'all'
+  const [selectedStage, setSelectedStage] = useState(null); // For viewing stage-specific logs
 
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
   const workflowProgress = getWorkflowProgressForTask(task.id);
   const workflowMetadata = getWorkflowMetadataForTask(task.id);
-  const pipeline = getPipelineById(task.pipelineId);
   const websocketStatus = getWebSocketStatus();
-
-  console.log('[CardExpandModal] Rendering with:', {
-    taskId: task.id,
-    taskTitle: task.title,
-    adw_id: task.metadata?.adw_id,
-    workflowLogsLength: workflowLogs.length,
-    websocketConnected: websocketStatus.connected,
-    hasMetadata: !!workflowMetadata,
-    logs: workflowLogs
-  });
 
   // Handle escape key to close modal
   useEffect(() => {
@@ -81,7 +66,6 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
 
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
-      // Prevent body scroll when modal is open
       document.body.style.overflow = 'hidden';
     }
 
@@ -91,22 +75,17 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
     };
   }, [isOpen, onClose]);
 
-  // Format dynamic pipeline names for display
-  const formatPipelineName = (pipelineId) => {
-    if (!pipelineId) return 'Unknown Pipeline';
-
-    if (pipelineId.startsWith('adw_')) {
-      const stageNames = pipelineId.replace('adw_', '').split('_');
-      const capitalizedStages = stageNames.map(stage =>
-        stage.charAt(0).toUpperCase() + stage.slice(1)
-      );
-      return `ADW: ${capitalizedStages.join(' → ')}`;
-    }
-
-    return pipeline?.name || pipelineId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  };
+  // Pipeline stages configuration
+  const pipelineStages = [
+    { id: 'plan', name: 'PLAN', icon: '📋', stage: 'plan' },
+    { id: 'implement', name: 'IMPL', icon: '🔨', stage: 'build' },
+    { id: 'test', name: 'TEST', icon: '🧪', stage: 'test' },
+    { id: 'review', name: 'REV', icon: '👀', stage: 'review' },
+    { id: 'document', name: 'DOC', icon: '📄', stage: 'document' }
+  ];
 
   const formatTimeAgo = (dateString) => {
+    if (!dateString) return 'N/A';
     const now = new Date();
     const date = new Date(dateString);
     const diffInMinutes = Math.floor((now - date) / (1000 * 60));
@@ -119,6 +98,34 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
 
     const diffInDays = Math.floor(diffInHours / 24);
     return `${diffInDays}d ago`;
+  };
+
+  const getStageStatus = (stageId) => {
+    const stageMapping = {
+      plan: 'plan',
+      implement: 'build',
+      test: 'test',
+      review: 'review',
+      document: 'document'
+    };
+
+    const mappedStage = stageMapping[stageId];
+    const currentStage = task.stage;
+
+    const stageOrder = ['plan', 'build', 'test', 'review', 'document', 'ready-to-merge'];
+    const currentIndex = stageOrder.indexOf(currentStage);
+    const stageIndex = stageOrder.indexOf(mappedStage);
+
+    if (currentIndex > stageIndex) return 'completed';
+    if (currentIndex === stageIndex) return 'active';
+    return 'pending';
+  };
+
+  const calculateProgress = () => {
+    const stageOrder = ['backlog', 'plan', 'build', 'test', 'review', 'document', 'ready-to-merge'];
+    const currentIndex = stageOrder.indexOf(task.stage);
+    const progress = ((currentIndex + 1) / stageOrder.length) * 100;
+    return Math.min(Math.max(progress, 0), 100);
   };
 
   const handleTriggerWorkflow = async () => {
@@ -185,11 +192,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
     setIdeOpenSuccess(false);
 
     try {
-      // The plan file path is relative to the project root
-      // The backend server runs from the server/ directory, so we need to prepend ../
       const serverRelativePath = `../${planFile}`;
-
-      // Validate the file path and get the absolute path
       const validation = await fileOperationsService.validateFilePath(serverRelativePath);
 
       if (!validation.exists) {
@@ -199,13 +202,10 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
       }
 
       const absolutePath = validation.absolute_path;
-
-      // Open the file in IDE
       const result = await fileOperationsService.openFileInIde(absolutePath, 1);
 
       if (result.success) {
         setIdeOpenSuccess(true);
-        // Reset success indicator after 2 seconds
         setTimeout(() => setIdeOpenSuccess(false), 2000);
       }
     } catch (error) {
@@ -222,545 +222,552 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
 
   const isReadyToMerge = task.stage === 'ready-to-merge';
 
-  // Don't render if not open
   if (!isOpen) return null;
 
   return (
-    <>
-      {/* Modal Overlay */}
+    <div
+      className="brutalist-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay"
-        onClick={onClose}
-        style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+        className="brutalist-modal-container"
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Modal Container */}
-        <div
-          className="card-expand-modal bg-white rounded-lg shadow-2xl flex flex-col"
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            width: '70vw',
-            height: '90vh',
-            maxWidth: '1400px',
-            zIndex: 51
-          }}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between p-2 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg">
-            <div className="flex items-center space-x-2 flex-1 min-w-0">
-              {viewMode === 'plan' ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleBackToDetails}
-                    className="p-1.5 hover:bg-blue-100 rounded transition-colors"
-                    title="Back to Details"
-                  >
-                    <ArrowLeft className="h-5 w-5 text-blue-600" />
-                  </button>
-                  <FileText className="h-5 w-5 text-purple-600 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-base font-semibold text-gray-800 truncate">
-                      Implementation Plan
-                    </h2>
-                    <div className="flex items-center space-x-2 text-xs text-gray-600">
-                      <span className="font-mono">{task.metadata?.adw_id || workflowMetadata?.adw_id}</span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <Activity className="h-5 w-5 text-blue-600 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-base font-semibold text-gray-800 truncate">
-                      {task.title}
-                    </h2>
-                    <div className="flex items-center space-x-2 text-xs text-gray-600">
-                      <span>{task.id}</span>
-                      {task.metadata?.adw_id && (
-                        <>
-                          <span>•</span>
-                          <span className="font-mono">{task.metadata.adw_id}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="flex items-center space-x-2">
-              {/* Copy Plan Button - only in plan view */}
-              {viewMode === 'plan' && planContent && !planLoading && (
-                <button
-                  type="button"
-                  onClick={handleCopyPlan}
-                  className="p-2 hover:bg-gray-200 rounded transition-colors"
-                  title="Copy Plan to Clipboard"
-                >
-                  <Copy className="h-4 w-4 text-gray-600" />
-                </button>
-              )}
-
-              {/* Edit Button - only in details view */}
-              {viewMode === 'details' && onEdit && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onEdit(task);
-                    onClose();
-                  }}
-                  className="p-2 hover:bg-gray-200 rounded transition-colors"
-                  title="Edit Task"
-                >
-                  <Edit className="h-4 w-4 text-gray-600" />
-                </button>
-              )}
-
-              {/* Close Button */}
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-2 hover:bg-gray-200 rounded transition-colors"
-                title="Close"
-              >
-                <X className="h-4 w-4 text-gray-600" />
-              </button>
-            </div>
-          </div>
-
-          {/* Content - Scrollable */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {/* Plan View Content */}
+        {/* HEADER */}
+        <div className="brutalist-modal-header">
+          <div className="brutalist-modal-header-left">
             {viewMode === 'plan' ? (
-              <div className="h-full">
-                {planLoading ? (
-                  <div className="flex items-center justify-center h-64">
-                    <div className="text-center">
-                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-                      <p className="mt-4 text-gray-600">Loading plan...</p>
-                    </div>
+              <>
+                <button
+                  type="button"
+                  onClick={handleBackToDetails}
+                  className="brutalist-header-btn"
+                  title="Back to Details"
+                >
+                  <ArrowLeft size={18} />
+                </button>
+                <div className="brutalist-modal-icon icon-gradient-purple">
+                  📄
+                </div>
+                <div className="brutalist-modal-title-group">
+                  <div className="brutalist-modal-title">IMPLEMENTATION PLAN</div>
+                  <div className="brutalist-modal-subtitle">
+                    <span>{task.metadata?.adw_id || workflowMetadata?.adw_id}</span>
                   </div>
-                ) : planError ? (
-                  <div className="flex items-center justify-center h-64">
-                    <div className="text-center text-red-600">
-                      <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-400" />
-                      <p className="font-semibold">Error loading plan</p>
-                      <p className="text-sm mt-2 text-gray-600">{planError}</p>
-                      <button
-                        onClick={handleViewPlan}
-                        className="mt-4 inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                      >
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Retry
-                      </button>
-                    </div>
-                  </div>
-                ) : !planContent ? (
-                  <div className="flex items-center justify-center h-64">
-                    <div className="text-center text-gray-400">
-                      <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <p>No plan content available</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                    <div data-color-mode="light" className="p-4">
-                      <MDEditor.Markdown
-                        source={planContent}
-                        style={{
-                          backgroundColor: 'white',
-                          color: '#1f2937',
-                          fontSize: '14px',
-                          lineHeight: '1.7'
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
+              </>
             ) : (
               <>
-            {/* Card Information Section */}
-            <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
-              <h3 className="text-sm font-semibold text-gray-700 flex items-center">
-                <FileText className="h-4 w-4 mr-2 text-blue-600" />
-                Card Information
-              </h3>
+                <div className="brutalist-modal-icon icon-gradient-orange">
+                  ⚡
+                </div>
+                <div className="brutalist-modal-title-group">
+                  <div className="brutalist-modal-title">{task.title}</div>
+                  <div className="brutalist-modal-subtitle">
+                    <span>#{task.id}</span>
+                    {task.metadata?.adw_id && (
+                      <>
+                        <span>•</span>
+                        <span>{task.metadata.adw_id}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
 
-              {/* Metadata Grid - All in one row */}
-              <div className="grid grid-cols-4 gap-3 text-sm">
-                <div>
-                  <label className="text-xs font-medium text-gray-500 block mb-1">Stage</label>
-                  <div className="font-medium text-gray-800 capitalize text-xs">{task.stage}</div>
+          <div className="brutalist-modal-header-actions">
+            {viewMode === 'plan' && planContent && !planLoading && (
+              <button
+                type="button"
+                onClick={handleCopyPlan}
+                className="brutalist-header-btn"
+                title="Copy Plan"
+              >
+                <Copy size={18} />
+              </button>
+            )}
+
+            {viewMode === 'details' && onEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  onEdit(task);
+                  onClose();
+                }}
+                className="brutalist-header-btn"
+                title="Edit Task"
+              >
+                <Edit size={18} />
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="brutalist-header-btn"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* BODY */}
+        {viewMode === 'plan' ? (
+          <div className="plan-view-container">
+            <div className="plan-view-content">
+              {planLoading ? (
+                <div className="plan-view-loading">
+                  <div className="plan-view-spinner"></div>
+                  <div className="plan-view-loading-text">Loading Plan...</div>
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 block mb-1">Pipeline</label>
-                  <div className="font-medium text-gray-800 text-xs truncate" title={formatPipelineName(task.pipelineId)}>{formatPipelineName(task.pipelineId)}</div>
+              ) : planError ? (
+                <div className="plan-view-error">
+                  <div className="plan-view-error-icon">⚠️</div>
+                  <div className="plan-view-error-title">Error Loading Plan</div>
+                  <div className="plan-view-error-text">{planError}</div>
+                  <button onClick={handleViewPlan} className="plan-view-retry-btn">
+                    <RefreshCw size={14} />
+                    <span>RETRY</span>
+                  </button>
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 block mb-1">Created</label>
-                  <div className="font-medium text-gray-800 text-xs">{new Date(task.createdAt).toLocaleDateString()}</div>
+              ) : !planContent ? (
+                <div className="empty-logs">
+                  <div className="empty-logs-icon">📄</div>
+                  <div className="empty-logs-text">No Plan Available</div>
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 block mb-1">Updated</label>
-                  <div className="font-medium text-gray-800 text-xs">{formatTimeAgo(task.updatedAt)}</div>
+              ) : (
+                <div data-color-mode="light">
+                  <MDEditor.Markdown
+                    source={planContent}
+                    style={{
+                      backgroundColor: 'white',
+                      color: '#1f2937',
+                      fontSize: '14px',
+                      lineHeight: '1.7'
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="brutalist-modal-body">
+            {/* LEFT SIDEBAR */}
+            <div className="brutalist-modal-sidebar">
+              {/* COMPACT INFO SECTION */}
+              <div className="brutalist-section compact-info-section">
+                <div className="compact-info-grid">
+                  <div className="compact-info-item">
+                    <div className="compact-info-label">STAGE</div>
+                    <div className="compact-info-value">{task.stage}</div>
+                  </div>
+                  <div className="compact-info-item">
+                    <div className="compact-info-label">TYPE</div>
+                    <div className="compact-info-value">
+                      {task.metadata?.issue_type || 'TASK'}
+                    </div>
+                  </div>
+                  <div className="compact-info-item">
+                    <div className="compact-info-label">CREATED</div>
+                    <div className="compact-info-value">
+                      {formatTimeAgo(task.createdAt)}
+                    </div>
+                  </div>
+                  <div className="compact-info-item">
+                    <div className="compact-info-label">UPDATED</div>
+                    <div className="compact-info-value">
+                      {formatTimeAgo(task.updatedAt)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mini Pipeline Indicator */}
+                <div className="mini-pipeline-indicator">
+                  {pipelineStages.map((stage) => (
+                    <div
+                      key={stage.id}
+                      className={`mini-stage-box ${getStageStatus(stage.id)}`}
+                      title={stage.name}
+                    >
+                      {stage.name.charAt(0)}
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Enhanced Description with Markdown Rendering */}
+              {/* DESCRIPTION SECTION */}
               {task.description && (
-                <div>
-                  <label className="text-xs font-medium text-gray-500 block mb-2">Description</label>
-                  <div className="text-sm text-gray-800 bg-white p-4 rounded border border-gray-300 prose prose-sm max-w-none">
+                <div className="brutalist-section description-section">
+                  <div className="brutalist-section-header">
+                    <div className="brutalist-section-icon icon-gradient-orange">
+                      📝
+                    </div>
+                    <div className="brutalist-section-title">DESCRIPTION</div>
+                  </div>
+                  <div className="description-content">
                     <ReactMarkdown>{task.description}</ReactMarkdown>
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Workflow Status Section */}
-            {(workflowProgress || workflowMetadata) && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-blue-800 flex items-center">
-                    <Activity className="h-4 w-4 mr-2" />
-                    Workflow Status
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    {workflowProgress?.status && (
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        workflowProgress.status === 'completed' ? 'bg-green-100 text-green-700' :
-                        workflowProgress.status === 'failed' ? 'bg-red-100 text-red-700' :
-                        workflowProgress.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {workflowProgress.status}
-                      </span>
-                    )}
-                    {/* Workflow completion badges inline */}
-                    {task.metadata?.workflow_complete && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Complete
-                      </span>
-                    )}
-                    {task.stage === 'pr' && task.metadata?.workflow_complete && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
-                        <GitPullRequest className="h-3 w-3 mr-1" />
-                        Ready
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Stage Progression Indicator */}
-                <StageProgressionIndicator
-                  currentStage={task.stage}
-                  queuedStages={task.queuedStages || []}
-                  workflowProgress={workflowProgress}
-                  workflowComplete={task.metadata?.workflow_complete}
-                  showProgressBar={true}
-                  showPercentage={false}
-                  compact={false}
-                />
-
-                {/* Inline Current Step and Message */}
-                {(workflowProgress?.currentStep || workflowProgress?.message) && (
-                  <div className="text-xs text-blue-800 bg-white px-2 py-1.5 rounded border border-blue-200">
-                    {workflowProgress?.currentStep && (
-                      <span className="font-medium">{workflowProgress.currentStep}</span>
-                    )}
-                    {workflowProgress?.currentStep && workflowProgress?.message && (
-                      <span className="mx-1">•</span>
-                    )}
-                    {workflowProgress?.message && (
-                      <span>{workflowProgress.message}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ADW Metadata Section */}
-            {(task.metadata?.adw_id || workflowMetadata?.adw_id) && (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
-                <h3 className="text-sm font-semibold text-gray-700 flex items-center">
-                  <FileText className="h-4 w-4 mr-2 text-gray-600" />
-                  ADW Metadata
-                </h3>
-
-                <div className="grid grid-cols-3 gap-2 text-sm">
-                  {/* ADW ID */}
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1">ADW ID</label>
-                    <div className="flex items-center space-x-1">
-                      <code className="flex-1 bg-white px-2 py-1 rounded border border-gray-200 text-xs font-mono truncate">
-                        {task.metadata?.adw_id || workflowMetadata?.adw_id}
-                      </code>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyToClipboard(task.metadata?.adw_id || workflowMetadata?.adw_id)}
-                        className="p-1 hover:bg-gray-200 rounded transition-colors"
-                        title="Copy ADW ID"
-                      >
-                        <Copy className="h-3 w-3 text-gray-600" />
-                      </button>
+              {/* ADW METADATA SECTION */}
+              {(task.metadata?.adw_id || workflowMetadata?.adw_id) && (
+                <div className="brutalist-section metadata-section">
+                  <div className="brutalist-section-header">
+                    <div className="brutalist-section-icon icon-gradient-purple">
+                      📁
                     </div>
+                    <div className="brutalist-section-title">ADW METADATA</div>
                   </div>
 
-                  {/* Workflow Name */}
-                  {(task.metadata?.workflow_name || workflowMetadata?.workflow_name) && (
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 block mb-1">Workflow Name</label>
-                      <div className="bg-white px-2 py-1 rounded border border-gray-200 text-xs truncate" title={task.metadata?.workflow_name || workflowMetadata?.workflow_name}>
-                        {task.metadata?.workflow_name || workflowMetadata?.workflow_name}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Status */}
-                  {(task.metadata?.workflow_status || workflowMetadata?.status) && (
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 block mb-1">Status</label>
-                      <div className="bg-white px-2 py-1 rounded border border-gray-200 text-xs truncate">
-                        {task.metadata?.workflow_status || workflowMetadata?.status}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Logs Path */}
-                  {(task.metadata?.logs_path || workflowMetadata?.logs_path) && (
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 block mb-1">Logs Path</label>
-                      <div className="bg-white px-2 py-1 rounded border border-gray-200 text-xs font-mono truncate"
-                           title={task.metadata?.logs_path || workflowMetadata?.logs_path}>
-                        {task.metadata?.logs_path || workflowMetadata?.logs_path}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Plan File Path with Open in IDE button */}
-                  {(task.metadata?.plan_file || workflowMetadata?.plan_file) && (
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 block mb-1">Plan File</label>
-                      <div className="flex items-center space-x-2">
-                        <div className="flex-1 bg-white px-2 py-1 rounded border border-gray-200 text-xs font-mono truncate"
-                             title={task.metadata?.plan_file || workflowMetadata?.plan_file}>
-                          {task.metadata?.plan_file || workflowMetadata?.plan_file}
-                        </div>
+                  <div className="metadata-grid">
+                    <div className="metadata-item">
+                      <div className="metadata-label">ADW ID</div>
+                      <div className="metadata-value">
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {task.metadata?.adw_id || workflowMetadata?.adw_id}
+                        </span>
                         <button
                           type="button"
-                          onClick={handleOpenPlanFileInIde}
-                          disabled={ideOpenLoading}
-                          className={`flex items-center justify-center space-x-1 px-2 py-1 rounded text-xs transition-colors whitespace-nowrap ${
-                            ideOpenSuccess
-                              ? 'bg-green-600 hover:bg-green-700 text-white'
-                              : 'bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white'
-                          }`}
-                          title="Open file in VS Code or Cursor"
+                          onClick={() =>
+                            handleCopyToClipboard(
+                              task.metadata?.adw_id || workflowMetadata?.adw_id
+                            )
+                          }
+                          className="metadata-copy-btn"
+                          title="Copy ADW ID"
                         >
-                          <ExternalLink className="h-3 w-3" />
-                          <span>{ideOpenLoading ? 'Opening...' : ideOpenSuccess ? 'Opened!' : 'Open in IDE'}</span>
+                          <Copy size={12} />
                         </button>
                       </div>
                     </div>
-                  )}
 
-                  {/* View Plan Button integrated in grid */}
-                  <div className="flex items-end">
-                    <button
-                      type="button"
-                      onClick={handleViewPlan}
-                      disabled={planLoading}
-                      className="flex items-center justify-center space-x-1 px-2 py-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white rounded text-xs transition-colors w-full"
-                    >
-                      <Eye className="h-3 w-3" />
-                      <span>{planLoading ? 'Loading...' : 'View Plan'}</span>
-                    </button>
+                    {(task.metadata?.workflow_status || workflowMetadata?.status) && (
+                      <div className="metadata-item">
+                        <div className="metadata-label">STATUS</div>
+                        <div className="metadata-value">
+                          {task.metadata?.workflow_status || workflowMetadata?.status}
+                        </div>
+                      </div>
+                    )}
+
+                    {(task.metadata?.plan_file || workflowMetadata?.plan_file) && (
+                      <div className="metadata-item" style={{ gridColumn: '1 / -1' }}>
+                        <div className="metadata-label">PLAN FILE</div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <div className="metadata-value" style={{ flex: 1 }}>
+                            {task.metadata?.plan_file || workflowMetadata?.plan_file}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleOpenPlanFileInIde}
+                            disabled={ideOpenLoading}
+                            className="brutalist-header-btn"
+                            style={{
+                              width: 'auto',
+                              padding: '6px 12px',
+                              fontSize: '9px',
+                              background: ideOpenSuccess ? '#10b981' : '#3b82f6'
+                            }}
+                            title="Open in IDE"
+                          >
+                            <ExternalLink size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleViewPlan}
+                    disabled={planLoading}
+                    className="view-plan-btn"
+                  >
+                    <Eye size={14} />
+                    <span>{planLoading ? 'LOADING...' : 'VIEW PLAN'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* RIGHT PANEL */}
+            <div className="brutalist-modal-right-panel">
+              {/* PIPELINE SECTION */}
+              <div className="pipeline-section">
+                <div className="pipeline-header">
+                  <div className="pipeline-title">PIPELINE STAGES</div>
+                  <div className="pipeline-status-badge">
+                    {workflowProgress?.status?.toUpperCase() || 'READY'}
                   </div>
                 </div>
-              </div>
-            )}
 
-            {/* Workflow Logs Section */}
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-              {/* Logs Header with Tabs */}
-              <div className="flex items-center justify-between p-2 bg-gray-50 border-b border-gray-200">
-                <div className="flex items-center space-x-2">
-                  <h3 className="text-sm font-semibold text-gray-700 flex items-center">
-                    <Activity className="h-4 w-4 mr-2 text-green-600" />
-                    Workflow Logs
-                  </h3>
-                  <span className="text-xs font-normal text-gray-500">
-                    ({workflowLogs.length})
-                  </span>
-
-                  {/* Tab Buttons */}
-                  <div className="flex items-center space-x-1 ml-4">
-                    <button
-                      type="button"
-                      onClick={() => setActiveLogsTab('live')}
-                      className={`px-3 py-1 text-xs rounded transition-colors ${
-                        activeLogsTab === 'live'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                      }`}
-                    >
-                      Live Logs
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveLogsTab('historical')}
-                      className={`px-3 py-1 text-xs rounded transition-colors ${
-                        activeLogsTab === 'historical'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                      }`}
-                    >
-                      All Logs
-                    </button>
+                {/* Progress Bar */}
+                <div className="brutalist-progress-bar">
+                  <div
+                    className="brutalist-progress-fill"
+                    style={{ width: `${calculateProgress()}%` }}
+                  >
+                    <div className="brutalist-progress-shimmer"></div>
+                  </div>
+                  <div className="brutalist-progress-text">
+                    {Math.round(calculateProgress())}%
                   </div>
                 </div>
 
-                {/* WebSocket Status */}
-                <div className={`text-xs px-2 py-0.5 rounded ${
-                  websocketStatus.connected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                }`}>
-                  {websocketStatus.connected ? 'Connected' : 'Disconnected'}
-                </div>
-              </div>
-
-              {/* Logs Content */}
-              <div className="p-3">
-                {activeLogsTab === 'live' ? (
-                  task.metadata?.adw_id ? (
-                    <LiveLogsPanel
-                      taskId={task.id}
-                      maxHeight="500px"
-                      autoScrollDefault={true}
-                    />
-                  ) : (
-                    <div className="text-sm text-gray-600 text-center py-8 space-y-2">
-                      <div className="font-medium">No workflow started yet</div>
-                      <div className="text-xs text-gray-500">
-                        Trigger a workflow to see live logs
+                {/* Stage Boxes */}
+                <div className="stage-boxes">
+                  {pipelineStages.map((stage) => (
+                    <div
+                      key={stage.id}
+                      className={`stage-box ${getStageStatus(stage.id)}`}
+                      onClick={() => setSelectedStage(stage.id)}
+                    >
+                      <div className="stage-box-icon">{stage.icon}</div>
+                      <div className="stage-box-name">{stage.name}</div>
+                      <div className="stage-box-time">
+                        {getStageStatus(stage.id) === 'completed'
+                          ? '✓ DONE'
+                          : getStageStatus(stage.id) === 'active'
+                          ? '▶ NOW'
+                          : '○ TODO'}
                       </div>
                     </div>
-                  )
-                ) : (
-                  task.metadata?.adw_id ? (
+                  ))}
+                </div>
+              </div>
+
+              {/* STAGE INFO BANNER */}
+              {selectedStage && (
+                <div className="stage-info-banner">
+                  <div className="stage-info-icon">
+                    {pipelineStages.find((s) => s.id === selectedStage)?.icon}
+                  </div>
+                  <div className="stage-info-content">
+                    <div className="stage-info-name">
+                      {pipelineStages.find((s) => s.id === selectedStage)?.name}
+                    </div>
+                    <div className="stage-info-status">
+                      {getStageStatus(selectedStage) === 'completed'
+                        ? 'COMPLETED'
+                        : getStageStatus(selectedStage) === 'active'
+                        ? 'IN PROGRESS'
+                        : 'PENDING'}
+                    </div>
+                    <div className="stage-info-progress">
+                      <div
+                        className="stage-info-progress-fill"
+                        style={{
+                          width:
+                            getStageStatus(selectedStage) === 'completed'
+                              ? '100%'
+                              : getStageStatus(selectedStage) === 'active'
+                              ? '50%'
+                              : '0%'
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* LOGS PANEL */}
+              <div className="logs-panel">
+                {/* Logs Header */}
+                <div className="logs-header">
+                  <div className="logs-header-left">
+                    <div className="logs-title">WORKFLOW LOGS</div>
+                    <div className="logs-count">({workflowLogs.length})</div>
+                    <div className="logs-tabs">
+                      <button
+                        type="button"
+                        onClick={() => setActiveLogsTab('live')}
+                        className={`logs-tab-btn ${
+                          activeLogsTab === 'live' ? 'active' : ''
+                        }`}
+                      >
+                        LIVE
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveLogsTab('all')}
+                        className={`logs-tab-btn ${
+                          activeLogsTab === 'all' ? 'active' : ''
+                        }`}
+                      >
+                        ALL
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    className={`connection-status ${
+                      websocketStatus.connected ? 'connected' : 'disconnected'
+                    }`}
+                  >
+                    <div
+                      className={`connection-status-dot ${
+                        websocketStatus.connected ? 'connected' : 'disconnected'
+                      }`}
+                    ></div>
+                    <span>
+                      {websocketStatus.connected ? 'CONNECTED' : 'DISCONNECTED'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Logs Toolbar */}
+                <div className="logs-toolbar">
+                  <input
+                    type="text"
+                    placeholder="SEARCH LOGS..."
+                    className="logs-search-input"
+                  />
+                  <button type="button" className="logs-toolbar-btn active">
+                    ▽ ALL
+                  </button>
+                  <button type="button" className="logs-toolbar-btn">
+                    ↓ AUTO
+                  </button>
+                  <button type="button" className="logs-toolbar-btn">
+                    ⬇
+                  </button>
+                  <button
+                    type="button"
+                    className="logs-toolbar-btn"
+                    onClick={() => clearWorkflowLogsForTask(task.id)}
+                  >
+                    🗑
+                  </button>
+                </div>
+
+                {/* Logs Container */}
+                <div className="logs-container">
+                  {activeLogsTab === 'live' ? (
+                    task.metadata?.adw_id ? (
+                      <LiveLogsPanel
+                        taskId={task.id}
+                        maxHeight="100%"
+                        autoScrollDefault={true}
+                      />
+                    ) : (
+                      <div className="empty-logs">
+                        <div className="empty-logs-icon">📭</div>
+                        <div className="empty-logs-text">No Workflow Started</div>
+                        <div className="empty-logs-subtext">
+                          Trigger a workflow to see live logs
+                        </div>
+                      </div>
+                    )
+                  ) : task.metadata?.adw_id ? (
                     <div onClick={(e) => e.stopPropagation()}>
                       <StageLogsViewer
                         taskId={task.id}
                         adwId={task.metadata?.adw_id}
-                        title="All Logs"
-                        maxHeight="500px"
+                        title=""
+                        maxHeight="100%"
                         onClear={() => clearWorkflowLogsForTask(task.id)}
                         showTimestamps={true}
                         autoScroll={true}
                       />
                     </div>
                   ) : (
-                    <div className="text-sm text-gray-600 text-center py-8 space-y-2">
-                      <div className="font-medium">No logs available yet</div>
-                      <div className="text-xs text-gray-500">
+                    <div className="empty-logs">
+                      <div className="empty-logs-icon">📭</div>
+                      <div className="empty-logs-text">No Logs Available</div>
+                      <div className="empty-logs-subtext">
                         No workflow associated with this task
                       </div>
                     </div>
-                  )
-                )}
+                  )}
+                </div>
               </div>
             </div>
-
-            {/* Actions Section */}
-            <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
-              <h3 className="text-sm font-semibold text-gray-700">Actions</h3>
-
-              {/* Workflow Controls */}
-              <div className="flex flex-wrap gap-2 items-center">
-                <button
-                  type="button"
-                  onClick={handleTriggerWorkflow}
-                  disabled={!websocketStatus.connected}
-                  className={`flex items-center space-x-1 px-3 py-1.5 rounded text-xs transition-colors ${
-                    websocketStatus.connected
-                      ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
-                  title={websocketStatus.connected ? 'Trigger Workflow' : 'WebSocket Disconnected'}
-                >
-                  <Play className="h-3 w-3" />
-                  <span>Trigger Workflow</span>
-                </button>
-
-                {/* Merge Button for ready-to-merge */}
-                {isReadyToMerge && !task.metadata?.merge_completed && (
-                  <button
-                    type="button"
-                    onClick={handleMerge}
-                    className="flex items-center space-x-1 px-3 py-1.5 bg-teal-600 text-white rounded text-xs hover:bg-teal-700 transition-colors"
-                  >
-                    <GitMerge className="h-3 w-3" />
-                    <span>Merge to Main</span>
-                  </button>
-                )}
-
-                {/* Merged Status */}
-                {isReadyToMerge && task.metadata?.merge_completed && (
-                  <div className="flex items-center space-x-1 px-3 py-1.5 bg-green-50 text-green-600 rounded text-xs border border-green-200">
-                    <CheckCircle className="h-3 w-3" />
-                    <span className="font-medium">Merged</span>
-                    {task.metadata?.merge_completed_at && (
-                      <span className="text-xs">
-                        {formatTimeAgo(task.metadata.merge_completed_at)}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-            </div>
-              </>
-            )}
           </div>
+        )}
 
-          {/* Footer */}
-          <div className="flex items-center justify-end p-2 border-t border-gray-200 bg-gray-50 rounded-b-lg space-x-2">
-            {viewMode === 'plan' ? (
+        {/* FOOTER */}
+        <div className="brutalist-modal-footer">
+          {viewMode === 'plan' ? (
+            <button
+              type="button"
+              onClick={handleBackToDetails}
+              className="brutalist-footer-btn secondary"
+            >
+              BACK TO DETAILS
+            </button>
+          ) : (
+            <>
               <button
                 type="button"
-                onClick={handleBackToDetails}
-                className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded transition-colors text-sm"
+                onClick={handleTriggerWorkflow}
+                disabled={!websocketStatus.connected}
+                className="brutalist-footer-btn primary"
+                style={{
+                  opacity: websocketStatus.connected ? 1 : 0.5,
+                  cursor: websocketStatus.connected ? 'pointer' : 'not-allowed'
+                }}
               >
-                Back to Details
+                <Play size={14} />
+                <span>TRIGGER WORKFLOW</span>
               </button>
-            ) : (
-              <>
-                {onEdit && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onEdit(task);
-                      onClose();
-                    }}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors text-sm"
-                  >
-                    Edit Task
-                  </button>
-                )}
+
+              {isReadyToMerge && !task.metadata?.merge_completed && (
                 <button
                   type="button"
-                  onClick={onClose}
-                  className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded transition-colors text-sm"
+                  onClick={handleMerge}
+                  className="brutalist-footer-btn"
+                  style={{
+                    background: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
+                    color: '#fff'
+                  }}
                 >
-                  Close
+                  <GitMerge size={14} />
+                  <span>MERGE TO MAIN</span>
                 </button>
-              </>
-            )}
-          </div>
+              )}
+
+              {isReadyToMerge && task.metadata?.merge_completed && (
+                <div
+                  className="brutalist-footer-btn"
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: '#fff',
+                    cursor: 'default'
+                  }}
+                >
+                  <CheckCircle size={14} />
+                  <span>MERGED</span>
+                </div>
+              )}
+
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onEdit(task);
+                    onClose();
+                  }}
+                  className="brutalist-footer-btn primary"
+                >
+                  EDIT TASK
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="brutalist-footer-btn secondary"
+              >
+                CLOSE
+              </button>
+            </>
+          )}
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
