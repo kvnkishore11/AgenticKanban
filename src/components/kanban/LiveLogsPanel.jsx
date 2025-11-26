@@ -263,8 +263,19 @@ const LiveLogsPanel = ({ taskId, maxHeight = '500px', autoScrollDefault = true }
     <div className="bg-white overflow-hidden h-full flex flex-col">
       {/* Header Controls */}
       <div className="flex items-center justify-between p-2 bg-gray-50 border-b border-gray-200">
-        {/* Left: Connection status and log count */}
+        {/* Left: Streaming indicator, connection status and log count */}
         <div className="flex items-center space-x-2">
+          {/* Streaming Indicator */}
+          <div className="flex items-center space-x-1 text-xs text-gray-700">
+            <span>📡</span>
+            <span className="font-medium">Streaming</span>
+          </div>
+
+          {/* Log Count */}
+          <span className="text-xs text-gray-600 font-medium">
+            {filteredLogs.length} {filteredLogs.length === allLogs.length ? 'entries' : `/ ${allLogs.length} entries`}
+          </span>
+
           {/* Connection Status */}
           <div className={`flex items-center space-x-1 px-2 py-1 rounded text-xs ${
             websocketStatus.connected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
@@ -281,11 +292,6 @@ const LiveLogsPanel = ({ taskId, maxHeight = '500px', autoScrollDefault = true }
               </>
             )}
           </div>
-
-          {/* Log Count */}
-          <span className="text-xs text-gray-600 font-medium">
-            {filteredLogs.length} {filteredLogs.length === allLogs.length ? '' : `/ ${allLogs.length}`} logs
-          </span>
         </div>
 
         {/* Right: Action buttons */}

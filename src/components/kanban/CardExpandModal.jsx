@@ -637,12 +637,11 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
 
               {/* LOGS PANEL (Activity Log) */}
               <div className="logs-panel">
-                {/* Logs Header */}
+                {/* Logs Header - Title and Tabs only */}
                 <div className="logs-header">
                   <div className="logs-header-left">
                     <div className="logs-header-icon">📋</div>
                     <div className="logs-title">ACTIVITY LOG</div>
-                    <div className="logs-count">({workflowLogs.length})</div>
                     <div className="logs-tabs">
                       <button
                         type="button"
@@ -663,20 +662,6 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                         ALL
                       </button>
                     </div>
-                  </div>
-                  <div
-                    className={`connection-status ${
-                      websocketStatus.connected ? 'connected' : 'disconnected'
-                    }`}
-                  >
-                    <div
-                      className={`connection-status-dot ${
-                        websocketStatus.connected ? 'connected' : 'disconnected'
-                      }`}
-                    ></div>
-                    <span>
-                      {websocketStatus.connected ? 'CONNECTED' : 'DISCONNECTED'}
-                    </span>
                   </div>
                 </div>
 
@@ -716,30 +701,6 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                         ? workflowLogs[workflowLogs.length - 1]?.message?.slice(0, 60) || 'Processing...'
                         : 'Building implementation plan using AI agent'}
                     </div>
-                  </div>
-                </div>
-
-                {/* Logs Toolbar */}
-                <div className="logs-toolbar">
-                  <div className="logs-toolbar-left">
-                    <div className="logs-streaming-indicator">
-                      <span className="streaming-icon">📡</span>
-                      <span className="streaming-label">Streaming</span>
-                    </div>
-                    <div className="logs-entries-count">{workflowLogs.length} entries</div>
-                  </div>
-                  <div className="logs-toolbar-right">
-                    <input
-                      type="text"
-                      placeholder="Filter..."
-                      className="logs-search-input"
-                    />
-                    <button type="button" className="logs-toolbar-btn active">
-                      AUTO
-                    </button>
-                    <button type="button" className="logs-toolbar-btn">
-                      ⬇
-                    </button>
                   </div>
                 </div>
 
