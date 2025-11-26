@@ -209,8 +209,8 @@ const KanbanCard = ({ task, onEdit }) => {
 
         {/* Compact Meta Row - All in one line */}
         <div className="brutalist-task-meta-row">
-          {workflowProgress?.currentStep && (
-            <span className="brutalist-meta-badge status">⚡ {workflowProgress.currentStep.toUpperCase().slice(0, 4)}</span>
+          {workflowLogs && workflowLogs.length > 0 && (
+            <span className="brutalist-meta-badge status">📝 {workflowLogs.length} LOG{workflowLogs.length !== 1 ? 'S' : ''}</span>
           )}
           <span className="brutalist-meta-badge time">🕒 {formatTimeAgo(task.updatedAt)}</span>
           {isBug ? (
