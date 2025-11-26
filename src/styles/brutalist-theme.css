@@ -1,0 +1,1130 @@
+/* ========================================
+   BRUTALIST KANBAN UI THEME
+   ======================================== */
+
+/* ========================================
+   1. CSS CUSTOM PROPERTIES
+   ======================================== */
+:root {
+  /* Monospace Font Stack */
+  --font-brutalist: 'Courier New', 'Courier', Monaco, monospace;
+
+  /* Color Palette - Black & White */
+  --color-brutalist-black: #000;
+  --color-brutalist-white: #fff;
+
+  /* Border Widths */
+  --border-thin: 2px;
+  --border-medium: 3px;
+  --border-thick: 4px;
+  --border-ultra: 6px;
+
+  /* Box Shadows */
+  --shadow-brutalist-hover: 3px 3px 0 #000;
+  --shadow-brutalist-menu: 4px 4px 0 rgba(0, 0, 0, 0.2);
+
+  /* Spacing */
+  --spacing-xs: 6px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 32px;
+}
+
+/* ========================================
+   2. GLOBAL BRUTALIST TYPOGRAPHY
+   ======================================== */
+body {
+  font-family: var(--font-brutalist) !important;
+  background: var(--color-brutalist-white);
+  color: var(--color-brutalist-black);
+}
+
+* {
+  font-family: var(--font-brutalist) !important;
+  border-radius: 0 !important; /* NO rounded corners anywhere */
+}
+
+/* Uppercase transforms for headers */
+h1, h2, h3, h4, h5, h6,
+.uppercase-brutalist {
+  text-transform: uppercase;
+  font-weight: bold;
+  letter-spacing: -1px;
+}
+
+/* ========================================
+   3. BRUTALIST SCROLLBARS
+   ======================================== */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-brutalist-black);
+  border: none;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #333;
+}
+
+/* ========================================
+   4. KEYFRAME ANIMATIONS
+   ======================================== */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ========================================
+   5. BRUTALIST HEADER
+   ======================================== */
+.brutalist-header {
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+  padding: var(--spacing-lg) var(--spacing-2xl);
+  border-bottom: var(--border-ultra) solid var(--color-brutalist-black);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.brutalist-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.brutalist-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xl);
+}
+
+.brutalist-project-name {
+  font-size: 28px;
+  font-weight: bold;
+  letter-spacing: -2px;
+  text-transform: uppercase;
+}
+
+.brutalist-stats {
+  display: flex;
+  gap: var(--spacing-xl);
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.brutalist-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.brutalist-stat-value {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.brutalist-search-container {
+  position: relative;
+}
+
+.brutalist-search-bar {
+  width: 280px;
+  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-sm) 36px;
+  border: var(--border-medium) solid var(--color-brutalist-white);
+  background: var(--color-brutalist-white);
+  color: var(--color-brutalist-black);
+  font-family: var(--font-brutalist);
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  outline: none;
+}
+
+.brutalist-search-bar::placeholder {
+  color: #666;
+}
+
+.brutalist-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+}
+
+.brutalist-connection-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--color-brutalist-white);
+  color: var(--color-brutalist-black);
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.brutalist-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #10b981;
+  animation: pulse 2s infinite;
+}
+
+.brutalist-status-dot.disconnected {
+  background: #ef4444;
+  animation: none;
+}
+
+.brutalist-header-right {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+  position: relative;
+}
+
+.brutalist-icon-btn {
+  background: var(--color-brutalist-white);
+  border: var(--border-medium) solid var(--color-brutalist-white);
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.1s;
+}
+
+.brutalist-icon-btn:hover {
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+}
+
+.brutalist-menu-btn {
+  background: var(--color-brutalist-white);
+  border: var(--border-medium) solid var(--color-brutalist-white);
+  width: 36px;
+  height: 36px;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brutalist-menu-btn:hover,
+.brutalist-menu-btn.active {
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+}
+
+/* ========================================
+   6. BRUTALIST DROPDOWN MENU
+   ======================================== */
+.brutalist-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 45px;
+  right: 0;
+  background: var(--color-brutalist-white);
+  border: var(--border-thick) solid var(--color-brutalist-black);
+  min-width: 220px;
+  z-index: 2000;
+  box-shadow: var(--shadow-brutalist-menu);
+}
+
+.brutalist-dropdown-menu.active {
+  display: block;
+}
+
+.brutalist-dropdown-item {
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-bottom: var(--border-thin) solid var(--color-brutalist-black);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-brutalist-black);
+  transition: all 0.1s;
+}
+
+.brutalist-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.brutalist-dropdown-item:hover {
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+}
+
+.brutalist-dropdown-item.success:hover {
+  background: #10b981;
+}
+
+.brutalist-dropdown-item.warning:hover {
+  background: #f59e0b;
+}
+
+.brutalist-dropdown-item.danger:hover {
+  background: #ef4444;
+}
+
+/* ========================================
+   7. BRUTALIST KANBAN BOARD
+   ======================================== */
+.brutalist-board-container {
+  overflow-x: auto;
+  height: calc(100vh - 68px);
+}
+
+.brutalist-board {
+  display: flex;
+  min-width: 100%;
+  height: 100%;
+  border-bottom: var(--border-ultra) solid var(--color-brutalist-black);
+}
+
+.brutalist-column {
+  min-width: 280px;
+  max-width: 280px;
+  border-right: var(--border-ultra) solid var(--color-brutalist-black);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.brutalist-column:last-child {
+  border-right: none;
+}
+
+.brutalist-column-header {
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+  padding: 14px var(--spacing-lg);
+  font-size: 14px;
+  font-weight: bold;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: var(--border-ultra) solid var(--color-brutalist-black);
+  cursor: pointer;
+  min-height: 60px;
+  transition: background 0.1s;
+}
+
+.brutalist-column-header:hover {
+  background: #333;
+}
+
+.brutalist-column-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brutalist-column-icon {
+  font-size: 20px;
+}
+
+.brutalist-column-count {
+  font-size: 16px;
+  background: var(--color-brutalist-white);
+  color: var(--color-brutalist-black);
+  padding: 3px 10px;
+}
+
+.brutalist-column-tasks {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Column-specific colors */
+.brutalist-column.backlog .brutalist-column-header {
+  background: #6b7280;
+}
+
+.brutalist-column.plan .brutalist-column-header {
+  background: #3b82f6;
+}
+
+.brutalist-column.build .brutalist-column-header {
+  background: #f59e0b;
+}
+
+.brutalist-column.test .brutalist-column-header {
+  background: #10b981;
+}
+
+.brutalist-column.review .brutalist-column-header {
+  background: #8b5cf6;
+}
+
+.brutalist-column.document .brutalist-column-header {
+  background: #ec4899;
+}
+
+.brutalist-column.ready-to-merge .brutalist-column-header {
+  background: #14b8a6;
+}
+
+.brutalist-column.errored .brutalist-column-header {
+  background: #ef4444;
+}
+
+/* ========================================
+   8. BRUTALIST TASK CARDS
+   ======================================== */
+.brutalist-task-card {
+  background: var(--color-brutalist-white);
+  border: var(--border-thick) solid var(--color-brutalist-black);
+  cursor: pointer;
+  transition: all 0.1s;
+  position: relative;
+}
+
+.brutalist-task-card:hover {
+  transform: translate(-3px, -3px);
+  box-shadow: var(--shadow-brutalist-hover);
+}
+
+.brutalist-task-card-header {
+  padding: var(--spacing-sm) 10px;
+  border-bottom: var(--border-medium) solid var(--color-brutalist-black);
+  display: flex;
+  justify-content: space-between;
+  background: #f8f8f8;
+}
+
+.brutalist-task-number {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.brutalist-issue-num {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.brutalist-task-id {
+  font-size: 10px;
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+  padding: 3px var(--spacing-xs);
+}
+
+.brutalist-task-card-body {
+  padding: 10px;
+}
+
+.brutalist-task-title {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: var(--spacing-xs);
+  text-transform: uppercase;
+}
+
+.brutalist-pipeline-indicator {
+  display: flex;
+  gap: 3px;
+  margin-bottom: var(--spacing-xs);
+  padding: 5px;
+  background: #f0f0f0;
+  border: var(--border-thin) solid var(--color-brutalist-black);
+}
+
+.brutalist-pipeline-stage {
+  flex: 1;
+  padding: 4px 2px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: bold;
+  border: var(--border-thin) solid var(--color-brutalist-black);
+  background: var(--color-brutalist-white);
+  color: #999;
+}
+
+.brutalist-pipeline-stage.completed {
+  background: #3b82f6;
+  color: var(--color-brutalist-white);
+}
+
+.brutalist-pipeline-stage.active {
+  background: #f59e0b;
+  color: var(--color-brutalist-black);
+}
+
+.brutalist-task-description {
+  font-size: 12px;
+  line-height: 1.4;
+  margin-bottom: var(--spacing-sm);
+  color: #444;
+}
+
+.brutalist-task-meta-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding-top: var(--spacing-xs);
+  border-top: var(--border-thin) solid var(--color-brutalist-black);
+}
+
+.brutalist-task-meta-badges {
+  display: flex;
+  gap: 4px;
+}
+
+.brutalist-meta-badge {
+  background: #e0e0e0;
+  padding: 3px var(--spacing-xs);
+  border: var(--border-thin) solid var(--color-brutalist-black);
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.brutalist-meta-badge.time {
+  background: #fef3c7;
+  border-color: #f59e0b;
+}
+
+.brutalist-meta-badge.status {
+  background: #dbeafe;
+  border-color: #3b82f6;
+}
+
+.brutalist-task-labels {
+  display: flex;
+  gap: 4px;
+}
+
+.brutalist-label {
+  padding: 4px 7px;
+  font-size: 9px;
+  font-weight: bold;
+  border: var(--border-thin) solid var(--color-brutalist-black);
+  text-transform: uppercase;
+}
+
+.brutalist-label.bug {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #ef4444;
+}
+
+.brutalist-label.feature {
+  background: #dbeafe;
+  color: #1e40af;
+  border-color: #3b82f6;
+}
+
+.brutalist-live-log-preview {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: #f8f8f8;
+  border: var(--border-thin) solid var(--color-brutalist-black);
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.brutalist-live-log-preview::before {
+  content: '⚡';
+  margin-right: var(--spacing-xs);
+}
+
+.brutalist-log-preview-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  transition: opacity 0.3s;
+}
+
+.brutalist-log-preview-level {
+  font-weight: bold;
+  margin-right: 4px;
+}
+
+.brutalist-log-preview-level.info {
+  color: #3b82f6;
+}
+
+.brutalist-log-preview-level.success {
+  color: #10b981;
+}
+
+.brutalist-log-preview-level.warning {
+  color: #f59e0b;
+}
+
+.brutalist-log-preview-level.error {
+  color: #ef4444;
+}
+
+.brutalist-context-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background: #f0f0f0;
+  border-top: var(--border-thin) solid var(--color-brutalist-black);
+}
+
+.brutalist-context-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+  position: relative;
+}
+
+.brutalist-context-progress-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+.brutalist-add-task {
+  border: var(--border-medium) dashed var(--color-brutalist-black);
+  padding: var(--spacing-md);
+  text-align: center;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  cursor: pointer;
+  background: var(--color-brutalist-white);
+  transition: all 0.1s;
+}
+
+.brutalist-add-task:hover {
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+}
+
+/* ========================================
+   9. BRUTALIST MODAL
+   ======================================== */
+.brutalist-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.brutalist-modal.active {
+  display: flex;
+}
+
+.brutalist-modal-content {
+  background: var(--color-brutalist-white);
+  border: 8px solid var(--color-brutalist-black);
+  max-width: 1200px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.brutalist-modal-header {
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-bottom: var(--border-ultra) solid var(--color-brutalist-black);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.brutalist-modal-title {
+  font-size: 18px;
+  font-weight: bold;
+  text-transform: uppercase;
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.brutalist-modal-close {
+  font-size: 28px;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--border-thin) solid var(--color-brutalist-white);
+  transition: all 0.1s;
+}
+
+.brutalist-modal-close:hover {
+  background: var(--color-brutalist-white);
+  color: var(--color-brutalist-black);
+}
+
+.brutalist-modal-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.brutalist-modal-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  height: 100%;
+  overflow: hidden;
+}
+
+.brutalist-modal-left {
+  background: #f8f8f8;
+  border-right: var(--border-ultra) solid var(--color-brutalist-black);
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.brutalist-modal-right {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.brutalist-detail-section {
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-lg);
+  border-bottom: var(--border-medium) solid var(--color-brutalist-black);
+}
+
+.brutalist-detail-section:last-child {
+  border-bottom: none;
+}
+
+.brutalist-section-title {
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+  padding: 5px var(--spacing-sm);
+}
+
+.brutalist-info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-xs);
+  font-size: 10px;
+  gap: var(--spacing-sm);
+}
+
+.brutalist-info-row.description-row {
+  flex-direction: column;
+}
+
+.brutalist-info-label {
+  font-weight: bold;
+  font-size: 8px;
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+
+.brutalist-info-value {
+  font-size: 10px;
+  text-align: right;
+}
+
+.description-row .brutalist-info-value {
+  text-align: left;
+}
+
+/* ========================================
+   10. BRUTALIST PHASE NAVIGATOR
+   ======================================== */
+.brutalist-phase-navigator {
+  background: #f8f8f8;
+  border-bottom: var(--border-ultra) solid var(--color-brutalist-black);
+  padding: var(--spacing-md);
+}
+
+.brutalist-phase-nav-title {
+  font-size: 10px;
+  font-weight: bold;
+  margin-bottom: var(--spacing-sm);
+}
+
+.brutalist-phase-tabs {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.brutalist-phase-tab {
+  flex: 1;
+  background: var(--color-brutalist-white);
+  border: var(--border-medium) solid var(--color-brutalist-black);
+  padding: var(--spacing-sm) var(--spacing-xs);
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.1s;
+}
+
+.brutalist-phase-tab:hover {
+  transform: translateY(-2px);
+}
+
+.brutalist-phase-tab.active {
+  background: #3b82f6;
+  color: var(--color-brutalist-white);
+}
+
+.brutalist-phase-icon {
+  font-size: 14px;
+}
+
+.brutalist-phase-letter {
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.brutalist-phase-name {
+  font-size: 8px;
+  font-weight: bold;
+  margin: 3px 0;
+}
+
+.brutalist-phase-status {
+  font-size: 10px;
+}
+
+.brutalist-phase-status.completed {
+  color: #10b981;
+}
+
+.brutalist-phase-status.active {
+  color: #f59e0b;
+}
+
+.brutalist-phase-status.pending {
+  color: #999;
+}
+
+.brutalist-phase-tab.active .brutalist-phase-status {
+  color: var(--color-brutalist-white);
+}
+
+.brutalist-phase-content-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+}
+
+.brutalist-phase-content {
+  display: none;
+}
+
+.brutalist-phase-content.active {
+  display: block;
+}
+
+.brutalist-phase-content-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-md);
+  padding-bottom: 10px;
+  border-bottom: var(--border-medium) solid var(--color-brutalist-black);
+}
+
+.brutalist-phase-badge {
+  padding: 3px var(--spacing-sm);
+  font-size: 8px;
+  font-weight: bold;
+  border: var(--border-thin) solid var(--color-brutalist-black);
+}
+
+.brutalist-phase-badge.completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.brutalist-phase-badge.active {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.brutalist-phase-badge.pending {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+/* ========================================
+   11. BRUTALIST LOGS CONTAINER
+   ======================================== */
+.brutalist-logs-container {
+  border: var(--border-thick) solid var(--color-brutalist-black);
+  margin-top: var(--spacing-md);
+}
+
+.brutalist-logs-header {
+  background: #f8f8f8;
+  padding: var(--spacing-sm) 10px;
+  border-bottom: var(--border-medium) solid var(--color-brutalist-black);
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  font-weight: bold;
+}
+
+.brutalist-logs-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.brutalist-live-indicator {
+  width: 7px;
+  height: 7px;
+  background: #10b981;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+.brutalist-logs-body {
+  padding: 10px;
+  font-size: 10px;
+  line-height: 1.5;
+  min-height: 200px;
+  max-height: 350px;
+  overflow-y: auto;
+  background: var(--color-brutalist-white);
+}
+
+.brutalist-log-line {
+  margin-bottom: 3px;
+  animation: slideIn 0.3s ease;
+}
+
+.brutalist-log-timestamp {
+  color: #6b7280;
+  font-weight: bold;
+}
+
+.brutalist-log-level-info {
+  color: #3b82f6;
+  font-weight: bold;
+}
+
+.brutalist-log-level-success {
+  color: #10b981;
+  font-weight: bold;
+}
+
+.brutalist-log-level-warning {
+  color: #f59e0b;
+  font-weight: bold;
+}
+
+.brutalist-log-level-error {
+  color: #ef4444;
+  font-weight: bold;
+}
+
+.brutalist-logs-controls {
+  padding: var(--spacing-sm) 10px;
+  border-top: var(--border-medium) solid var(--color-brutalist-black);
+  display: flex;
+  gap: var(--spacing-xs);
+  background: #f8f8f8;
+}
+
+.brutalist-log-btn {
+  padding: 5px 10px;
+  background: var(--color-brutalist-white);
+  border: var(--border-medium) solid var(--color-brutalist-black);
+  font-family: var(--font-brutalist);
+  font-size: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.brutalist-log-btn:hover {
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+}
+
+.brutalist-log-btn.active {
+  background: #3b82f6;
+  color: var(--color-brutalist-white);
+}
+
+.brutalist-empty-logs {
+  text-align: center;
+  padding: 35px;
+  color: #9ca3af;
+}
+
+/* ========================================
+   12. BRUTALIST ACTIONS BAR
+   ======================================== */
+.brutalist-actions-bar {
+  background: #f5f5f5;
+  padding: var(--spacing-lg) 20px;
+  border-top: var(--border-ultra) solid var(--color-brutalist-black);
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.brutalist-btn {
+  padding: 10px var(--spacing-lg);
+  border: var(--border-thick) solid var(--color-brutalist-black);
+  font-family: var(--font-brutalist);
+  font-size: 10px;
+  font-weight: bold;
+  cursor: pointer;
+  background: var(--color-brutalist-white);
+  transition: all 0.1s;
+  text-transform: uppercase;
+}
+
+.brutalist-btn:hover {
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+}
+
+.brutalist-btn-primary {
+  background: #3b82f6;
+  color: var(--color-brutalist-white);
+  border-color: var(--color-brutalist-black);
+}
+
+.brutalist-btn-primary:hover {
+  background: #2563eb;
+}
+
+/* ========================================
+   13. BRUTALIST TOAST NOTIFICATIONS
+   ======================================== */
+.brutalist-toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background: var(--color-brutalist-black);
+  color: var(--color-brutalist-white);
+  padding: 14px 20px;
+  border: var(--border-thick) solid var(--color-brutalist-black);
+  font-weight: bold;
+  z-index: 3000;
+  transform: translateX(400px);
+  transition: transform 0.3s;
+  font-size: 10px;
+}
+
+.brutalist-toast.show {
+  transform: translateX(0);
+}
+
+/* ========================================
+   14. RESPONSIVE ADJUSTMENTS
+   ======================================== */
+@media (max-width: 768px) {
+  .brutalist-header {
+    padding: var(--spacing-md) var(--spacing-lg);
+  }
+
+  .brutalist-project-name {
+    font-size: 20px;
+  }
+
+  .brutalist-search-bar {
+    width: 200px;
+  }
+
+  .brutalist-column {
+    min-width: 200px;
+    max-width: 200px;
+  }
+
+  .brutalist-modal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .brutalist-modal-left {
+    border-right: none;
+    border-bottom: var(--border-ultra) solid var(--color-brutalist-black);
+  }
+}
+
+@media (max-width: 480px) {
+  .brutalist-header-left {
+    gap: var(--spacing-md);
+  }
+
+  .brutalist-stats {
+    gap: var(--spacing-md);
+  }
+
+  .brutalist-column {
+    min-width: 100%;
+  }
+
+  .brutalist-task-card {
+    border-width: var(--border-medium);
+  }
+}
