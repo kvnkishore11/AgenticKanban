@@ -9,7 +9,7 @@
  * @module components/kanban/KanbanCard
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import CardExpandModal from './CardExpandModal';
@@ -26,6 +26,28 @@ const KanbanCard = ({ task, onEdit }) => {
 
   const [showMenu, setShowMenu] = useState(false);
   const [showExpandModal, setShowExpandModal] = useState(false);
+  const menuRef = useRef(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!showMenu) return;
+
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowMenu(false);
+      }
+    };
+
+    // Add listener on next tick to avoid immediate close
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+    }, 0);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showMenu]);
 
   const websocketStatus = getWebSocketStatus();
   const workflowProgress = getWorkflowProgressForTask(task.id);
@@ -128,31 +150,33 @@ const KanbanCard = ({ task, onEdit }) => {
           <span className="brutalist-issue-num">{task.id}</span>
           <span className="brutalist-task-id">{task.metadata?.adw_id?.slice(0, 8).toUpperCase() || 'UNKNOWN'}</span>
         </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowMenu(!showMenu);
-          }}
-          className="brutalist-card-menu-btn"
-        >
-          ⋯
-        </button>
+        <div className="brutalist-menu-container" ref={menuRef}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMenu(!showMenu);
+            }}
+            className="brutalist-card-menu-btn"
+          >
+            ⋮
+          </button>
 
-        {/* Dropdown Menu */}
-        {showMenu && (
-          <div className="brutalist-card-dropdown">
-            <div className="brutalist-card-dropdown-item" onClick={(e) => { e.stopPropagation(); handleEditClick(); }}>
-              ✎ EDIT
+          {/* Dropdown Menu - positioned relative to menu button */}
+          {showMenu && (
+            <div className="brutalist-card-dropdown">
+              <div className="brutalist-card-dropdown-item" onClick={(e) => { e.stopPropagation(); handleEditClick(); }}>
+                ✎ EDIT
+              </div>
+              <div className="brutalist-card-dropdown-item" onClick={(e) => { e.stopPropagation(); handleTriggerWorkflow(); setShowMenu(false); }}>
+                ▶ TRIGGER
+              </div>
+              <div className="brutalist-card-dropdown-item danger" onClick={(e) => { e.stopPropagation(); deleteTask(task.id); setShowMenu(false); }}>
+                🗑 DELETE
+              </div>
             </div>
-            <div className="brutalist-card-dropdown-item" onClick={(e) => { e.stopPropagation(); handleTriggerWorkflow(); }}>
-              ▶ TRIGGER
-            </div>
-            <div className="brutalist-card-dropdown-item danger" onClick={(e) => { e.stopPropagation(); deleteTask(task.id); setShowMenu(false); }}>
-              🗑 DELETE
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Card Body */}
@@ -183,34 +207,32 @@ const KanbanCard = ({ task, onEdit }) => {
           </div>
         )}
 
-        {/* Meta Footer */}
-        <div className="brutalist-task-meta-footer">
-          <div className="brutalist-task-meta-badges">
-            <span className="brutalist-meta-badge time">🕒 {formatTimeAgo(task.updatedAt)}</span>
-            {workflowProgress?.currentStep && (
-              <span className="brutalist-meta-badge status">⚡ {workflowProgress.currentStep.toUpperCase().slice(0, 4)}</span>
-            )}
-          </div>
-          <div className="brutalist-task-labels">
-            {isBug ? (
-              <span className="brutalist-label bug">🐛 BUG</span>
-            ) : (
-              <span className="brutalist-label feature">✨ FEATURE</span>
-            )}
-          </div>
+        {/* Compact Meta Row - All in one line */}
+        <div className="brutalist-task-meta-row">
+          {workflowProgress?.currentStep && (
+            <span className="brutalist-meta-badge status">⚡ {workflowProgress.currentStep.toUpperCase().slice(0, 4)}</span>
+          )}
+          <span className="brutalist-meta-badge time">🕒 {formatTimeAgo(task.updatedAt)}</span>
+          {isBug ? (
+            <span className="brutalist-label bug">🐛 BUG</span>
+          ) : (
+            <span className="brutalist-label feature">✨ FEATURE</span>
+          )}
         </div>
 
-        {/* Live Log Preview */}
-        {latestLog && (
-          <div className="brutalist-live-log-preview">
-            <div className="brutalist-log-preview-text">
-              <span className={`brutalist-log-preview-level ${latestLog.level || 'info'}`}>
-                {(latestLog.level || 'INFO').toUpperCase()}
-              </span>
-              <span>{latestLog.message?.slice(0, 50) || 'Processing...'}</span>
-            </div>
+        {/* Compact Log Preview - Single line with integrated progress */}
+        <div className="brutalist-log-preview-compact">
+          <span className="brutalist-log-preview-icon">⚡</span>
+          <span className={`brutalist-log-preview-level ${latestLog?.level || 'info'}`}>
+            {(latestLog?.level || 'INFO').toUpperCase()}
+          </span>
+          <span className="brutalist-log-preview-message">
+            {latestLog?.message?.slice(0, 25) || 'Waiting for activity...'}
+          </span>
+          <div className="brutalist-log-progress-mini">
+            <div className="brutalist-log-progress-fill" style={{ width: `${Math.min((workflowLogs?.length || 0) * 10, 100)}%` }}></div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Progress Bar at Bottom */}
@@ -220,13 +242,6 @@ const KanbanCard = ({ task, onEdit }) => {
         </div>
       )}
 
-      {/* Click outside handler for menu */}
-      {showMenu && (
-        <div
-          className="brutalist-menu-backdrop"
-          onClick={(e) => { e.stopPropagation(); setShowMenu(false); }}
-        />
-      )}
 
       {/* Card Expand Modal */}
       {showExpandModal && createPortal(
