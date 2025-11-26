@@ -21,6 +21,86 @@ from adw_modules.utils import parse_json
 from adw_modules.kanban_mode import is_kanban_mode, get_kanban_output_path
 
 
+# Branch name pattern: <type>-issue-<number>-adw-<id>-<concise-name>
+# Valid types: feat, bug, chore, test, fix, refactor, docs, style, perf, ci
+# ADW ID is alphanumeric (hex or any alphanumeric), concise name is lowercase with hyphens
+BRANCH_NAME_PATTERN = re.compile(
+    r'^(feat|bug|chore|test|fix|refactor|docs|style|perf|ci)-issue-\d+-adw-[a-z0-9]+-[a-z0-9-]+$'
+)
+
+# Fallback pattern to extract branch name from LLM output that may contain reasoning
+BRANCH_NAME_EXTRACTION_PATTERN = re.compile(
+    r'((?:feat|bug|chore|test|fix|refactor|docs|style|perf|ci)-issue-\d+-adw-[a-z0-9]+-[a-z0-9-]+)'
+)
+
+
+def validate_branch_name(branch_name: str) -> bool:
+    """Validate that a branch name follows the expected format.
+
+    Args:
+        branch_name: The branch name to validate
+
+    Returns:
+        True if valid, False otherwise
+    """
+    if not branch_name:
+        return False
+    # Check basic format
+    if BRANCH_NAME_PATTERN.match(branch_name):
+        return True
+    # Also check git's basic rules: no spaces, no special chars except -, /, _
+    if ' ' in branch_name or '\n' in branch_name or len(branch_name) > 255:
+        return False
+    return False
+
+
+def extract_branch_name_from_output(output: str, logger: logging.Logger) -> Optional[str]:
+    """Extract a valid branch name from LLM output that may contain reasoning.
+
+    LLMs sometimes include thinking/reasoning before outputting the final answer.
+    This function extracts the actual branch name from such output.
+
+    Args:
+        output: The raw LLM output
+        logger: Logger instance
+
+    Returns:
+        Extracted branch name or None if not found
+    """
+    if not output:
+        return None
+
+    # First, try the output as-is (ideal case: LLM followed instructions)
+    cleaned = output.strip()
+    if validate_branch_name(cleaned):
+        return cleaned
+
+    # If output contains newlines or is too long, it likely has reasoning
+    # Try to extract the branch name using regex
+    match = BRANCH_NAME_EXTRACTION_PATTERN.search(output)
+    if match:
+        extracted = match.group(1)
+        logger.warning(
+            f"LLM output contained extra text. Extracted branch name: {extracted}"
+        )
+        return extracted
+
+    # Last resort: check each line
+    for line in output.strip().split('\n'):
+        line = line.strip()
+        if validate_branch_name(line):
+            logger.warning(
+                f"Found branch name on separate line: {line}"
+            )
+            return line
+
+    logger.error(
+        f"Could not extract valid branch name from output. "
+        f"Output preview: {output[:200]}..."
+    )
+    return None
+
+
 def save_workflow_output_for_kanban(
     state: ADWState,
     filename: str,
@@ -389,7 +469,18 @@ def generate_branch_name(
     if not response.success:
         return None, response.output
 
-    branch_name = response.output.strip()
+    # Extract and validate branch name from LLM output
+    # LLMs may include reasoning/thinking before the actual branch name
+    branch_name = extract_branch_name_from_output(response.output, logger)
+
+    if not branch_name:
+        # Provide helpful error with context
+        return None, (
+            f"Failed to extract valid branch name from LLM output. "
+            f"Expected format: <type>-issue-<number>-adw-<id>-<concise-name>. "
+            f"Raw output: {response.output[:500]}"
+        )
+
     logger.info(f"Generated branch name: {branch_name}")
     return branch_name, None
 

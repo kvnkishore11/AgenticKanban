@@ -58,13 +58,10 @@ This command sets up an isolated worktree environment with custom port configura
 
 6. **Install frontend dependencies**
    ```bash
-   cd .. && bun install
+   cd .. && npm install
    ```
 
-7. **Setup database**
-   ```bash
-   cd .. && ./scripts/reset_db.sh
-   ```
+
 
 ## Error Handling
 - If parent .env files don't exist, create minimal versions from .env.sample files

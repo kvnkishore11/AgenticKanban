@@ -2,9 +2,14 @@
 
 ## Overview
 
-The `agents/` directory is the heart of the ADW (AI Developer Workflow) system, providing complete workflow execution history and real-time monitoring capabilities through the filesystem. This guide explains how to leverage this directory structure for debugging, monitoring, and building integrations.
+The `agents/` directory is the heart of the ADW (AI Developer Workflow) system,
+providing complete workflow execution history and real-time monitoring
+capabilities through the filesystem. This guide explains how to leverage this
+directory structure for debugging, monitoring, and building integrations.
 
-**Key Insight**: The agents directory is the **primary source of truth** for workflow state. WebSocket notifications are an optional convenience layer built on top of this filesystem-based architecture.
+**Key Insight**: The agents directory is the **primary source of truth** for
+workflow state. WebSocket notifications are an optional convenience layer built
+on top of this filesystem-based architecture.
 
 ## Table of Contents
 
@@ -21,7 +26,8 @@ The `agents/` directory is the heart of the ADW (AI Developer Workflow) system, 
 
 ### Overview
 
-Each ADW workflow creates an isolated directory structure under `agents/{adw_id}/`:
+Each ADW workflow creates an isolated directory structure under
+`agents/{adw_id}/`:
 
 ```
 agents/
@@ -66,6 +72,7 @@ The single source of truth for workflow metadata. Contains:
 ```
 
 **Use this file to**:
+
 - Get workflow status and metadata
 - Find the worktree path
 - Identify which phases have been executed
@@ -73,7 +80,8 @@ The single source of truth for workflow metadata. Contains:
 
 #### `raw_output.jsonl`
 
-Live execution logs in JSON Lines format. Each line is a complete JSON object representing one event:
+Live execution logs in JSON Lines format. Each line is a complete JSON object
+representing one event:
 
 ```jsonl
 {"type":"system","subtype":"init","cwd":"/path","session_id":"...","tools":[...],...}
@@ -83,6 +91,7 @@ Live execution logs in JSON Lines format. Each line is a complete JSON object re
 ```
 
 **Use this file to**:
+
 - Monitor live execution in real-time
 - Debug tool usage and results
 - Track what the AI agent is doing
@@ -92,16 +101,20 @@ Live execution logs in JSON Lines format. Each line is a complete JSON object re
 
 ### What is JSONL?
 
-JSONL (JSON Lines) is a format where each line is a complete, valid JSON object. This enables:
+JSONL (JSON Lines) is a format where each line is a complete, valid JSON object.
+This enables:
 
 1. **Streaming**: Lines can be read as they're written (live monitoring)
-2. **Incremental parsing**: Process one event at a time without loading entire file
+2. **Incremental parsing**: Process one event at a time without loading entire
+   file
 3. **Fault tolerance**: Corruption of one line doesn't affect others
-4. **Simple tooling**: Standard Unix tools like `tail`, `grep`, `jq` work perfectly
+4. **Simple tooling**: Standard Unix tools like `tail`, `grep`, `jq` work
+   perfectly
 
 ### Event Types in raw_output.jsonl
 
 #### System Init
+
 ```json
 {
   "type": "system",
@@ -114,32 +127,37 @@ JSONL (JSON Lines) is a format where each line is a complete, valid JSON object.
 ```
 
 #### Assistant Messages
+
 ```json
 {
   "type": "assistant",
   "message": {
     "role": "assistant",
-    "content": [{"type": "text", "text": "I'll help you with that..."}]
+    "content": [{ "type": "text", "text": "I'll help you with that..." }]
   }
 }
 ```
 
 #### Tool Use
+
 ```json
 {
   "type": "assistant",
   "message": {
-    "content": [{
-      "type": "tool_use",
-      "id": "toolu_xxx",
-      "name": "Read",
-      "input": {"file_path": "/path/to/file"}
-    }]
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_xxx",
+        "name": "Read",
+        "input": { "file_path": "/path/to/file" }
+      }
+    ]
   }
 }
 ```
 
 #### Tool Results
+
 ```json
 {
   "type": "tool_result",
@@ -236,6 +254,7 @@ tail_jsonl('agents/7b25b54d/sdlc_planner/raw_output.jsonl', on_event)
 **How it works**: Directly read files from the `agents/` directory.
 
 **Pros**:
+
 - ✅ Simple - no server required
 - ✅ Reliable - filesystem is always available
 - ✅ Persistent - full execution history preserved
@@ -244,11 +263,13 @@ tail_jsonl('agents/7b25b54d/sdlc_planner/raw_output.jsonl', on_event)
 - ✅ Standard tools - `tail`, `grep`, `jq`, etc.
 
 **Cons**:
+
 - ❌ Polling required for real-time updates
 - ❌ No push notifications
 - ❌ Slightly higher latency for updates
 
 **Best for**:
+
 - Debugging workflow issues
 - Historical analysis
 - Simple monitoring scripts
@@ -258,21 +279,25 @@ tail_jsonl('agents/7b25b54d/sdlc_planner/raw_output.jsonl', on_event)
 
 ### WebSocket Approach (Secondary)
 
-**How it works**: Workflows POST updates to WebSocket server → Server broadcasts to connected clients.
+**How it works**: Workflows POST updates to WebSocket server → Server broadcasts
+to connected clients.
 
 **Architecture**:
+
 ```
 Workflow Process → HTTP POST → WebSocket Server → Broadcast → Connected Clients
                    (localhost:8500/api/workflow-updates)
 ```
 
 **Pros**:
+
 - ✅ Real-time push notifications
 - ✅ Supports multiple concurrent clients
 - ✅ Lower latency for updates
 - ✅ Efficient for dashboards
 
 **Cons**:
+
 - ❌ Requires WebSocket server running
 - ❌ More complex setup
 - ❌ Transient (no persistence)
@@ -280,6 +305,7 @@ Workflow Process → HTTP POST → WebSocket Server → Broadcast → Connected 
 - ❌ Can miss updates if disconnected
 
 **Best for**:
+
 - Live dashboards
 - Frontend applications
 - Multi-client scenarios
@@ -475,37 +501,39 @@ ws://localhost:8500/ws/trigger
 
 ```javascript
 // Connect to WebSocket
-const ws = new WebSocket('ws://localhost:8500/ws/trigger');
+const ws = new WebSocket("ws://localhost:8500/ws/trigger");
 
 // Handle connection events
 ws.onopen = () => {
-  console.log('Connected to ADW WebSocket');
+  console.log("Connected to ADW WebSocket");
 
   // Optional: Register session for deduplication
-  ws.send(JSON.stringify({
-    type: 'register_session',
-    data: {
-      session_id: 'unique-client-id',
-      client_info: {
-        user_agent: navigator.userAgent,
-        page: window.location.href
-      }
-    }
-  }));
+  ws.send(
+    JSON.stringify({
+      type: "register_session",
+      data: {
+        session_id: "unique-client-id",
+        client_info: {
+          user_agent: navigator.userAgent,
+          page: window.location.href,
+        },
+      },
+    })
+  );
 };
 
 // Handle incoming messages
 ws.onmessage = (event) => {
   const message = JSON.parse(event.data);
 
-  switch(message.type) {
-    case 'status_update':
+  switch (message.type) {
+    case "status_update":
       handleStatusUpdate(message.data);
       break;
-    case 'workflow_log':
+    case "workflow_log":
       handleWorkflowLog(message.data);
       break;
-    case 'error':
+    case "error":
       handleError(message.data);
       break;
   }
@@ -579,21 +607,23 @@ asyncio.run(monitor_workflows())
 
 ```javascript
 // Trigger a workflow
-ws.send(JSON.stringify({
-  type: 'trigger_workflow',
-  data: {
-    workflow_type: 'adw_plan_iso',
-    issue_number: '42',
-    model_set: 'base',
-    issue_type: 'feature'  // or 'bug', 'chore', 'patch'
-  }
-}));
+ws.send(
+  JSON.stringify({
+    type: "trigger_workflow",
+    data: {
+      workflow_type: "adw_plan_iso",
+      issue_number: "42",
+      model_set: "base",
+      issue_type: "feature", // or 'bug', 'chore', 'patch'
+    },
+  })
+);
 
 // Handle response
 ws.onmessage = (event) => {
   const message = JSON.parse(event.data);
 
-  if (message.type === 'trigger_response') {
+  if (message.type === "trigger_response") {
     const response = message.data;
     console.log(`Workflow triggered: ${response.adw_id}`);
     console.log(`Status: ${response.status}`);
@@ -645,10 +675,10 @@ class WorkflowMonitor {
   }
 
   connectWebSocket() {
-    this.ws = new WebSocket('ws://localhost:8500/ws/trigger');
+    this.ws = new WebSocket("ws://localhost:8500/ws/trigger");
 
     this.ws.onopen = () => {
-      console.log('WebSocket connected');
+      console.log("WebSocket connected");
       // Sync with filesystem on connect
       this.checkFilesystem();
     };
@@ -661,11 +691,11 @@ class WorkflowMonitor {
     };
 
     this.ws.onerror = () => {
-      console.log('WebSocket error, falling back to filesystem');
+      console.log("WebSocket error, falling back to filesystem");
     };
 
     this.ws.onclose = () => {
-      console.log('WebSocket closed, reconnecting...');
+      console.log("WebSocket closed, reconnecting...");
       this.reconnectTimer = setTimeout(() => {
         this.connectWebSocket();
       }, 5000);
@@ -675,7 +705,7 @@ class WorkflowMonitor {
   async checkFilesystem() {
     // Read adw_state.json via HTTP API or file read
     const state = await fetch(`http://localhost:8500/api/adws/${this.adwId}`)
-      .then(r => r.json())
+      .then((r) => r.json())
       .catch(() => null);
 
     if (state) {
@@ -685,12 +715,12 @@ class WorkflowMonitor {
 
   handleUpdate(message) {
     // Handle real-time WebSocket update
-    console.log('Real-time update:', message);
+    console.log("Real-time update:", message);
   }
 
   handleFilesystemState(state) {
     // Handle filesystem state
-    console.log('Filesystem state:', state);
+    console.log("Filesystem state:", state);
   }
 
   stop() {
@@ -701,7 +731,7 @@ class WorkflowMonitor {
 }
 
 // Usage
-const monitor = new WorkflowMonitor('7b25b54d');
+const monitor = new WorkflowMonitor("7b25b54d");
 monitor.start();
 ```
 
@@ -748,7 +778,8 @@ cat agents/7b25b54d/sdlc_implementor/raw_output.jsonl | \
   jq 'select(.error != null or (.message.content[]?.text? | contains("error")))'
 ```
 
-**Why filesystem**: Complete history available, can search/filter, no dependencies.
+**Why filesystem**: Complete history available, can search/filter, no
+dependencies.
 
 ### Use Case 3: Monitor Live Execution
 
@@ -769,7 +800,8 @@ tail -f agents/7b25b54d/sdlc_planner/raw_output.jsonl | \
   jq -r 'select(.type == "assistant") | .message.content[]? | select(.type == "tool_use") | "\(.name)(\(.input | keys | join(", ")))"'
 ```
 
-**Why filesystem**: Simple, works anywhere, no server required. Latency <1 second is fine for humans.
+**Why filesystem**: Simple, works anywhere, no server required. Latency <1
+second is fine for humans.
 
 ### Use Case 4: Build a Dashboard
 
@@ -779,11 +811,11 @@ tail -f agents/7b25b54d/sdlc_planner/raw_output.jsonl | \
 
 ```javascript
 // Connect to WebSocket for live updates
-const ws = new WebSocket('ws://localhost:8500/ws/trigger');
+const ws = new WebSocket("ws://localhost:8500/ws/trigger");
 
 // Get initial list of workflows
 async function loadWorkflows() {
-  const response = await fetch('http://localhost:8500/api/adws/list');
+  const response = await fetch("http://localhost:8500/api/adws/list");
   const data = await response.json();
   return data.adws;
 }
@@ -792,7 +824,7 @@ async function loadWorkflows() {
 async function initDashboard() {
   const workflows = await loadWorkflows();
 
-  workflows.forEach(workflow => {
+  workflows.forEach((workflow) => {
     displayWorkflow(workflow);
   });
 
@@ -800,9 +832,9 @@ async function initDashboard() {
   ws.onmessage = (event) => {
     const message = JSON.parse(event.data);
 
-    if (message.type === 'status_update') {
+    if (message.type === "status_update") {
       updateWorkflowStatus(message.data);
-    } else if (message.type === 'workflow_log') {
+    } else if (message.type === "workflow_log") {
       appendWorkflowLog(message.data);
     }
   };
@@ -811,7 +843,8 @@ async function initDashboard() {
 initDashboard();
 ```
 
-**Why WebSocket**: Multiple users need real-time updates, push is more efficient than polling.
+**Why WebSocket**: Multiple users need real-time updates, push is more efficient
+than polling.
 
 ### Use Case 5: Historical Analysis
 
@@ -848,7 +881,8 @@ def analyze_tool_usage():
 analyze_tool_usage()
 ```
 
-**Why filesystem**: Historical data only exists in files, complete analysis requires all data.
+**Why filesystem**: Historical data only exists in files, complete analysis
+requires all data.
 
 ### Use Case 6: Integration with CI/CD
 
@@ -916,15 +950,18 @@ def trigger_and_wait(issue_number, workflow_type='adw_plan_build_test_iso'):
 trigger_and_wait('42', 'adw_plan_build_test_iso')
 ```
 
-**Why hybrid**: WebSocket for triggering (immediate), filesystem for status polling (reliable).
+**Why hybrid**: WebSocket for triggering (immediate), filesystem for status
+polling (reliable).
 
 ## Best Practices
 
 ### 1. Always Start with Filesystem
 
-**Rule**: Use filesystem monitoring unless you have a specific need for WebSocket.
+**Rule**: Use filesystem monitoring unless you have a specific need for
+WebSocket.
 
 **Rationale**:
+
 - Simpler implementation
 - No server dependencies
 - More reliable
@@ -932,9 +969,11 @@ trigger_and_wait('42', 'adw_plan_build_test_iso')
 
 ### 2. WebSocket is Optional
 
-**Rule**: Design your system to work without WebSocket. Treat it as an enhancement.
+**Rule**: Design your system to work without WebSocket. Treat it as an
+enhancement.
 
 **Implementation**:
+
 ```javascript
 // Good: Graceful degradation
 async function getWorkflowStatus(adwId) {
@@ -950,9 +989,11 @@ async function getWorkflowStatus(adwId) {
 
 ### 3. Use Efficient File Watching
 
-**Rule**: Use filesystem notifications (inotify/fswatch) instead of polling loops.
+**Rule**: Use filesystem notifications (inotify/fswatch) instead of polling
+loops.
 
 **Bad**:
+
 ```bash
 # Wasteful polling
 while true; do
@@ -962,6 +1003,7 @@ done
 ```
 
 **Good**:
+
 ```bash
 # Event-driven
 fswatch agents/7b25b54d/adw_state.json | \
@@ -975,6 +1017,7 @@ fswatch agents/7b25b54d/adw_state.json | \
 **Rule**: For large files, use streaming parsers instead of loading entire file.
 
 **Bad**:
+
 ```python
 # Loads entire file into memory
 with open('raw_output.jsonl', 'r') as f:
@@ -984,6 +1027,7 @@ with open('raw_output.jsonl', 'r') as f:
 ```
 
 **Good**:
+
 ```python
 # Streams line by line
 with open('raw_output.jsonl', 'r') as f:
@@ -997,6 +1041,7 @@ with open('raw_output.jsonl', 'r') as f:
 **Rule**: Start debugging by reading the state file to understand context.
 
 **Workflow**:
+
 ```bash
 # 1. Get overview
 cat agents/7b25b54d/adw_state.json | jq .
@@ -1032,24 +1077,26 @@ class RobustWebSocketClient {
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
-      console.log('Connected');
+      console.log("Connected");
       this.reconnectDelay = 1000;
 
       // Register session for deduplication
-      this.ws.send(JSON.stringify({
-        type: 'register_session',
-        data: {
-          session_id: this.sessionId,
-          client_info: { page: window.location.href }
-        }
-      }));
+      this.ws.send(
+        JSON.stringify({
+          type: "register_session",
+          data: {
+            session_id: this.sessionId,
+            client_info: { page: window.location.href },
+          },
+        })
+      );
 
       // Start keepalive
       this.startPing();
     };
 
     this.ws.onclose = () => {
-      console.log('Disconnected, reconnecting...');
+      console.log("Disconnected, reconnecting...");
       this.stopPing();
 
       setTimeout(() => {
@@ -1065,10 +1112,12 @@ class RobustWebSocketClient {
   startPing() {
     this.pingTimer = setInterval(() => {
       if (this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({
-          type: 'ping',
-          timestamp: new Date().toISOString()
-        }));
+        this.ws.send(
+          JSON.stringify({
+            type: "ping",
+            timestamp: new Date().toISOString(),
+          })
+        );
       }
     }, this.pingInterval);
   }
@@ -1160,6 +1209,7 @@ def monitor_workflow(adw_id):
 **Symptom**: `agents/` directory doesn't exist
 
 **Solution**:
+
 ```bash
 # Check if you're in the right directory
 pwd
@@ -1177,11 +1227,13 @@ ls agents/
 **Symptom**: File exists but has no content
 
 **Possible causes**:
+
 1. Workflow just started (hasn't written anything yet)
 2. Workflow failed during initialization
 3. File permissions issue
 
 **Solution**:
+
 ```bash
 # Check if workflow is running
 ps aux | grep claude-code
@@ -1198,6 +1250,7 @@ sleep 5 && cat agents/7b25b54d/sdlc_planner/raw_output.jsonl
 **Symptom**: `Error: connect ECONNREFUSED localhost:8500`
 
 **Solution**:
+
 ```bash
 # Check if WebSocket server is running
 curl http://localhost:8500/health
@@ -1217,6 +1270,7 @@ echo $WEBSOCKET_PORT
 **Cause**: File might be corrupted or still being written
 
 **Solution**:
+
 ```bash
 # Validate each line
 cat agents/7b25b54d/sdlc_planner/raw_output.jsonl | \
@@ -1236,6 +1290,7 @@ cat agents/7b25b54d/sdlc_planner/raw_output.jsonl | \
 **Cause**: Phase hasn't started yet or was skipped
 
 **Solution**:
+
 ```bash
 # Check which phases have run
 ls agents/7b25b54d/
@@ -1254,6 +1309,7 @@ cat agents/7b25b54d/adw_state.json | jq '.completed'
 **Cause**: Workflow might have crashed or completed
 
 **Solution**:
+
 ```bash
 # Check if workflow process is still running
 ps aux | grep "7b25b54d"
@@ -1270,6 +1326,7 @@ cat agents/7b25b54d/ops/execution.log
 **Symptom**: `Permission denied` when accessing agents directory
 
 **Solution**:
+
 ```bash
 # Check permissions
 ls -la agents/7b25b54d/
@@ -1286,21 +1343,23 @@ whoami
 
 ### Quick Reference
 
-| Task | Method | Command |
-|------|--------|---------|
-| Check status | Filesystem | `jq . agents/{id}/adw_state.json` |
-| Monitor live | Filesystem | `tail -f agents/{id}/*/raw_output.jsonl` |
-| Debug failure | Filesystem | `tail -50 agents/{id}/*/raw_output.jsonl \| jq .` |
-| Build dashboard | WebSocket | `ws://localhost:8500/ws/trigger` |
-| Historical analysis | Filesystem | Parse all JSONL files with script |
-| CI/CD integration | Hybrid | WebSocket trigger + filesystem polling |
+| Task                | Method     | Command                                           |
+| ------------------- | ---------- | ------------------------------------------------- |
+| Check status        | Filesystem | `jq . agents/{id}/adw_state.json`                 |
+| Monitor live        | Filesystem | `tail -f agents/{id}/*/raw_output.jsonl`          |
+| Debug failure       | Filesystem | `tail -50 agents/{id}/*/raw_output.jsonl \| jq .` |
+| Build dashboard     | WebSocket  | `ws://localhost:8500/ws/trigger`                  |
+| Historical analysis | Filesystem | Parse all JSONL files with script                 |
+| CI/CD integration   | Hybrid     | WebSocket trigger + filesystem polling            |
 
 ### Key Takeaways
 
 1. **Filesystem is primary**: Always available, reliable, complete history
 2. **WebSocket is secondary**: Optional layer for real-time push notifications
-3. **Use the right tool**: Filesystem for debugging/scripts, WebSocket for dashboards
-4. **JSONL is powerful**: Streaming, incremental parsing, works with standard tools
+3. **Use the right tool**: Filesystem for debugging/scripts, WebSocket for
+   dashboards
+4. **JSONL is powerful**: Streaming, incremental parsing, works with standard
+   tools
 5. **Start simple**: Use `tail -f` and `jq` before building complex solutions
 6. **Hybrid approach**: Combine both for robust production applications
 
@@ -1313,4 +1372,6 @@ whoami
 
 ---
 
-**Remember**: The simplest solution that works is the best solution. Start with filesystem monitoring and only add WebSocket complexity if you truly need real-time push notifications.
+**Remember**: The simplest solution that works is the best solution. Start with
+filesystem monitoring and only add WebSocket complexity if you truly need
+real-time push notifications.

@@ -6,24 +6,26 @@ Performance metrics for the AI Developer Workflow (ADW) system.
 
 Summary metrics across all ADW runs.
 
-| Metric            | Value         | Last Updated        |
-| ----------------- | ------------- | ------------------- |
-| Current Streak    | 5             | 2025-11-14 03:14:37 |
-| Longest Streak    | 5             | 2025-11-14 03:14:37 |
-| Total Plan Size   | 1397 lines    | 2025-11-14 03:14:37 |
-| Largest Plan Size | 713 lines     | 2025-11-14 03:14:37 |
-| Total Diff Size   | 4108 lines    | 2025-11-14 03:14:37 |
-| Largest Diff Size | 2435 lines    | 2025-11-14 03:14:37 |
-| Average Presence  | 1.00          | 2025-11-14 03:14:37 |
+| Metric            | Value         | Last Updated             |
+| ----------------- | ------------- | ------------------------ |
+| Current Streak    | 7             | Thu Nov 14 04:07:08 2025 |
+| Longest Streak    | 7             | Thu Nov 14 04:07:08 2025 |
+| Total Plan Size   | 1563 lines    | Thu Nov 14 04:07:08 2025 |
+| Largest Plan Size | 713 lines     | Thu Nov 14 04:07:08 2025 |
+| Total Diff Size   | 7202 lines    | Thu Nov 14 04:07:08 2025 |
+| Largest Diff Size | 2435 lines    | Thu Nov 14 04:07:08 2025 |
+| Average Presence  | 1.00          | Thu Nov 14 04:07:08 2025 |
 
 ## ADW KPIs
 
 Detailed metrics for individual ADW workflow runs.
 
-| Date       | ADW ID   | Issue Number | Issue Class | Attempts | Plan Size (lines) | Diff Size (Added/Removed/Files) | Created             | Updated             |
-| ---------- | -------- | ------------ | ----------- | -------- | ----------------- | ------------------------------- | ------------------- | ------------------- |
-| 2025-11-03 | 2c334efc | 26           | /bug        | 1        | 157               | 335/9/10                        | Mon Nov  3 11:29:17 | Mon Nov  3 11:29:17 |
-| 2025-11-06 | 6d3b1dfd | 58           | /feature    | 1        | 216               | 582/14/12                       | Thu Nov  6 01:12:43 | Thu Nov  6 01:12:43 |
-| 2025-11-09 | c24c81b5 | 7            | /feature    | 1        | 713               | 2383/52/22                      | Sun Nov  9 04:58:58 | Sun Nov  9 04:58:58 |
-| 2025-11-14 | 85736253 | 3            | /chore      | 1        | 122               | 201/18/9                        | 2025-11-14 01:12:35 | 2025-11-14 01:12:35 |
-| 2025-11-14 | e4d75c88 | 13           | /bug        | 1        | 189               | 478/36/17                       | 2025-11-14 03:14:37 | 2025-11-14 03:14:37 |
+| Date       | ADW ID   | Issue Number | Issue Class | Attempts | Plan Size (lines) | Diff Size (Added/Removed/Files) | Created                  | Updated                  |
+| ---------- | -------- | ------------ | ----------- | -------- | ----------------- | ------------------------------- | ------------------------ | ------------------------ |
+| 2025-11-03 | 2c334efc | 26           | /bug        | 1        | 157               | 335/9/10                        | Mon Nov  3 11:29:17 2025 | Mon Nov  3 11:29:17 2025 |
+| 2025-11-06 | 6d3b1dfd | 58           | /feature    | 1        | 216               | 582/14/12                       | Thu Nov  6 01:12:43 2025 | Thu Nov  6 01:12:43 2025 |
+| 2025-11-09 | c24c81b5 | 7            | /feature    | 1        | 713               | 2383/52/22                      | Sun Nov  9 04:58:58 2025 | Sun Nov  9 04:58:58 2025 |
+| 2025-11-09 | c0c1b38c | 9            | /chore      | 1        | 0                 | 1746/2/6                        | Sat Nov  9 05:41:46 2025 | Sat Nov  9 05:41:46 2025 |
+| 2025-11-14 | 40a3ded9 | 1            | /bug        | 1        | 174               | 802/104/16                      | Fri Nov 14 01:16:42 2025 | Fri Nov 14 01:16:42 2025 |
+| 2025-11-14 | 34000b99 | 2            | /bug        | 1        | 179               | 771/14/20                       | Fri Nov 14 01:19:44 2025 | Fri Nov 14 01:19:44 2025 |
+| 2025-11-14 | d45d5d74 | 15           | /bug        | 1        | 124               | 372/16/12                       | Thu Nov 14 04:07:08 2025 | Thu Nov 14 04:07:08 2025 |

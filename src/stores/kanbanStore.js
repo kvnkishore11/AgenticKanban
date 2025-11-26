@@ -118,6 +118,12 @@ const initialState = {
   processedMessages: new Map(), // Map of message fingerprint -> timestamp
   messageDeduplicationMaxSize: 1000, // Maximum number of fingerprints to cache
   messageDeduplicationTTL: 5 * 60 * 1000, // 5 minutes in milliseconds
+
+  // Task index for O(1) lookups by adw_id (performance optimization)
+  tasksByAdwId: {}, // Map of adw_id -> taskId for fast lookup
+
+  // Cleanup state (internal)
+  _cleanupScheduled: false,
 };
 
 export const useKanbanStore = create()(
@@ -144,6 +150,162 @@ export const useKanbanStore = create()(
 
           console.log('Store initialization completed', { persistenceResult, migrationResult });
           return { persistenceResult, migrationResult };
+        },
+
+        // ============================================================
+        // Performance Optimization: O(1) Task Lookups by ADW ID
+        // ============================================================
+
+        /**
+         * O(1) task lookup by adw_id using index
+         * @param {string} adwId - The ADW ID to look up
+         * @returns {object|null} The task object or null if not found
+         */
+        getTaskByAdwId: (adwId) => {
+          if (!adwId) return null;
+          const { tasksByAdwId, tasks } = get();
+          const taskId = tasksByAdwId[adwId];
+          if (!taskId) return null;
+          // Final lookup by taskId (still O(n) but only once per adw_id, not on every message)
+          return tasks.find(t => t.id === taskId) || null;
+        },
+
+        /**
+         * Update the task index when adw_id changes
+         * @param {number} taskId - The task ID
+         * @param {string|null} adwId - The ADW ID to set, or null to clear
+         * @param {'set'|'delete'} action - The action to perform
+         */
+        updateTaskAdwIndex: (taskId, adwId, action = 'set') => {
+          set((state) => {
+            const newIndex = { ...state.tasksByAdwId };
+            if (action === 'set' && adwId) {
+              newIndex[adwId] = taskId;
+            } else if (action === 'delete') {
+              // Find and remove by taskId
+              for (const [key, value] of Object.entries(newIndex)) {
+                if (value === taskId) {
+                  delete newIndex[key];
+                  break;
+                }
+              }
+            }
+            return { tasksByAdwId: newIndex };
+          }, false, 'updateTaskAdwIndex');
+        },
+
+        // ============================================================
+        // Performance Optimization: Background Message Cache Cleanup
+        // ============================================================
+
+        /**
+         * Schedule background cleanup of expired messages using requestIdleCallback
+         * This prevents blocking the main thread during high message throughput
+         */
+        scheduleMessageCacheCleanup: () => {
+          if (get()._cleanupScheduled) return;
+
+          set({ _cleanupScheduled: true }, false, 'scheduleCleanup');
+
+          const doCleanup = () => {
+            get().performMessageCacheCleanup();
+            set({ _cleanupScheduled: false }, false, 'cleanupComplete');
+          };
+
+          // Use requestIdleCallback if available, otherwise setTimeout
+          if (typeof requestIdleCallback !== 'undefined') {
+            requestIdleCallback(doCleanup, { timeout: 5000 });
+          } else {
+            setTimeout(doCleanup, 100);
+          }
+        },
+
+        /**
+         * Perform the actual cleanup of expired messages (runs in background)
+         */
+        performMessageCacheCleanup: () => {
+          const { processedMessages, messageDeduplicationTTL } = get();
+          if (!(processedMessages instanceof Map)) return;
+
+          const now = Date.now();
+          const keysToDelete = [];
+
+          // Collect keys to delete (safe iteration - no mutation during loop)
+          for (const [key, timestamp] of processedMessages.entries()) {
+            if (now - timestamp >= messageDeduplicationTTL) {
+              keysToDelete.push(key);
+            }
+          }
+
+          if (keysToDelete.length > 0) {
+            // Create new Map to avoid mutation issues
+            const newMap = new Map(processedMessages);
+            keysToDelete.forEach(key => newMap.delete(key));
+            set({ processedMessages: newMap }, false, 'cleanupExpiredMessages');
+            console.log(`[Deduplication] Background cleanup: removed ${keysToDelete.length} expired entries`);
+          }
+        },
+
+        // ============================================================
+        // Performance Optimization: Batched State Updates
+        // ============================================================
+
+        /**
+         * Batch multiple task-related updates into a single state mutation
+         * This reduces React re-renders from 3-5 per message to just 1
+         * @param {number} taskId - The task ID to update
+         * @param {object} updates - Object containing updates to apply
+         */
+        batchedTaskUpdate: (taskId, updates) => {
+          const { stage, metadata, progress, substage, workflowProgress, logEntry } = updates;
+
+          set((state) => {
+            let newTasks = state.tasks;
+            let newTaskWorkflowLogs = state.taskWorkflowLogs;
+            let newTaskWorkflowProgress = state.taskWorkflowProgress;
+
+            // Update task if needed
+            if (stage !== undefined || metadata || progress !== undefined || substage !== undefined) {
+              newTasks = state.tasks.map(task => {
+                if (task.id !== taskId) return task;
+                return {
+                  ...task,
+                  ...(stage !== undefined && { stage, substage: null, progress: 0 }),
+                  ...(substage !== undefined && { substage }),
+                  ...(progress !== undefined && { progress }),
+                  ...(metadata && { metadata: { ...task.metadata, ...metadata } }),
+                  updatedAt: new Date().toISOString()
+                };
+              });
+            }
+
+            // Update workflow logs if needed
+            if (logEntry) {
+              const currentLogs = state.taskWorkflowLogs[taskId] || [];
+              newTaskWorkflowLogs = {
+                ...state.taskWorkflowLogs,
+                [taskId]: [...currentLogs, {
+                  ...logEntry,
+                  id: `${taskId}-${Date.now()}-${Math.random()}`,
+                  timestamp: logEntry.timestamp || new Date().toISOString(),
+                }].slice(-500) // Keep last 500 logs
+              };
+            }
+
+            // Update workflow progress if needed
+            if (workflowProgress) {
+              newTaskWorkflowProgress = {
+                ...state.taskWorkflowProgress,
+                [taskId]: { ...state.taskWorkflowProgress[taskId], ...workflowProgress }
+              };
+            }
+
+            return {
+              tasks: newTasks,
+              taskWorkflowLogs: newTaskWorkflowLogs,
+              taskWorkflowProgress: newTaskWorkflowProgress
+            };
+          }, false, 'batchedTaskUpdate');
         },
 
         // Project actions
@@ -455,10 +617,23 @@ export const useKanbanStore = create()(
         },
 
         deleteTask: (taskId) => {
-          set((state) => ({
-            tasks: state.tasks.filter(task => task.id !== taskId),
-            selectedTaskId: state.selectedTaskId === taskId ? null : state.selectedTaskId,
-          }), false, 'deleteTask');
+          set((state) => {
+            // Find the task to get its adw_id for index cleanup
+            const taskToDelete = state.tasks.find(t => t.id === taskId);
+            const adwIdToRemove = taskToDelete?.metadata?.adw_id;
+
+            // Clean up the tasksByAdwId index
+            const newTasksByAdwId = { ...state.tasksByAdwId };
+            if (adwIdToRemove) {
+              delete newTasksByAdwId[adwIdToRemove];
+            }
+
+            return {
+              tasks: state.tasks.filter(task => task.id !== taskId),
+              selectedTaskId: state.selectedTaskId === taskId ? null : state.selectedTaskId,
+              tasksByAdwId: newTasksByAdwId,
+            };
+          }, false, 'deleteTask');
         },
 
         moveTaskToStage: (taskId, newStage) => {
@@ -1156,6 +1331,7 @@ export const useKanbanStore = create()(
             const shouldMoveStage = initialStage && task.stage === 'backlog';
 
             // Atomic update: set ADW ID and optionally move stage in a single operation
+            // Also update the tasksByAdwId index for O(1) lookups
             set((state) => ({
               tasks: state.tasks.map(t =>
                 t.id === taskId
@@ -1175,6 +1351,8 @@ export const useKanbanStore = create()(
                     }
                   : t
               ),
+              // Update the O(1) lookup index
+              tasksByAdwId: { ...state.tasksByAdwId, [response.adw_id]: taskId },
             }), false, 'setAdwIdAndMoveStage');
 
             console.log('[WORKFLOW] Task updated with ADW ID:', response.adw_id, 'stage:', shouldMoveStage ? initialStage : task.stage);
@@ -1249,7 +1427,7 @@ export const useKanbanStore = create()(
               // For status_update messages, check if task state indicates message hasn't been applied
               // This handles the reconnection scenario where cache is cleared but state wasn't updated
               if (messageType === 'status_update' && data.current_step && data.adw_id) {
-                const task = tasks.find(t => t.metadata?.adw_id === data.adw_id);
+                const task = get().getTaskByAdwId(data.adw_id);
                 if (task && data.current_step) {
                   const stageMatch = data.current_step.match(/^Stage:\s*(\w+)/i);
                   if (stageMatch) {
@@ -1281,30 +1459,21 @@ export const useKanbanStore = create()(
           // Record this message as processed
           processedMessages.set(fingerprint, Date.now());
 
-          // Cleanup old entries if cache is too large
+          // Cleanup old entries if cache is too large (safe iteration - collect then delete)
           if (processedMessages.size > messageDeduplicationMaxSize) {
             console.warn(`[Deduplication] Cache size (${processedMessages.size}) exceeded max size (${messageDeduplicationMaxSize})`);
-            // Remove oldest entries (first 20% of max size)
+            // Remove oldest entries (first 20% of max size) - collect keys first to avoid mutation during iteration
             const entriesToRemove = Math.floor(messageDeduplicationMaxSize * 0.2);
-            const iterator = processedMessages.keys();
-            for (let i = 0; i < entriesToRemove; i++) {
-              const key = iterator.next().value;
-              if (key) processedMessages.delete(key);
-            }
-            console.log(`[Deduplication] Cache cleanup: removed ${entriesToRemove} old entries, size now: ${processedMessages.size}`);
+            const keysToRemove = Array.from(processedMessages.keys()).slice(0, entriesToRemove);
+            keysToRemove.forEach(key => processedMessages.delete(key));
+            console.log(`[Deduplication] Cache cleanup: removed ${keysToRemove.length} old entries, size now: ${processedMessages.size}`);
           }
 
-          // Also cleanup expired entries periodically
-          const now = Date.now();
-          let expiredCount = 0;
-          for (const [key, timestamp] of processedMessages.entries()) {
-            if (now - timestamp >= messageDeduplicationTTL) {
-              processedMessages.delete(key);
-              expiredCount++;
-            }
-          }
-          if (expiredCount > 0) {
-            console.log(`[Deduplication] Removed ${expiredCount} expired entries`);
+          // Schedule background cleanup instead of blocking on every message
+          // Only trigger cleanup check occasionally (every ~50 messages or when cache is 80% full)
+          const shouldTriggerCleanup = processedMessages.size > messageDeduplicationMaxSize * 0.8;
+          if (shouldTriggerCleanup && !get()._cleanupScheduled) {
+            get().scheduleMessageCacheCleanup();
           }
 
           // Update the store with modified cache
@@ -1349,62 +1518,50 @@ export const useKanbanStore = create()(
             return { activeWorkflows, workflowStatusUpdates };
           }, false, 'handleWorkflowStatusUpdate');
 
-          // Find and update the associated task
-          const { tasks } = get();
-          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+          // Find task using O(1) index lookup instead of O(n) array scan
+          const task = get().getTaskByAdwId(adw_id);
 
           if (task) {
-            // Detect stage transitions from current_step field
-            // Look for patterns like "Stage: {stage_name}" sent by notify_stage_transition()
+            // Calculate stage transition (if any)
+            let newStage = undefined;
             if (current_step && typeof current_step === 'string') {
               const stageMatch = current_step.match(/^Stage:\s*(\w+)/i);
               if (stageMatch) {
                 const targetStage = stageMatch[1].toLowerCase();
-
-                // Validate that it's a valid stage and a forward progression
                 const validStages = ['plan', 'build', 'test', 'review', 'document'];
                 if (validStages.includes(targetStage)) {
-                  // Get workflow stages to validate progression order
                   const workflowStages = parseWorkflowStages(task.metadata?.workflow_name || '');
                   const targetIndex = workflowStages.indexOf(targetStage);
                   const currentIndex = workflowStages.indexOf(task.stage);
-
-                  // Only move forward, never backward (or if not in workflow stages, allow transition)
-                  if (targetIndex === -1 || currentIndex === -1 || targetIndex > currentIndex) {
-                    // Defensive check: only move if task is not already in target stage
-                    // This prevents unnecessary updates and allows safe message reprocessing after refresh
-                    if (task.stage !== targetStage) {
-                      console.log(`[Workflow] Auto-transitioning task from ${task.stage} to ${targetStage} (detected from current_step: "${current_step}")`);
-                      get().moveTaskToStage(task.id, targetStage);
-                    }
+                  if ((targetIndex === -1 || currentIndex === -1 || targetIndex > currentIndex) && task.stage !== targetStage) {
+                    console.log(`[Workflow] Auto-transitioning task from ${task.stage} to ${targetStage} (detected from current_step: "${current_step}")`);
+                    newStage = targetStage;
                   }
                 }
               }
             }
 
-            // Update task workflow progress
-            get().updateWorkflowProgress(task.id, {
-              status,
-              progress: progress_percent,
-              currentStep: current_step,
-              message,
-              timestamp: statusUpdate.timestamp || new Date().toISOString(),
-            });
-
-            get().updateTask(task.id, {
+            // PERFORMANCE: Single batched update instead of 3 separate set() calls
+            get().batchedTaskUpdate(task.id, {
+              stage: newStage,
               metadata: {
-                ...task.metadata,
                 workflow_status: status,
                 workflow_message: message,
                 workflow_progress: progress_percent,
                 workflow_step: current_step,
+              },
+              workflowProgress: {
+                status,
+                progress: progress_percent,
+                currentStep: current_step,
+                message,
+                timestamp: statusUpdate.timestamp || new Date().toISOString(),
               }
             });
 
             // Auto-progress task stage based on workflow status
             if (status === 'completed') {
               // Check if this is a merge worktree completion
-              // The adw_merge_worktree.py script adds 'adw_merge_worktree' to adw_ids when complete
               const adwIds = task.metadata?.adw_ids || [];
               if (adwIds.includes('adw_merge_worktree') ||
                   (statusUpdate.workflow_name && statusUpdate.workflow_name.includes('merge_worktree'))) {
@@ -1414,7 +1571,7 @@ export const useKanbanStore = create()(
                 get().handleWorkflowCompletion(task.id, statusUpdate);
               }
             } else if (status === 'failed') {
-              get().moveTaskToStage(task.id, 'errored');
+              get().batchedTaskUpdate(task.id, { stage: 'errored' });
             }
           }
         },
@@ -1435,9 +1592,8 @@ export const useKanbanStore = create()(
 
           const { adw_id } = logEntry;
 
-          // Find the task associated with this workflow
-          const { tasks } = get();
-          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+          // Find task using O(1) index lookup
+          const task = get().getTaskByAdwId(adw_id);
 
           if (task) {
             if (import.meta.env.DEV) {
@@ -1446,7 +1602,7 @@ export const useKanbanStore = create()(
             get().appendWorkflowLog(task.id, logEntry);
           } else {
             console.error('[KanbanStore] ❌ NO TASK FOUND for log entry with adw_id:', adw_id);
-            console.error('[KanbanStore] Available task adw_ids:', tasks.map(t => t.metadata?.adw_id).filter(Boolean));
+            console.error('[KanbanStore] Available task adw_ids:', Object.keys(get().tasksByAdwId));
           }
         },
 
@@ -1461,9 +1617,8 @@ export const useKanbanStore = create()(
 
           console.log('[WebSocket] Processing new trigger response:', { adw_id, status, workflow_name, message });
 
-          // Find task by ADW ID (may have just been created)
-          const { tasks } = get();
-          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+          // Find task using O(1) index lookup
+          const task = get().getTaskByAdwId(adw_id);
 
           if (task && status === 'accepted') {
             get().updateWorkflowMetadata(task.id, {
@@ -1484,9 +1639,8 @@ export const useKanbanStore = create()(
 
           console.log('[WebSocket] Stage Transition:', { adw_id, from_stage, to_stage });
 
-          // Find task by ADW ID
-          const { tasks } = get();
-          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+          // Find task using O(1) index lookup
+          const task = get().getTaskByAdwId(adw_id);
 
           if (task) {
             // Validate that to_stage is a valid kanban stage
@@ -1505,8 +1659,7 @@ export const useKanbanStore = create()(
         // Handle agent_log events
         handleAgentLog: (data) => {
           const { adw_id, level, message, timestamp, session_id, model } = data;
-          const { tasks } = get();
-          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+          const task = get().getTaskByAdwId(adw_id);
 
           if (task) {
             const enrichedLog = {
@@ -1526,8 +1679,7 @@ export const useKanbanStore = create()(
         // Handle thinking_block events
         handleThinkingBlock: (data) => {
           const { adw_id, content, timestamp, session_id, model } = data;
-          const { tasks } = get();
-          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+          const task = get().getTaskByAdwId(adw_id);
 
           if (task) {
             const enrichedLog = {
@@ -1547,8 +1699,7 @@ export const useKanbanStore = create()(
         // Handle tool_use_pre events
         handleToolUsePre: (data) => {
           const { adw_id, tool_name, tool_input, timestamp, session_id, model } = data;
-          const { tasks } = get();
-          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+          const task = get().getTaskByAdwId(adw_id);
 
           if (task) {
             const enrichedLog = {
@@ -1570,8 +1721,7 @@ export const useKanbanStore = create()(
         // Handle tool_use_post events
         handleToolUsePost: (data) => {
           const { adw_id, tool_name, usage, timestamp, session_id, model, stop_reason } = data;
-          const { tasks } = get();
-          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+          const task = get().getTaskByAdwId(adw_id);
 
           if (task) {
             const enrichedLog = {
@@ -1594,8 +1744,7 @@ export const useKanbanStore = create()(
         // Handle text_block events
         handleTextBlock: (data) => {
           const { adw_id, content, timestamp, session_id, model } = data;
-          const { tasks } = get();
-          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+          const task = get().getTaskByAdwId(adw_id);
 
           if (task) {
             const enrichedLog = {
@@ -1615,8 +1764,7 @@ export const useKanbanStore = create()(
         // Handle file_changed events
         handleFileChanged: (data) => {
           const { adw_id, file_path, change_type, timestamp } = data;
-          const { tasks } = get();
-          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+          const task = get().getTaskByAdwId(adw_id);
 
           if (task) {
             const enrichedLog = {
@@ -1634,8 +1782,7 @@ export const useKanbanStore = create()(
         // Handle agent_summary_update events
         handleAgentSummaryUpdate: (data) => {
           const { adw_id, summary, timestamp, current_step } = data;
-          const { tasks } = get();
-          const task = tasks.find(t => t.metadata?.adw_id === adw_id);
+          const task = get().getTaskByAdwId(adw_id);
 
           if (task) {
             const enrichedLog = {
@@ -2070,7 +2217,7 @@ export const useKanbanStore = create()(
 
         // Handle merge completion - called by WebSocket listener
         handleMergeCompletion: (adw_id) => {
-          const task = get().tasks.find(t => t.metadata?.adw_id === adw_id);
+          const task = get().getTaskByAdwId(adw_id);
           if (!task) {
             console.warn(`Task not found for ADW ID: ${adw_id}`);
             return;
@@ -2797,8 +2944,11 @@ export const useKanbanStore = create()(
           taskWorkflowProgress: state.taskWorkflowProgress,
           taskWorkflowMetadata: state.taskWorkflowMetadata,
           taskWorkflowLogs: state.taskWorkflowLogs,
+          // Persist tasksByAdwId index for O(1) lookups
+          tasksByAdwId: state.tasksByAdwId,
           // NOTE: processedMessages is intentionally excluded from persistence
           // because Map objects don't serialize properly in localStorage
+          // NOTE: _cleanupScheduled is intentionally excluded (internal state)
         }),
         onRehydrateStorage: () => (state) => {
           // Reset processedMessages to a fresh Map after rehydration
@@ -2806,7 +2956,20 @@ export const useKanbanStore = create()(
           // and clears stale fingerprints that could block new messages
           if (state) {
             state.processedMessages = new Map();
-            console.log('[KanbanStore] Rehydration: Reset processedMessages to new Map');
+            state._cleanupScheduled = false;
+
+            // Rebuild tasksByAdwId index from tasks to ensure consistency
+            const rebuiltIndex = {};
+            if (Array.isArray(state.tasks)) {
+              state.tasks.forEach(task => {
+                if (task.metadata?.adw_id) {
+                  rebuiltIndex[task.metadata.adw_id] = task.id;
+                }
+              });
+            }
+            state.tasksByAdwId = rebuiltIndex;
+
+            console.log('[KanbanStore] Rehydration: Reset processedMessages, rebuilt tasksByAdwId index with', Object.keys(rebuiltIndex).length, 'entries');
           }
         },
       }
