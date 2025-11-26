@@ -7,7 +7,7 @@
  * @module components/kanban/CardExpandModal
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import {
   X,
@@ -22,16 +22,17 @@ import {
   Copy,
   GitPullRequest,
   Activity,
-  ExternalLink
+  ExternalLink,
+  ArrowLeft,
+  RefreshCw
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import MDEditor from '@uiw/react-md-editor';
 import StageLogsViewer from './StageLogsViewer';
-import PlanViewer from './PlanViewer';
 import LiveLogsPanel from './LiveLogsPanel';
 import StageProgressionIndicator from './StageProgressionIndicator';
 import adwDiscoveryService from '../../services/api/adwDiscoveryService';
 import fileOperationsService from '../../services/api/fileOperationsService';
-import { useState } from 'react';
 
 const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   const {
@@ -45,7 +46,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
     triggerMergeWorkflow
   } = useKanbanStore();
 
-  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [viewMode, setViewMode] = useState('details'); // 'details' or 'plan'
   const [planContent, setPlanContent] = useState(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState(null);
@@ -145,7 +146,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
 
     setPlanLoading(true);
     setPlanError(null);
-    setShowPlanModal(true);
+    setViewMode('plan');
 
     try {
       const data = await adwDiscoveryService.fetchPlanFile(adwId);
@@ -155,6 +156,21 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
       setPlanError(error.message || 'Failed to load plan file');
     } finally {
       setPlanLoading(false);
+    }
+  };
+
+  const handleBackToDetails = () => {
+    setViewMode('details');
+    setPlanError(null);
+  };
+
+  const handleCopyPlan = async () => {
+    if (planContent) {
+      try {
+        await navigator.clipboard.writeText(planContent);
+      } catch (err) {
+        console.error('Failed to copy plan content:', err);
+      }
     }
   };
 
@@ -231,26 +247,62 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
           {/* Header */}
           <div className="flex items-center justify-between p-2 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg">
             <div className="flex items-center space-x-2 flex-1 min-w-0">
-              <Activity className="h-5 w-5 text-blue-600 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <h2 className="text-base font-semibold text-gray-800 truncate">
-                  {task.title}
-                </h2>
-                <div className="flex items-center space-x-2 text-xs text-gray-600">
-                  <span>{task.id}</span>
-                  {task.metadata?.adw_id && (
-                    <>
-                      <span>•</span>
-                      <span className="font-mono">{task.metadata.adw_id}</span>
-                    </>
-                  )}
-                </div>
-              </div>
+              {viewMode === 'plan' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleBackToDetails}
+                    className="p-1.5 hover:bg-blue-100 rounded transition-colors"
+                    title="Back to Details"
+                  >
+                    <ArrowLeft className="h-5 w-5 text-blue-600" />
+                  </button>
+                  <FileText className="h-5 w-5 text-purple-600 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-base font-semibold text-gray-800 truncate">
+                      Implementation Plan
+                    </h2>
+                    <div className="flex items-center space-x-2 text-xs text-gray-600">
+                      <span className="font-mono">{task.metadata?.adw_id || workflowMetadata?.adw_id}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Activity className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-base font-semibold text-gray-800 truncate">
+                      {task.title}
+                    </h2>
+                    <div className="flex items-center space-x-2 text-xs text-gray-600">
+                      <span>{task.id}</span>
+                      {task.metadata?.adw_id && (
+                        <>
+                          <span>•</span>
+                          <span className="font-mono">{task.metadata.adw_id}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="flex items-center space-x-2">
-              {/* Edit Button */}
-              {onEdit && (
+              {/* Copy Plan Button - only in plan view */}
+              {viewMode === 'plan' && planContent && !planLoading && (
+                <button
+                  type="button"
+                  onClick={handleCopyPlan}
+                  className="p-2 hover:bg-gray-200 rounded transition-colors"
+                  title="Copy Plan to Clipboard"
+                >
+                  <Copy className="h-4 w-4 text-gray-600" />
+                </button>
+              )}
+
+              {/* Edit Button - only in details view */}
+              {viewMode === 'details' && onEdit && (
                 <button
                   type="button"
                   onClick={() => {
@@ -278,6 +330,56 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
 
           {/* Content - Scrollable */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {/* Plan View Content */}
+            {viewMode === 'plan' ? (
+              <div className="h-full">
+                {planLoading ? (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                      <p className="mt-4 text-gray-600">Loading plan...</p>
+                    </div>
+                  </div>
+                ) : planError ? (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="text-center text-red-600">
+                      <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-400" />
+                      <p className="font-semibold">Error loading plan</p>
+                      <p className="text-sm mt-2 text-gray-600">{planError}</p>
+                      <button
+                        onClick={handleViewPlan}
+                        className="mt-4 inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                      >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Retry
+                      </button>
+                    </div>
+                  </div>
+                ) : !planContent ? (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="text-center text-gray-400">
+                      <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>No plan content available</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                    <div data-color-mode="light" className="p-4">
+                      <MDEditor.Markdown
+                        source={planContent}
+                        style={{
+                          backgroundColor: 'white',
+                          color: '#1f2937',
+                          fontSize: '14px',
+                          lineHeight: '1.7'
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
             {/* Card Information Section */}
             <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
               <h3 className="text-sm font-semibold text-gray-700 flex items-center">
@@ -618,48 +720,46 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
               </div>
 
             </div>
+              </>
+            )}
           </div>
 
           {/* Footer */}
           <div className="flex items-center justify-end p-2 border-t border-gray-200 bg-gray-50 rounded-b-lg space-x-2">
-            {onEdit && (
+            {viewMode === 'plan' ? (
               <button
                 type="button"
-                onClick={() => {
-                  onEdit(task);
-                  onClose();
-                }}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors text-sm"
+                onClick={handleBackToDetails}
+                className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded transition-colors text-sm"
               >
-                Edit Task
+                Back to Details
               </button>
+            ) : (
+              <>
+                {onEdit && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onEdit(task);
+                      onClose();
+                    }}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors text-sm"
+                  >
+                    Edit Task
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded transition-colors text-sm"
+                >
+                  Close
+                </button>
+              </>
             )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded transition-colors text-sm"
-            >
-              Close
-            </button>
           </div>
         </div>
       </div>
-
-      {/* Plan Viewer Modal */}
-      {showPlanModal && (
-        <PlanViewer
-          planContent={planContent}
-          adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
-          onClose={() => {
-            setShowPlanModal(false);
-            setPlanContent(null);
-            setPlanError(null);
-          }}
-          isOpen={showPlanModal}
-          isLoading={planLoading}
-          error={planError}
-        />
-      )}
     </>
   );
 };
