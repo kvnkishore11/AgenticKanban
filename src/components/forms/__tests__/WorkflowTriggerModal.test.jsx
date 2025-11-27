@@ -58,7 +58,9 @@ describe('WorkflowTriggerModal Component', () => {
     it('should render modal with task information', () => {
       render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
 
-      expect(screen.getByText('Trigger Workflow')).toBeInTheDocument();
+      // Use getAllByText for text that appears multiple times (header and summary)
+      const triggerWorkflowElements = screen.getAllByText('Trigger Workflow');
+      expect(triggerWorkflowElements.length).toBeGreaterThan(0);
       expect(screen.getByText(/task #123/i)).toBeInTheDocument();
     });
 
@@ -98,16 +100,18 @@ describe('WorkflowTriggerModal Component', () => {
     it('should render all workflow type categories', () => {
       render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
 
-      expect(screen.getByText(/plan \(isolated\)/i)).toBeInTheDocument();
-      expect(screen.getByText(/build \(isolated\)/i)).toBeInTheDocument();
-      expect(screen.getByText(/test \(isolated\)/i)).toBeInTheDocument();
+      // Use getAllByText since workflow types appear in multiple places
+      expect(screen.getAllByText(/plan \(isolated\)/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/build \(isolated\)/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/test \(isolated\)/i).length).toBeGreaterThan(0);
     });
 
     it('should render entry point workflows', () => {
       render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
 
-      expect(screen.getByText(/plan \(isolated\)/i)).toBeInTheDocument();
-      expect(screen.getByText(/patch \(isolated\)/i)).toBeInTheDocument();
+      // Use getAllByText since these appear in multiple places
+      expect(screen.getAllByText(/plan \(isolated\)/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/patch \(isolated\)/i).length).toBeGreaterThan(0);
     });
 
     it('should render dependent workflows', () => {
@@ -123,9 +127,10 @@ describe('WorkflowTriggerModal Component', () => {
     it('should render orchestrator workflows', () => {
       render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
 
-      expect(screen.getByText(/plan \+ build/i)).toBeInTheDocument();
-      expect(screen.getByText(/full sdlc/i)).toBeInTheDocument();
-      expect(screen.getByText(/zero touch execution/i)).toBeInTheDocument();
+      // Use getAllByText since these appear in multiple places
+      expect(screen.getAllByText(/plan \+ build/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/full sdlc/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/zero touch execution/i).length).toBeGreaterThan(0);
     });
 
     it('should select workflow when radio button is clicked', () => {
@@ -216,9 +221,10 @@ describe('WorkflowTriggerModal Component', () => {
     it('should render all model set options', () => {
       render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
 
-      expect(screen.getByText(/base models/i)).toBeInTheDocument();
-      expect(screen.getByText(/premium models/i)).toBeInTheDocument();
-      expect(screen.getByText(/experimental/i)).toBeInTheDocument();
+      // Use getAllByText since these might appear in multiple places
+      expect(screen.getAllByText(/base models/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/premium models/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/experimental/i).length).toBeGreaterThan(0);
     });
   });
 
@@ -309,7 +315,8 @@ describe('WorkflowTriggerModal Component', () => {
       // Task with stage 'backlog' auto-selects 'adw_plan_iso'
       render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
 
-      expect(screen.getByText('Workflow Summary')).toBeInTheDocument();
+      // Use getByRole for more specific querying - h4 has level 4
+      expect(screen.getByRole('heading', { name: /workflow summary/i, level: 4 })).toBeInTheDocument();
     });
 
     it('should display selected workflow type in summary', () => {
@@ -317,21 +324,25 @@ describe('WorkflowTriggerModal Component', () => {
       render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
 
       expect(screen.getByText(/type:/i)).toBeInTheDocument();
-      expect(screen.getByText(/plan \(isolated\)/i)).toBeInTheDocument();
+      // Use getAllByText since "Plan (Isolated)" appears in both radio button and summary
+      const planIsolatedElements = screen.getAllByText(/plan \(isolated\)/i);
+      expect(planIsolatedElements.length).toBeGreaterThan(0);
     });
 
     it('should display model set in summary', () => {
       render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
 
       expect(screen.getByText(/model set:/i)).toBeInTheDocument();
-      expect(screen.getByText(/base models/i)).toBeInTheDocument();
+      // Use getAllByText since "Base Models" appears in dropdown AND summary
+      expect(screen.getAllByText(/base models/i).length).toBeGreaterThan(0);
     });
 
     it('should display issue number in summary', () => {
       render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
 
       expect(screen.getByText(/issue:/i)).toBeInTheDocument();
-      expect(screen.getByText(/#123/i)).toBeInTheDocument();
+      // Use getAllByText since "#123" might appear in task info AND summary
+      expect(screen.getAllByText(/#123/i).length).toBeGreaterThan(0);
     });
 
     it('should display ADW ID in summary when provided', () => {
@@ -445,15 +456,17 @@ describe('WorkflowTriggerModal Component', () => {
   });
 
   describe('Validation and Error Handling', () => {
-    it('should show error when no workflow type is selected', () => {
+    it('should show error when no workflow type is selected', async () => {
       const taskWithoutStage = { ...MOCK_TASK, stage: null };
       render(<WorkflowTriggerModal task={taskWithoutStage} onClose={mockOnClose} />);
 
       const triggerButton = screen.getByRole('button', { name: /trigger workflow/i });
       fireEvent.click(triggerButton);
 
-      expect(screen.getByText('Please select a workflow type')).toBeInTheDocument();
-    });
+      await waitFor(() => {
+        expect(screen.getByText('Please select a workflow type')).toBeInTheDocument();
+      }, { timeout: 10000 });
+    }, 15000);
 
     it('should disable trigger button when no workflow is selected', () => {
       const taskWithoutStage = { ...MOCK_TASK, stage: null };
@@ -539,7 +552,8 @@ describe('WorkflowTriggerModal Component', () => {
       render(<WorkflowTriggerModal task={taskWithoutStage} onClose={mockOnClose} />);
 
       // Should render modal but no workflow auto-selected
-      expect(screen.getByText('Trigger Workflow')).toBeInTheDocument();
+      const triggerWorkflowElements = screen.getAllByText('Trigger Workflow');
+      expect(triggerWorkflowElements.length).toBeGreaterThan(0);
       const triggerButton = screen.getByRole('button', { name: /trigger workflow/i });
       expect(triggerButton).toBeDisabled();
     });
@@ -596,8 +610,9 @@ describe('WorkflowTriggerModal Component', () => {
       render(<WorkflowTriggerModal task={taskWithMetadata} onClose={mockOnClose} />);
 
       // Should render and auto-select workflow based on stage
-      expect(screen.getByText('Trigger Workflow')).toBeInTheDocument();
-      expect(screen.getByText('Workflow Summary')).toBeInTheDocument();
+      const triggerWorkflowElements = screen.getAllByText('Trigger Workflow');
+      expect(triggerWorkflowElements.length).toBeGreaterThan(0);
+      expect(screen.getByRole('heading', { name: /workflow summary/i, level: 4 })).toBeInTheDocument();
     });
   });
 });

@@ -268,40 +268,6 @@ describe('WorkflowLogViewer Component', () => {
   });
 
   describe('Export', () => {
-    let originalCreateElement;
-    let originalAppendChild;
-    let originalRemoveChild;
-
-    beforeEach(() => {
-      // Save original functions
-      originalCreateElement = document.createElement;
-      originalAppendChild = document.body.appendChild;
-      originalRemoveChild = document.body.removeChild;
-
-      // Mock document.createElement and appendChild for download
-      document.createElement = vi.fn((tag) => {
-        if (tag === 'a') {
-          return {
-            href: '',
-            download: '',
-            click: vi.fn(),
-            style: {},
-            remove: vi.fn()
-          };
-        }
-        return originalCreateElement.call(document, tag);
-      });
-      document.body.appendChild = vi.fn();
-      document.body.removeChild = vi.fn();
-    });
-
-    afterEach(() => {
-      // Restore original functions
-      document.createElement = originalCreateElement;
-      document.body.appendChild = originalAppendChild;
-      document.body.removeChild = originalRemoveChild;
-    });
-
     it('should show export button when logs exist', () => {
       render(<WorkflowLogViewer logs={mockLogs} />);
 
@@ -338,6 +304,9 @@ describe('WorkflowLogViewer Component', () => {
     });
 
     it('should export as text when text export is clicked', () => {
+      // Mock URL.createObjectURL
+      const createObjectURLSpy = vi.spyOn(global.URL, 'createObjectURL').mockReturnValue('blob:mock-url');
+
       render(<WorkflowLogViewer logs={mockLogs} />);
 
       const exportButton = screen.getByTitle('Export logs');
@@ -346,10 +315,15 @@ describe('WorkflowLogViewer Component', () => {
       const textExportButton = screen.getByText('Export as Text');
       fireEvent.click(textExportButton);
 
-      expect(global.URL.createObjectURL).toHaveBeenCalled();
+      expect(createObjectURLSpy).toHaveBeenCalled();
+
+      createObjectURLSpy.mockRestore();
     });
 
     it('should export as JSON when JSON export is clicked', () => {
+      // Mock URL.createObjectURL
+      const createObjectURLSpy = vi.spyOn(global.URL, 'createObjectURL').mockReturnValue('blob:mock-url');
+
       render(<WorkflowLogViewer logs={mockLogs} />);
 
       const exportButton = screen.getByTitle('Export logs');
@@ -358,7 +332,9 @@ describe('WorkflowLogViewer Component', () => {
       const jsonExportButton = screen.getByText('Export as JSON');
       fireEvent.click(jsonExportButton);
 
-      expect(global.URL.createObjectURL).toHaveBeenCalled();
+      expect(createObjectURLSpy).toHaveBeenCalled();
+
+      createObjectURLSpy.mockRestore();
     });
   });
 

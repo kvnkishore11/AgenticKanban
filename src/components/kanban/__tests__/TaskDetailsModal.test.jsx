@@ -284,7 +284,7 @@ describe('TaskDetailsModal Component', () => {
       expect(triggerButton).toBeDisabled();
     });
 
-    it('should display workflow status', () => {
+    it('should display workflow status', async () => {
       render(
         <TaskDetailsModal
           task={mockTask}
@@ -293,10 +293,20 @@ describe('TaskDetailsModal Component', () => {
         />
       );
 
-      expect(screen.getByText(/Workflow: test-workflow/)).toBeInTheDocument();
+      // The workflow controls section might be collapsed, expand it first
+      const workflowControlsButton = screen.getByText('Workflow Controls');
+
+      // Check if it's collapsed (if "Workflow:" text is not visible)
+      if (!screen.queryByText(/Workflow: test-workflow/)) {
+        fireEvent.click(workflowControlsButton);
+      }
+
+      await waitFor(() => {
+        expect(screen.getByText(/Workflow: test-workflow/)).toBeInTheDocument();
+      }, { timeout: 3000 });
     });
 
-    it('should show workflow progress', () => {
+    it('should show workflow progress', async () => {
       const { container } = render(
         <TaskDetailsModal
           task={mockTask}
@@ -305,7 +315,17 @@ describe('TaskDetailsModal Component', () => {
         />
       );
 
-      expect(screen.getByText('50%')).toBeInTheDocument();
+      // The workflow controls section might be collapsed, expand it first
+      const workflowControlsButton = screen.getByText('Workflow Controls');
+
+      // Check if progress is not visible and expand if needed
+      if (!screen.queryByText('50%')) {
+        fireEvent.click(workflowControlsButton);
+      }
+
+      await waitFor(() => {
+        expect(screen.getByText('50%')).toBeInTheDocument();
+      }, { timeout: 3000 });
     });
   });
 
@@ -379,7 +399,7 @@ describe('TaskDetailsModal Component', () => {
   });
 
   describe('Logs Viewer', () => {
-    it('should show toggle logs button when logs exist', () => {
+    it('should show toggle logs button when logs exist', async () => {
       mockStore.getWorkflowLogsForTask.mockReturnValue([
         { id: '1', message: 'Log 1' },
         { id: '2', message: 'Log 2' }
@@ -393,7 +413,17 @@ describe('TaskDetailsModal Component', () => {
         />
       );
 
-      expect(screen.getByText(/Show.*Logs \(2\)/)).toBeInTheDocument();
+      // The workflow controls section might be collapsed, expand it first
+      const workflowControlsButton = screen.getByText('Workflow Controls');
+
+      // Check if logs button is not visible and expand if needed
+      if (!screen.queryByText(/Show.*Logs \(2\)/)) {
+        fireEvent.click(workflowControlsButton);
+      }
+
+      await waitFor(() => {
+        expect(screen.getByText(/Show.*Logs \(2\)/)).toBeInTheDocument();
+      }, { timeout: 3000 });
     });
 
     it('should toggle logs viewer', async () => {
@@ -409,18 +439,30 @@ describe('TaskDetailsModal Component', () => {
         />
       );
 
+      // The workflow controls section might be collapsed, expand it first
+      const workflowControlsButton = screen.getByText('Workflow Controls');
+
+      // Check if logs button is not visible and expand if needed
+      if (!screen.queryByText(/Show.*Logs/)) {
+        fireEvent.click(workflowControlsButton);
+      }
+
+      await waitFor(() => {
+        expect(screen.getByText(/Show.*Logs/)).toBeInTheDocument();
+      }, { timeout: 3000 });
+
       const toggleButton = screen.getByText(/Show.*Logs/);
       fireEvent.click(toggleButton);
 
       await waitFor(() => {
         expect(screen.getByTestId('stage-logs-viewer')).toBeInTheDocument();
-      });
+      }, { timeout: 3000 });
 
       fireEvent.click(screen.getByText(/Hide.*Logs/));
 
       await waitFor(() => {
         expect(screen.queryByTestId('stage-logs-viewer')).not.toBeInTheDocument();
-      });
+      }, { timeout: 3000 });
     });
   });
 
@@ -560,7 +602,9 @@ describe('TaskDetailsModal Component', () => {
       const deleteButton = screen.getByText('Delete');
       fireEvent.click(deleteButton);
 
-      expect(screen.getByText('Delete Worktree')).toBeInTheDocument();
+      // Use getAllByText and check for the header element
+      const deleteWorktreeElements = screen.getAllByText('Delete Worktree');
+      expect(deleteWorktreeElements.length).toBeGreaterThan(0);
       expect(screen.getByText(/Are you sure you want to delete this worktree/)).toBeInTheDocument();
     });
 

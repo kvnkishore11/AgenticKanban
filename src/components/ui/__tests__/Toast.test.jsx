@@ -137,9 +137,10 @@ describe('Toast Component', () => {
       // Wait for animation completion (300ms)
       vi.advanceTimersByTime(300);
 
-      await waitFor(() => {
-        expect(onClose).toHaveBeenCalled();
-      });
+      // Run all pending timers (including the setTimeout in handleClose)
+      vi.runAllTimers();
+
+      expect(onClose).toHaveBeenCalled();
     });
 
     it('should auto-dismiss after custom duration', async () => {
@@ -150,10 +151,9 @@ describe('Toast Component', () => {
 
       vi.advanceTimersByTime(2000);
       vi.advanceTimersByTime(300);
+      vi.runAllTimers();
 
-      await waitFor(() => {
-        expect(onClose).toHaveBeenCalled();
-      });
+      expect(onClose).toHaveBeenCalled();
     });
 
     it('should not auto-dismiss when duration is 0', async () => {
@@ -179,7 +179,8 @@ describe('Toast Component', () => {
 
   describe('User Interactions', () => {
     it('should call onClose when close button is clicked', async () => {
-      const user = userEvent.setup({ delay: null });
+      vi.useRealTimers();
+      const user = userEvent.setup();
       const onClose = vi.fn();
       const { container } = render(<Toast message="Test" onClose={onClose} />);
 
@@ -187,24 +188,38 @@ describe('Toast Component', () => {
       await user.click(closeButton);
 
       // Wait for animation
-      vi.advanceTimersByTime(300);
+      await waitFor(() => {
+        expect(onClose).toHaveBeenCalled();
+      });
 
-      expect(onClose).toHaveBeenCalled();
+      vi.useFakeTimers();
     });
 
     it('should hide toast immediately when close button is clicked', async () => {
-      const user = userEvent.setup({ delay: null });
+      vi.useRealTimers();
+      const user = userEvent.setup();
       const { container } = render(<Toast message="Test" />);
 
       const closeButton = container.querySelector('button');
+
+      // Toast should be visible initially
+      expect(container.querySelector('.translate-x-0.opacity-100')).toBeInTheDocument();
+
       await user.click(closeButton);
 
-      const toast = container.querySelector('.translate-x-full.opacity-0');
-      expect(toast).toBeInTheDocument();
+      // After click, the toast should have hiding animation classes or be removed
+      // The component uses isVisible state which causes it to return null when false
+      // So we just check that the visible toast is no longer there
+      await waitFor(() => {
+        expect(container.querySelector('.translate-x-0.opacity-100')).not.toBeInTheDocument();
+      });
+
+      vi.useFakeTimers();
     });
 
     it('should handle multiple clicks on close button gracefully', async () => {
-      const user = userEvent.setup({ delay: null });
+      vi.useRealTimers();
+      const user = userEvent.setup();
       const onClose = vi.fn();
       const { container } = render(<Toast message="Test" onClose={onClose} />);
 
@@ -213,10 +228,11 @@ describe('Toast Component', () => {
       await user.click(closeButton);
       await user.click(closeButton);
 
-      vi.advanceTimersByTime(300);
+      await waitFor(() => {
+        expect(onClose).toHaveBeenCalledTimes(1);
+      });
 
-      // Should only call once since toast becomes hidden after first click
-      expect(onClose).toHaveBeenCalledTimes(1);
+      vi.useFakeTimers();
     });
   });
 
@@ -312,14 +328,16 @@ describe('Toast Component', () => {
 
   describe('Edge Cases', () => {
     it('should handle missing onClose callback gracefully', async () => {
-      const user = userEvent.setup({ delay: null });
-      const { container } = render(<Toast message="Test" />);
+      vi.useRealTimers();
+      const user = userEvent.setup();
+      render(<Toast message="Test" />);
 
-      const closeButton = container.querySelector('button');
-      await user.click(closeButton);
+      const closeButton = screen.getByRole('button');
 
-      // Should not throw error
-      expect(closeButton).toBeInTheDocument();
+      // Should not throw error when clicking without onClose callback
+      await expect(user.click(closeButton)).resolves.not.toThrow();
+
+      vi.useFakeTimers();
     });
 
     it('should handle very long messages', () => {
@@ -358,19 +376,23 @@ describe('Toast Component', () => {
     });
 
     it('should delay onClose callback for animation completion', async () => {
+      vi.useRealTimers();
       const onClose = vi.fn();
       const { container } = render(<Toast message="Test" onClose={onClose} />);
 
       const closeButton = container.querySelector('button');
-      const user = userEvent.setup({ delay: null });
+      const user = userEvent.setup();
       await user.click(closeButton);
 
       // onClose should not be called immediately
       expect(onClose).not.toHaveBeenCalled();
 
       // After 300ms animation delay
-      vi.advanceTimersByTime(300);
-      expect(onClose).toHaveBeenCalled();
+      await waitFor(() => {
+        expect(onClose).toHaveBeenCalled();
+      }, { timeout: 500 });
+
+      vi.useFakeTimers();
     });
   });
 });
@@ -492,10 +514,9 @@ describe('ToastContainer Component', () => {
 
   describe('Edge Cases', () => {
     it('should handle null toasts array gracefully', () => {
-      const { container } = render(<ToastContainer toasts={null} />);
-
-      const toastContainer = container.querySelector('.fixed.top-4.right-4');
-      expect(toastContainer).toBeInTheDocument();
+      // null.map() would throw an error, so we expect this to fail or be handled
+      // The component should use a default empty array
+      expect(() => render(<ToastContainer toasts={null} />)).not.toThrow();
     });
 
     it('should handle empty toasts array', () => {

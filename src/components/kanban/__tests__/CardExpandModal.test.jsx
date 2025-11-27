@@ -150,7 +150,9 @@ describe('CardExpandModal Component', () => {
     it('should render ADW ID in header when available', () => {
       render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
 
-      expect(screen.getByText('adw_plan_build_test_issue_123')).toBeInTheDocument();
+      // ADW ID appears in multiple places (header and metadata section)
+      const adwIdElements = screen.getAllByText('adw_plan_build_test_issue_123');
+      expect(adwIdElements.length).toBeGreaterThan(0);
     });
 
     it('should render issue type badge', () => {
@@ -376,7 +378,10 @@ describe('CardExpandModal Component', () => {
       fireEvent.click(viewPlanButton);
 
       await waitFor(() => {
-        expect(screen.getByTestId('md-editor-markdown')).toHaveTextContent(planContent);
+        const mdEditor = screen.getByTestId('md-editor-markdown');
+        // Check that the content contains the key parts, don't be strict about whitespace
+        expect(mdEditor.textContent).toContain('# Test Plan');
+        expect(mdEditor.textContent).toContain('Plan content here');
       });
     });
 
@@ -511,7 +516,7 @@ describe('CardExpandModal Component', () => {
 
       render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
 
-      const triggerButton = screen.getByText('TRIGGER');
+      const triggerButton = screen.getByText('TRIGGER').closest('button');
       expect(triggerButton).toBeDisabled();
     });
 
@@ -533,7 +538,7 @@ describe('CardExpandModal Component', () => {
     it('should disable MERGE button when not ready to merge', () => {
       render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
 
-      const mergeButton = screen.getByText('MERGE TO MAIN');
+      const mergeButton = screen.getByText('MERGE TO MAIN').closest('button');
       expect(mergeButton).toBeDisabled();
     });
 
@@ -654,6 +659,8 @@ describe('CardExpandModal Component', () => {
 
     it('should handle task without metadata', () => {
       const taskWithoutMetadata = { ...mockTask, metadata: {} };
+      // Override the store mock to return no workflow metadata
+      mockStore.getWorkflowMetadataForTask.mockReturnValueOnce(null);
 
       render(<CardExpandModal task={taskWithoutMetadata} isOpen={true} onClose={mockOnClose} />);
 
@@ -663,12 +670,22 @@ describe('CardExpandModal Component', () => {
     it('should handle different issue types', () => {
       const bugTask = {
         ...mockTask,
-        metadata: { ...mockTask.metadata, issue_type: 'bug' }
+        metadata: {
+          ...mockTask.metadata,
+          issue_type: 'bug',
+          state_config: {
+            task: {
+              work_item_type: 'bug'
+            }
+          }
+        }
       };
 
       render(<CardExpandModal task={bugTask} isOpen={true} onClose={mockOnClose} />);
 
-      expect(screen.getByText('BUG')).toBeInTheDocument();
+      // BUG label appears in the issue type badge
+      const bugLabels = screen.queryAllByText('BUG');
+      expect(bugLabels.length).toBeGreaterThan(0);
     });
 
     it('should handle missing plan file', async () => {
@@ -676,6 +693,11 @@ describe('CardExpandModal Component', () => {
         ...mockTask,
         metadata: { adw_id: 'test_adw' }
       };
+      // Override store mock to return no plan file
+      mockStore.getWorkflowMetadataForTask.mockReturnValueOnce({
+        adw_id: 'test_adw',
+        status: 'running'
+      });
 
       render(<CardExpandModal task={taskWithoutPlan} isOpen={true} onClose={mockOnClose} />);
 

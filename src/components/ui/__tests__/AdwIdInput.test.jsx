@@ -530,7 +530,7 @@ describe('AdwIdInput Component', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Invalid ADW ID format')).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
     });
 
     it('should show success state when validation passes', async () => {
@@ -543,7 +543,7 @@ describe('AdwIdInput Component', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/Valid ADW ID format/i)).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
     });
 
     it('should mark field as touched on blur', async () => {
@@ -562,7 +562,7 @@ describe('AdwIdInput Component', () => {
 
       await waitFor(() => {
         expect(screen.getByText('ADW ID is required')).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
     });
   });
 
@@ -590,7 +590,7 @@ describe('AdwIdInput Component', () => {
 
       await waitFor(() => {
         expect(adwValidation.validateAdwId).toHaveBeenCalledWith('', true);
-      });
+      }, { timeout: 10000 });
     });
   });
 

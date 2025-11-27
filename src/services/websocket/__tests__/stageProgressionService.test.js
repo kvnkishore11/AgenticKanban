@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock dependencies
-vi.mock('../../utils/substages', () => ({
+vi.mock('../../../utils/substages', () => ({
   simulateSubstageExecution: vi.fn((stage, substage, callback) => {
     return new Promise((resolve) => {
       callback({
@@ -46,7 +46,7 @@ vi.mock('../../utils/substages', () => ({
   })
 }));
 
-vi.mock('../api/adwService', () => ({
+vi.mock('../../api/adwService', () => ({
   default: {
     getNextStage: vi.fn((pipelineId, currentStage) => {
       const stageOrder = ['plan', 'implement', 'test', 'pr'];
@@ -58,7 +58,7 @@ vi.mock('../api/adwService', () => ({
   }
 }));
 
-vi.mock('../../utils/workflowValidation.js', () => ({
+vi.mock('../../../utils/workflowValidation', () => ({
   getNextStageInWorkflow: vi.fn((workflowName, currentStage) => {
     if (workflowName === 'adw_sdlc_iso') {
       const stages = ['plan', 'implement', 'test', 'review', 'document'];
@@ -78,8 +78,8 @@ vi.mock('../../utils/workflowValidation.js', () => ({
 }));
 
 import stageProgressionService from '../stageProgressionService.js';
-import { simulateSubstageExecution, getNextSubstage, getSubstages } from '../../utils/substages';
-import { getNextStageInWorkflow, isWorkflowComplete } from '../../utils/workflowValidation.js';
+import { simulateSubstageExecution, getNextSubstage, getSubstages } from '../../../utils/substages';
+import { getNextStageInWorkflow, isWorkflowComplete } from '../../../utils/workflowValidation';
 
 describe('StageProgressionService', () => {
   let service;

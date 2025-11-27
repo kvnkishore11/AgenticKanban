@@ -48,6 +48,18 @@ class CommandContentService {
    * Read content from a command file using direct imports
    */
   async readCommandContent(commandPath) {
+    // Handle empty path - return mock
+    if (!commandPath || commandPath.trim() === '') {
+      const mockContent = this.generateMockContent('empty.md');
+      return {
+        content: mockContent,
+        tokenCount: calculateMarkdownTokenCount(mockContent),
+        lastModified: new Date().toISOString(),
+        path: commandPath || '',
+        isMock: true,
+      };
+    }
+
     // Check cache first
     if (this.contentCache.has(commandPath)) {
       return this.contentCache.get(commandPath);

@@ -214,6 +214,9 @@ describe('LocalStorageService', () => {
     });
 
     it('should handle errors and return false', () => {
+      // Add an item so the loop will execute
+      service.setItem('test-key', { value: 'test' });
+
       localStorageMock.key.mockImplementationOnce(() => {
         throw new Error('Clear failed');
       });
@@ -270,6 +273,9 @@ describe('LocalStorageService', () => {
     });
 
     it('should handle errors and return null', () => {
+      // Add an item so the loop will execute
+      service.setItem('test-key', { value: 'test' });
+
       localStorageMock.key.mockImplementationOnce(() => {
         throw new Error('Storage error');
       });
@@ -305,6 +311,9 @@ describe('LocalStorageService', () => {
     });
 
     it('should handle errors and return null', () => {
+      // Add an item so the loop will execute
+      service.setItem('test-key', { value: 'test' });
+
       localStorageMock.key.mockImplementationOnce(() => {
         throw new Error('Export failed');
       });

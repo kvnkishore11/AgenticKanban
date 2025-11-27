@@ -26,6 +26,13 @@ const Toast = ({
     setIsVisible(show);
   }, [show]);
 
+  const handleClose = useCallback(() => {
+    setIsVisible(false);
+    setTimeout(() => {
+      onClose?.();
+    }, 300); // Allow animation to complete
+  }, [onClose]);
+
   useEffect(() => {
     if (isVisible && duration > 0) {
       const timer = setTimeout(() => {
@@ -35,13 +42,6 @@ const Toast = ({
       return () => clearTimeout(timer);
     }
   }, [isVisible, duration, handleClose]);
-
-  const handleClose = useCallback(() => {
-    setIsVisible(false);
-    setTimeout(() => {
-      onClose?.();
-    }, 300); // Allow animation to complete
-  }, [onClose]);
 
   const typeConfig = {
     success: {
@@ -122,9 +122,12 @@ const Toast = ({
 
 // Toast Container Component
 const ToastContainer = ({ toasts = [] }) => {
+  // Ensure toasts is always an array
+  const safeToasts = Array.isArray(toasts) ? toasts : [];
+
   return (
     <div className="fixed top-4 right-4 z-50 space-y-2">
-      {toasts.map((toast, index) => (
+      {safeToasts.map((toast, index) => (
         <Toast
           key={toast.id || index}
           {...toast}
