@@ -22,10 +22,10 @@ issue_json: $3
 - If you need a new library, use `uv add` and be sure to report it in the `Notes` section of the `Plan Format`.
 - Don't use decorators. Keep it simple.
 - IMPORTANT: Test Generation Strategy:
-  - **Backend Tests**: If the feature modifies Python backend code, add a task to create unit tests in `agents/{adw_id}/tests/unit_test/backend/test_{feature_name}.py` using pytest
-  - **Frontend Tests**: If the feature modifies React/JS frontend code, add a task to create unit tests in `agents/{adw_id}/tests/unit_test/frontend/test_{feature_name}.test.js` using Vitest + React Testing Library
-  - **E2E Tests**: If the feature includes UI components or user interactions, add a task to create E2E test file in `agents/{adw_id}/tests/e2e/test_{feature_name}.md`
-  - IMPORTANT: When you fill out the `Plan Format: Relevant Files` section, add an instruction to read `.claude/commands/test_e2e.md`, and `.claude/commands/e2e/test_basic_query.md` to understand how to create an E2E test file
+  - **Backend Tests**: If the feature modifies Python backend code, add a task to create unit tests co-located with the source (e.g., `server/tests/test_{feature_name}.js` or `adws/utils/{module}/tests/test_{feature_name}.py`) using pytest
+  - **Frontend Tests**: If the feature modifies React/JS frontend code, add a task to create unit tests co-located with the source in `__tests__/` directories (e.g., `src/components/{category}/__tests__/{ComponentName}.test.jsx`, `src/stores/__tests__/{storeName}.test.js`) using Vitest + React Testing Library
+  - **Integration Tests**: If the feature requires cross-component testing, add a task to create integration tests in `src/test/integration/{feature_name}.integration.test.js`
+  - **E2E Tests**: If the feature includes UI components or user interactions, add a task to create E2E test file in `src/test/e2e/issue-{issue_number}-adw-{adw_id}-e2e-{feature_name}.md`
   - To be clear, we're not creating the test files directly, we're creating tasks to create them in the `Plan Format` below
 - Respect requested files in the `Relevant Files` section.
 - Start your research by reading the `README.md` file.
@@ -87,20 +87,21 @@ IMPORTANT: Execute every step in order, top to bottom.
 
 <list step by step tasks as h3 headers plus bullet points. use as many h3 headers as needed to implement the feature. Order matters, start with the foundational shared changes required then move on to the specific implementation. Include creating tests throughout the implementation process.>
 
-<If the feature affects UI, include a task to create a E2E test file (like `.claude/commands/e2e/test_basic_query.md` and `.claude/commands/e2e/test_complex_query.md`) as one of your early tasks. That e2e test should validate the feature works as expected, be specific with the steps to demonstrate the new functionality. We want the minimal set of steps to validate the feature works as expected and screen shots to prove it if possible.>
-
 <Your last step should be running the `Validation Commands` to validate the feature works correctly with zero regressions.>
 
 ## Testing Strategy
 ### Unit Tests
 #### Backend Unit Tests
-<If backend code was modified, describe Python unit tests to create in `agents/{adw_id}/tests/unit_test/backend/test_{feature_name}.py`>
+<If backend code was modified, describe Python unit tests to create co-located with source (e.g., `server/tests/test_{feature_name}.js` or `adws/utils/{module}/tests/test_{feature_name}.py`)>
 
 #### Frontend Unit Tests
-<If frontend code was modified, describe Vitest unit tests to create in `agents/{adw_id}/tests/unit_test/frontend/test_{feature_name}.test.js`>
+<If frontend code was modified, describe Vitest unit tests to create co-located with source in `__tests__/` directories (e.g., `src/components/{category}/__tests__/{ComponentName}.test.jsx`)>
+
+#### Integration Tests
+<If cross-component testing is needed, describe integration tests to create in `src/test/integration/{feature_name}.integration.test.js`>
 
 ### E2E Tests
-<If UI was affected, describe E2E tests to create in `agents/{adw_id}/tests/e2e/test_{feature_name}.md`>
+<If UI was affected, describe E2E tests to create in `src/test/e2e/issue-{issue_number}-adw-{adw_id}-e2e-{feature_name}.md`>
 
 ### Edge Cases
 <list edge cases that need to be tested>
@@ -111,9 +112,7 @@ IMPORTANT: Execute every step in order, top to bottom.
 ## Validation Commands
 Execute every command to validate the feature works correctly with zero regressions.
 
-<list commands you'll use to validate with 100% confidence the feature is implemented correctly with zero regressions. every command must execute without errors so be specific about what you want to run to validate the feature works as expected. Include commands to test the feature end-to-end.>
-
-<If you created an E2E test, include the following validation step: `Read .claude/commands/test_e2e.md`, then read and execute your new E2E `.claude/commands/e2e/test_<descriptive_name>.md` test file to validate this functionality works.>
+<list commands you'll use to validate with 100% confidence the feature is implemented correctly with zero regressions. every command must execute without errors so be specific about what you want to run to validate the feature works as expected.>
 
 - `cd server && uv run pytest` - Run server tests to validate the feature works with zero regressions
 - `bun tsc --noEmit` - Run frontend tests to validate the feature works with zero regressions

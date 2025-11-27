@@ -23,10 +23,10 @@ issue_json: $3
 - Don't use decorators. Keep it simple.
 - If you need a new library, use `uv add` if it is related to backend and be sure to report it in the `Notes` section of the `Plan Format`.
 - IMPORTANT: Test Generation Strategy (to prevent regression):
-  - **Backend Tests**: If the bug fix modifies Python backend code, add a task to create regression tests in `agents/{adw_id}/tests/unit_test/backend/test_{bug_name}.py` using pytest
-  - **Frontend Tests**: If the bug fix modifies React/JS frontend code, add a task to create regression tests in `agents/{adw_id}/tests/unit_test/frontend/test_{bug_name}.test.js` using Vitest + React Testing Library
-  - **E2E Tests**: If the bug affects UI or user interactions, add a task to create E2E test file in `agents/{adw_id}/tests/e2e/test_{bug_name}.md`
-  - IMPORTANT: When you fill out the `Plan Format: Relevant Files` section, add an instruction to read `.claude/commands/test_e2e.md`, and `.claude/commands/e2e/test_basic_query.md` to understand how to create an E2E test file
+  - **Backend Tests**: If the bug fix modifies Python backend code, add a task to create regression tests co-located with the source (e.g., `server/tests/test_{bug_name}.js` or `adws/utils/{module}/tests/test_{bug_name}.py`) using pytest
+  - **Frontend Tests**: If the bug fix modifies React/JS frontend code, add a task to create regression tests co-located with the source in `__tests__/` directories (e.g., `src/components/{category}/__tests__/{ComponentName}.test.jsx`) using Vitest + React Testing Library
+  - **Integration Tests**: If the bug fix requires cross-component testing, add a task to create integration tests in `src/test/integration/{bug_name}.integration.test.js`
+  - **E2E Tests**: If the bug affects UI or user interactions, add a task to create E2E test file in `src/test/e2e/issue-{issue_number}-adw-{adw_id}-e2e-{bug_name}.md`
   - To be clear, we're not creating the test files directly, we're creating tasks to create them in the `Plan Format` below
 - Respect requested files in the `Relevant Files` section.
 - Start your research by reading the `README.md` file.
@@ -80,9 +80,10 @@ IMPORTANT: Execute every step in order, top to bottom.
 <list step by step tasks as h3 headers plus bullet points. use as many h3 headers as needed to fix the bug. Order matters, start with the foundational shared changes required to fix the bug then move on to the specific changes required to fix the bug. Include tests that will validate the bug is fixed with zero regressions.>
 
 <Include tasks to create regression tests:
-- If backend code was modified: Create regression test in `agents/{adw_id}/tests/unit_test/backend/test_{bug_name}.py`
-- If frontend code was modified: Create regression test in `agents/{adw_id}/tests/unit_test/frontend/test_{bug_name}.test.js`
-- If UI was affected: Read `.claude/commands/e2e/test_basic_query.md` and create E2E test file in `agents/{adw_id}/tests/e2e/test_{bug_name}.md` that validates the bug is fixed>
+- If backend code was modified: Create regression test co-located with source (e.g., `server/tests/test_{bug_name}.js` or `adws/utils/{module}/tests/test_{bug_name}.py`)
+- If frontend code was modified: Create regression test co-located with source in `__tests__/` directories (e.g., `src/components/{category}/__tests__/{ComponentName}.test.jsx`)
+- If cross-component testing is needed: Create integration test in `src/test/integration/{bug_name}.integration.test.js`
+- If UI was affected: Create E2E test in `src/test/e2e/issue-{issue_number}-adw-{adw_id}-e2e-{bug_name}.md`>
 
 <Your last step should be running the `Validation Commands` to validate the bug is fixed with zero regressions.>
 
@@ -90,8 +91,6 @@ IMPORTANT: Execute every step in order, top to bottom.
 Execute every command to validate the bug is fixed with zero regressions.
 
 <list commands you'll use to validate with 100% confidence the bug is fixed with zero regressions. every command must execute without errors so be specific about what you want to run to validate the bug is fixed with zero regressions. Include commands to reproduce the bug before and after the fix.>
-
-<If you created an E2E test, include the following validation step: "Read .claude/commands/test_e2e.md`, then read and execute your new E2E `.claude/commands/e2e/test_<descriptive_name>.md` test file to validate this functionality works.">
 
 - `npm run tsc --noEmit` - Run frontend tests to validate the bug is fixed with zero regressions
 - `npm run build` - Run frontend build to validate the bug is fixed with zero regressions

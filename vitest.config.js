@@ -14,8 +14,7 @@ export default defineConfig({
       VITE_BACKEND_URL: 'http://localhost:8500',
     },
     include: [
-      'src/**/*.test.{js,jsx,ts,tsx}',
-      'agents/*/tests/unit_test/frontend/**/*.test.{js,jsx,ts,tsx}'
+      'src/**/*.test.{js,jsx,ts,tsx}'
     ],
     exclude: [
       'node_modules',

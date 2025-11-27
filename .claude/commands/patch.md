@@ -22,8 +22,10 @@ issue_screenshots: $5 (optional) - comma-separated list of screenshot paths if p
 - Run `git diff --stat`. If changes are available, use them to understand what's been done in the codebase and so you can understand the exact changes you should detail in the patch plan.
 - Ultra think about the most efficient way to implement the solution with minimal code changes
 - IMPORTANT: Test Generation Strategy (if patch modifies code):
-  - **Backend Tests**: If the patch modifies Python backend code, add a task to create/update tests in `agents/{adw_id}/tests/unit_test/backend/test_{patch_name}.py` using pytest
-  - **Frontend Tests**: If the patch modifies React/JS frontend code, add a task to create/update tests in `agents/{adw_id}/tests/unit_test/frontend/test_{patch_name}.test.js` using Vitest + React Testing Library
+  - **Backend Tests**: If the patch modifies Python backend code, add a task to create/update tests co-located with the source (e.g., `server/tests/test_{patch_name}.js` or `adws/utils/{module}/tests/test_{patch_name}.py`) using pytest
+  - **Frontend Tests**: If the patch modifies React/JS frontend code, add a task to create/update tests co-located with the source in `__tests__/` directories (e.g., `src/components/{category}/__tests__/{ComponentName}.test.jsx`) using Vitest + React Testing Library
+  - **Integration Tests**: If the patch requires cross-component testing, add a task to create integration tests in `src/test/integration/{patch_name}.integration.test.js`
+  - **E2E Tests**: If the patch affects UI or user interactions, add a task to create E2E test file in `src/test/e2e/patch-adw-{adw_id}-e2e-{patch_name}.md`
 - Base your `Plan Format: Validation` on the validation steps from `spec_path` if provided
   - If any tests fail in the validation steps, you must fix them.
   - If not provided, READ `.claude/commands/test.md: ## Test Execution Sequence` and execute the tests to understand the tests that need to be run to validate the patch.
@@ -80,8 +82,10 @@ IMPORTANT: Execute every step in order, top to bottom.
 <continue as needed, but keep it minimal>
 
 ### Step N: Create/Update Tests (if code was modified)
-- If backend code was modified: Create/update tests in `agents/{adw_id}/tests/unit_test/backend/test_{patch_name}.py`
-- If frontend code was modified: Create/update tests in `agents/{adw_id}/tests/unit_test/frontend/test_{patch_name}.test.js`
+- If backend code was modified: Create/update tests co-located with source (e.g., `server/tests/test_{patch_name}.js` or `adws/utils/{module}/tests/test_{patch_name}.py`)
+- If frontend code was modified: Create/update tests co-located with source in `__tests__/` directories (e.g., `src/components/{category}/__tests__/{ComponentName}.test.jsx`)
+- If cross-component testing is needed: Create integration tests in `src/test/integration/{patch_name}.integration.test.js`
+- If UI was affected: Create E2E test in `src/test/e2e/patch-adw-{adw_id}-e2e-{patch_name}.md`
 
 ## Validation
 Execute every command to validate the patch is complete with zero regressions.

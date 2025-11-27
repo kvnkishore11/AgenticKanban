@@ -63,7 +63,7 @@ TEST_COMMAND_TIMEOUT: 5 minutes
    - Preparation Command: None
    - Command: `npm run test`
    - test_name: "frontend_unit_tests"
-   - test_purpose: "Validates frontend components, hooks, stores, and utilities using Vitest + React Testing Library"
+   - test_purpose: "Validates frontend components, hooks, stores, utilities, and integration tests using Vitest + React Testing Library. Tests are co-located with source in `__tests__/` directories and integration tests in `src/test/integration/`"
 
 5. **TypeScript Type Check**
    - Preparation Command: None

@@ -19,8 +19,10 @@ issue_json: $3
 - IMPORTANT: Replace every <placeholder> in the `Plan Format` with the requested value. Add as much detail as needed to accomplish the chore.
 - Use your reasoning model: THINK HARDER about the plan and the steps to accomplish the chore.
 - IMPORTANT: Test Generation Strategy (if the chore modifies code):
-  - **Backend Tests**: If the chore modifies Python backend code, add a task to create/update tests in `agents/{adw_id}/tests/unit_test/backend/test_{chore_name}.py` using pytest
-  - **Frontend Tests**: If the chore modifies React/JS frontend code, add a task to create/update tests in `agents/{adw_id}/tests/unit_test/frontend/test_{chore_name}.test.js` using Vitest + React Testing Library
+  - **Backend Tests**: If the chore modifies Python backend code, add a task to create/update tests co-located with the source (e.g., `server/tests/test_{chore_name}.js` or `adws/utils/{module}/tests/test_{chore_name}.py`) using pytest
+  - **Frontend Tests**: If the chore modifies React/JS frontend code, add a task to create/update tests co-located with the source in `__tests__/` directories (e.g., `src/components/{category}/__tests__/{ComponentName}.test.jsx`) using Vitest + React Testing Library
+  - **Integration Tests**: If the chore requires cross-component testing, add a task to create integration tests in `src/test/integration/{chore_name}.integration.test.js`
+  - **E2E Tests**: If the chore affects UI or user interactions, add a task to create E2E test file in `src/test/e2e/issue-{issue_number}-adw-{adw_id}-e2e-{chore_name}.md`
 - Respect requested files in the `Relevant Files` section.
 - Start your research by reading the `README.md` file.
 - `adws/*.py` contain astral uv single file python scripts. So if you want to run them use `uv run <script_name>`.
@@ -63,8 +65,10 @@ IMPORTANT: Execute every step in order, top to bottom.
 <list step by step tasks as h3 headers plus bullet points. use as many h3 headers as needed to accomplish the chore. Order matters, start with the foundational shared changes required to fix the chore then move on to the specific changes required to fix the chore.>
 
 <If the chore modifies code, include a task to create/update tests:
-- If backend code was modified: Create tests in `agents/{adw_id}/tests/unit_test/backend/test_{chore_name}.py`
-- If frontend code was modified: Create tests in `agents/{adw_id}/tests/unit_test/frontend/test_{chore_name}.test.js`>
+- If backend code was modified: Create tests co-located with source (e.g., `server/tests/test_{chore_name}.js` or `adws/utils/{module}/tests/test_{chore_name}.py`)
+- If frontend code was modified: Create tests co-located with source in `__tests__/` directories (e.g., `src/components/{category}/__tests__/{ComponentName}.test.jsx`)
+- If cross-component testing is needed: Create integration tests in `src/test/integration/{chore_name}.integration.test.js`
+- If UI was affected: Create E2E test in `src/test/e2e/issue-{issue_number}-adw-{adw_id}-e2e-{chore_name}.md`>
 
 <Your last step should be running the `Validation Commands` to validate the chore is complete with zero regressions.>
 
