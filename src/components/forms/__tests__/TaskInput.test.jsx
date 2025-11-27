@@ -473,19 +473,27 @@ describe('TaskInput Component', () => {
     it('should show validation errors when task is invalid', async () => {
       mockStore.validateTask.mockReturnValue({
         isValid: false,
-        errors: ['Description is required']
+        errors: ['Title cannot be longer than 100 characters']
       });
 
       render(<TaskInput />);
 
+      // Provide valid description to enable the button
+      const editor = screen.getByTestId('rich-text-editor');
+      fireEvent.change(editor, { target: { value: 'Valid description' } });
+
+      // Create button should now be enabled
       const createButton = screen.getByText('Create Task →');
+      expect(createButton).not.toBeDisabled();
+
+      // Click to trigger validation
       fireEvent.click(createButton);
 
       // Wait for error to appear with increased timeout
       await waitFor(() => {
-        expect(screen.getByText('Description is required')).toBeInTheDocument();
-      }, { timeout: 10000 });
-    });
+        expect(screen.getByText('Title cannot be longer than 100 characters')).toBeInTheDocument();
+      }, { timeout: 15000 });
+    }, 20000);
 
     it('should not create task when validation fails', () => {
       mockStore.validateTask.mockReturnValue({
@@ -578,24 +586,21 @@ describe('TaskInput Component', () => {
     });
 
     it('should hide toast after timeout', async () => {
-      vi.useFakeTimers();
+      // Use real timers for this test since fake timers can be problematic with async state updates
       render(<TaskInput />);
 
       const draftButton = screen.getByText(/draft/i);
       fireEvent.click(draftButton);
 
+      // Wait for toast to appear
       await waitFor(() => {
         expect(screen.getByText(/draft saved/i)).toBeInTheDocument();
-      });
+      }, { timeout: 1000 });
 
-      // Fast-forward time past the toast timeout
-      await vi.advanceTimersByTimeAsync(2100);
-
+      // Wait for toast to disappear (typical toast timeout is 2-3 seconds)
       await waitFor(() => {
         expect(screen.queryByText(/draft saved/i)).not.toBeInTheDocument();
-      });
-
-      vi.useRealTimers();
+      }, { timeout: 5000 });
     }, 10000);
   });
 

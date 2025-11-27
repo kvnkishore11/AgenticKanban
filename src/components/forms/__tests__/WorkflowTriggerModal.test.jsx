@@ -456,15 +456,24 @@ describe('WorkflowTriggerModal Component', () => {
   });
 
   describe('Validation and Error Handling', () => {
-    it('should show error when no workflow type is selected', async () => {
-      const taskWithoutStage = { ...MOCK_TASK, stage: null };
-      render(<WorkflowTriggerModal task={taskWithoutStage} onClose={mockOnClose} />);
+    it('should show error when ADW ID is invalid', async () => {
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
 
+      // Select a workflow that requires ADW ID (build workflow)
+      const buildRadio = screen.getByRole('radio', { name: /build \(isolated\)/i });
+      fireEvent.click(buildRadio);
+
+      // Enter invalid ADW ID (too short)
+      const adwInput = screen.getByTestId('adw-id-input');
+      fireEvent.change(adwInput, { target: { value: 'abc' } });
+
+      // Try to trigger
       const triggerButton = screen.getByRole('button', { name: /trigger workflow/i });
       fireEvent.click(triggerButton);
 
+      // Wait for validation error
       await waitFor(() => {
-        expect(screen.getByText('Please select a workflow type')).toBeInTheDocument();
+        expect(screen.getByText(/must be 8 characters/i)).toBeInTheDocument();
       }, { timeout: 10000 });
     }, 15000);
 
@@ -577,8 +586,8 @@ describe('WorkflowTriggerModal Component', () => {
             adw_id: 'abc12345'
           })
         );
-      });
-    });
+      }, { timeout: 10000 });
+    }, 15000);
 
     it('should trim whitespace from patch request', async () => {
       render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);

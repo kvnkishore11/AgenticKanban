@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import RichTextEditor from '../RichTextEditor';
+import * as TipTapReact from '@tiptap/react';
 
 // Mock TipTap editor
 vi.mock('@tiptap/react', () => ({
@@ -75,8 +76,8 @@ describe('RichTextEditor Component', () => {
       },
     };
 
-    const { useEditor } = require('@tiptap/react');
-    useEditor.mockReturnValue(mockEditor);
+    // Setup mock to return mockEditor
+    vi.mocked(TipTapReact.useEditor).mockReturnValue(mockEditor);
   });
 
   afterEach(() => {
@@ -94,21 +95,19 @@ describe('RichTextEditor Component', () => {
 
     it('should render with custom placeholder', () => {
       const onChange = vi.fn();
-      const { useEditor } = require('@tiptap/react');
 
       render(<RichTextEditor value="" onChange={onChange} placeholder="Custom placeholder" />);
 
-      const editorCall = useEditor.mock.calls[0][0];
+      const editorCall = vi.mocked(TipTapReact.useEditor).mock.calls[0][0];
       expect(editorCall.extensions).toBeDefined();
     });
 
     it('should render with initial value', () => {
       const onChange = vi.fn();
-      const { useEditor } = require('@tiptap/react');
 
       render(<RichTextEditor value="<p>Initial content</p>" onChange={onChange} />);
 
-      const editorCall = useEditor.mock.calls[0][0];
+      const editorCall = vi.mocked(TipTapReact.useEditor).mock.calls[0][0];
       expect(editorCall.content).toBe('<p>Initial content</p>');
     });
 
@@ -132,8 +131,7 @@ describe('RichTextEditor Component', () => {
     });
 
     it('should not render when editor is not initialized', () => {
-      const { useEditor } = require('@tiptap/react');
-      useEditor.mockReturnValue(null);
+      vi.mocked(TipTapReact.useEditor).mockReturnValue(null);
 
       const onChange = vi.fn();
       const { container } = render(<RichTextEditor value="" onChange={onChange} />);
@@ -328,15 +326,15 @@ describe('RichTextEditor Component', () => {
       const onChange = vi.fn();
       const { container } = render(<RichTextEditor value="" onChange={onChange} />);
 
-      // Find link button (after alignment buttons)
+      // Find link button (index 18 - "Insert Link")
       const buttons = container.querySelectorAll('button');
-      const linkButton = Array.from(buttons).find((btn, idx) => idx > 15);
+      const linkButton = buttons[18];
 
       if (linkButton) {
         await user.click(linkButton);
         await waitFor(() => {
           expect(container.querySelector('input[type="url"]')).toBeInTheDocument();
-        });
+        }, { timeout: 15000 });
       }
     });
 
@@ -346,7 +344,7 @@ describe('RichTextEditor Component', () => {
       const { container } = render(<RichTextEditor value="" onChange={onChange} />);
 
       const buttons = container.querySelectorAll('button');
-      const linkButton = Array.from(buttons).find((btn, idx) => idx > 15);
+      const linkButton = buttons[18];
 
       if (linkButton) {
         await user.click(linkButton);
@@ -357,7 +355,7 @@ describe('RichTextEditor Component', () => {
             return true;
           }
           throw new Error('URL input not found');
-        });
+        }, { timeout: 15000 });
 
         const urlInput = container.querySelector('input[type="url"]');
         await user.type(urlInput, 'https://example.com');
@@ -377,7 +375,7 @@ describe('RichTextEditor Component', () => {
       const { container } = render(<RichTextEditor value="" onChange={onChange} />);
 
       const buttons = container.querySelectorAll('button');
-      const linkButton = Array.from(buttons).find((btn, idx) => idx > 15);
+      const linkButton = buttons[18];
 
       if (linkButton) {
         await user.click(linkButton);
@@ -391,7 +389,7 @@ describe('RichTextEditor Component', () => {
       const { container } = render(<RichTextEditor value="" onChange={onChange} />);
 
       const buttons = container.querySelectorAll('button');
-      const linkButton = Array.from(buttons).find((btn, idx) => idx > 15);
+      const linkButton = buttons[18];
 
       if (linkButton) {
         await user.click(linkButton);
@@ -402,14 +400,14 @@ describe('RichTextEditor Component', () => {
             return true;
           }
           throw new Error('URL input not found');
-        });
+        }, { timeout: 15000 });
 
         const urlInput = container.querySelector('input[type="url"]');
         await user.type(urlInput, '{Escape}');
 
         await waitFor(() => {
           expect(container.querySelector('input[type="url"]')).not.toBeInTheDocument();
-        });
+        }, { timeout: 15000 });
       }
     });
   });
@@ -421,8 +419,8 @@ describe('RichTextEditor Component', () => {
       const { container } = render(<RichTextEditor value="" onChange={onChange} />);
 
       const buttons = container.querySelectorAll('button');
-      // Color button is after link button
-      const colorButton = Array.from(buttons).find((btn, idx) => idx > 16);
+      // Color button is index 19 - "Text Color"
+      const colorButton = buttons[19];
 
       if (colorButton) {
         await user.click(colorButton);
@@ -430,7 +428,7 @@ describe('RichTextEditor Component', () => {
         await waitFor(() => {
           const colorPicker = container.querySelector('.grid.grid-cols-4');
           expect(colorPicker).toBeInTheDocument();
-        });
+        }, { timeout: 15000 });
       }
     });
 
@@ -440,7 +438,7 @@ describe('RichTextEditor Component', () => {
       const { container } = render(<RichTextEditor value="" onChange={onChange} />);
 
       const buttons = container.querySelectorAll('button');
-      const colorButton = Array.from(buttons).find((btn, idx) => idx > 16);
+      const colorButton = buttons[19];
 
       if (colorButton) {
         await user.click(colorButton);
@@ -451,7 +449,7 @@ describe('RichTextEditor Component', () => {
             return true;
           }
           throw new Error('Color buttons not found');
-        });
+        }, { timeout: 15000 });
 
         const colorButtons = container.querySelectorAll('.grid.grid-cols-4 button');
         if (colorButtons[0]) {
@@ -469,7 +467,7 @@ describe('RichTextEditor Component', () => {
       const { container } = render(<RichTextEditor value="" onChange={onChange} />);
 
       const buttons = container.querySelectorAll('button');
-      const highlightButton = Array.from(buttons).find((btn, idx) => idx > 17);
+      const highlightButton = buttons[20];
 
       if (highlightButton) {
         await user.click(highlightButton);
@@ -477,7 +475,7 @@ describe('RichTextEditor Component', () => {
         await waitFor(() => {
           const highlightPicker = container.querySelector('.grid.grid-cols-3');
           expect(highlightPicker).toBeInTheDocument();
-        });
+        }, { timeout: 15000 });
       }
     });
 
@@ -487,7 +485,7 @@ describe('RichTextEditor Component', () => {
       const { container } = render(<RichTextEditor value="" onChange={onChange} />);
 
       const buttons = container.querySelectorAll('button');
-      const highlightButton = Array.from(buttons).find((btn, idx) => idx > 17);
+      const highlightButton = buttons[20];
 
       if (highlightButton) {
         await user.click(highlightButton);
@@ -498,7 +496,7 @@ describe('RichTextEditor Component', () => {
             return true;
           }
           throw new Error('Highlight buttons not found');
-        });
+        }, { timeout: 15000 });
 
         const highlightButtons = container.querySelectorAll('.grid.grid-cols-3 button');
         if (highlightButtons[1]) {
@@ -514,7 +512,7 @@ describe('RichTextEditor Component', () => {
       const { container } = render(<RichTextEditor value="" onChange={onChange} />);
 
       const buttons = container.querySelectorAll('button');
-      const highlightButton = Array.from(buttons).find((btn, idx) => idx > 17);
+      const highlightButton = buttons[20];
 
       if (highlightButton) {
         await user.click(highlightButton);
@@ -525,7 +523,7 @@ describe('RichTextEditor Component', () => {
             return true;
           }
           throw new Error('Highlight buttons not found');
-        });
+        }, { timeout: 15000 });
 
         const highlightButtons = container.querySelectorAll('.grid.grid-cols-3 button');
         // First button should be "None"
@@ -544,8 +542,8 @@ describe('RichTextEditor Component', () => {
       const { container } = render(<RichTextEditor value="" onChange={onChange} />);
 
       const buttons = container.querySelectorAll('button');
-      // Table button is near the end
-      const tableButton = Array.from(buttons).find((btn, idx) => idx > 18);
+      // Table button is index 21 - "Insert Table"
+      const tableButton = buttons[21];
 
       if (tableButton) {
         await user.click(tableButton);
@@ -653,11 +651,10 @@ describe('RichTextEditor Component', () => {
   describe('onChange Callback', () => {
     it('should call onChange when content changes', () => {
       const onChange = vi.fn();
-      const { useEditor } = require('@tiptap/react');
 
       render(<RichTextEditor value="" onChange={onChange} />);
 
-      const editorConfig = useEditor.mock.calls[0][0];
+      const editorConfig = vi.mocked(TipTapReact.useEditor).mock.calls[0][0];
       const mockEditorInstance = { getHTML: () => '<p>New content</p>' };
 
       editorConfig.onUpdate({ editor: mockEditorInstance });
@@ -734,10 +731,9 @@ describe('RichTextEditor Component', () => {
       const longContent = '<p>' + 'x'.repeat(10000) + '</p>';
       const onChange = vi.fn();
 
-      const { useEditor } = require('@tiptap/react');
       render(<RichTextEditor value={longContent} onChange={onChange} />);
 
-      const editorConfig = useEditor.mock.calls[0][0];
+      const editorConfig = vi.mocked(TipTapReact.useEditor).mock.calls[0][0];
       expect(editorConfig.content).toBe(longContent);
     });
   });

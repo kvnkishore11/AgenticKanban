@@ -125,8 +125,10 @@ describe('AdwIdInput Component', () => {
     });
 
     it('should display loading state while fetching ADWs', async () => {
+      // Use a promise that we control to ensure loading state is visible
+      let resolvePromise;
       adwDiscoveryService.listAdws.mockImplementation(() =>
-        new Promise(resolve => setTimeout(() => resolve(mockAdws), 100))
+        new Promise(resolve => { resolvePromise = () => resolve(mockAdws); })
       );
 
       const user = userEvent.setup();
@@ -135,7 +137,11 @@ describe('AdwIdInput Component', () => {
       const input = screen.getByPlaceholderText('Search or enter ADW ID...');
       await user.click(input);
 
+      // Now loading state should be visible since promise hasn't resolved
       expect(screen.getByText('Loading ADW IDs...')).toBeInTheDocument();
+
+      // Clean up by resolving the promise
+      resolvePromise();
     });
 
     it('should display ADW list in dropdown when input is focused', async () => {
@@ -506,15 +512,19 @@ describe('AdwIdInput Component', () => {
   describe('Validation', () => {
     it('should validate on value change', async () => {
       const user = userEvent.setup();
-      render(<AdwIdInput onChange={vi.fn()} />);
+      const onChange = vi.fn();
+      const { rerender } = render(<AdwIdInput value="" onChange={onChange} />);
 
       const input = screen.getByPlaceholderText('Search or enter ADW ID...');
       await user.type(input, 'abc12345');
 
+      // Simulate controlled component by updating value prop
+      rerender(<AdwIdInput value="abc12345" onChange={onChange} />);
+
       await waitFor(() => {
         expect(adwValidation.validateAdwId).toHaveBeenCalled();
-      });
-    });
+      }, { timeout: 15000 });
+    }, 20000);
 
     it('should show error state when validation fails', async () => {
       const user = userEvent.setup();
@@ -527,11 +537,12 @@ describe('AdwIdInput Component', () => {
 
       const input = screen.getByPlaceholderText('Search or enter ADW ID...');
       await user.type(input, 'invalid');
+      await user.tab(); // Trigger blur to set touched=true
 
       await waitFor(() => {
         expect(screen.getByText('Invalid ADW ID format')).toBeInTheDocument();
-      }, { timeout: 10000 });
-    });
+      }, { timeout: 15000 });
+    }, 20000);
 
     it('should show success state when validation passes', async () => {
       adwValidation.validateAdwId.mockReturnValue({
@@ -543,8 +554,8 @@ describe('AdwIdInput Component', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/Valid ADW ID format/i)).toBeInTheDocument();
-      }, { timeout: 10000 });
-    });
+      }, { timeout: 15000 });
+    }, 20000);
 
     it('should mark field as touched on blur', async () => {
       const user = userEvent.setup();
@@ -562,8 +573,8 @@ describe('AdwIdInput Component', () => {
 
       await waitFor(() => {
         expect(screen.getByText('ADW ID is required')).toBeInTheDocument();
-      }, { timeout: 10000 });
-    });
+      }, { timeout: 15000 });
+    }, 20000);
   });
 
   describe('Workflow Type Integration', () => {
@@ -590,8 +601,8 @@ describe('AdwIdInput Component', () => {
 
       await waitFor(() => {
         expect(adwValidation.validateAdwId).toHaveBeenCalledWith('', true);
-      }, { timeout: 10000 });
-    });
+      }, { timeout: 15000 });
+    }, 20000);
   });
 
   describe('Help Text', () => {

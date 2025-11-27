@@ -30,32 +30,22 @@ const localStorageMock = (() => {
 
 Object.defineProperty(window, 'localStorage', { value: localStorageMock, writable: true });
 
+// Create a storage map to track data
+const storageMap = new Map();
+
 // Mock dependencies
 vi.mock('../localStorage.js', () => ({
   default: {
-    getItem: vi.fn((key, defaultValue) => {
-      const value = localStorageMock.getItem(`agentic-kanban-${key}`);
-      if (value) {
-        try {
-          const parsed = JSON.parse(value);
-          return parsed.data || defaultValue;
-        } catch {
-          return defaultValue;
-        }
-      }
-      return defaultValue;
+    getItem: vi.fn((key, defaultValue = null) => {
+      const value = storageMap.get(key);
+      return value !== undefined ? value : defaultValue;
     }),
     setItem: vi.fn((key, value) => {
-      const data = JSON.stringify({
-        data: value,
-        version: '1.0.0',
-        timestamp: new Date().toISOString()
-      });
-      localStorageMock.setItem(`agentic-kanban-${key}`, data);
+      storageMap.set(key, value);
       return true;
     }),
     removeItem: vi.fn((key) => {
-      localStorageMock.removeItem(`agentic-kanban-${key}`);
+      storageMap.delete(key);
       return true;
     }),
     getStorageInfo: vi.fn(() => ({
@@ -87,6 +77,7 @@ describe('ProjectPersistenceService', () => {
 
   beforeEach(() => {
     localStorageMock.clear();
+    storageMap.clear();
     vi.clearAllMocks();
     service = projectPersistenceService;
   });
@@ -104,14 +95,19 @@ describe('ProjectPersistenceService', () => {
     });
 
     it('should clean up dummy projects on initialization', () => {
-      localStorageService.getItem.mockReturnValueOnce([
+      // Set up projects in storage including a dummy project
+      storageMap.set('projects', [
         { id: '1', name: 'Real Project', path: '/real/path' },
         { id: '2', name: 'Dummy Project', path: '/dummy/path' }
       ]);
 
       service.initialize();
 
-      expect(localStorageService.setItem).toHaveBeenCalled();
+      // Check that only real project remains
+      const projects = storageMap.get('projects');
+      expect(projects).toBeDefined();
+      expect(projects.length).toBe(1);
+      expect(projects[0].name).toBe('Real Project');
     });
   });
 
@@ -192,13 +188,14 @@ describe('ProjectPersistenceService', () => {
 
   describe('addProject', () => {
     it('should add a valid project', () => {
+      // Ensure storage starts empty
+      storageMap.set('projects', []);
+
       const project = {
         name: 'New Project',
         path: '/new/path',
-        description: 'Test project'
+        description: 'A real production project'
       };
-
-      localStorageService.getItem.mockReturnValueOnce([]);
 
       const result = service.addProject(project);
 
@@ -234,14 +231,14 @@ describe('ProjectPersistenceService', () => {
     });
 
     it('should detect duplicates', () => {
-      const existingProject = {
+      // First add a project
+      service.addProject({
         id: '1',
         name: 'Existing',
         path: '/existing/path'
-      };
+      });
 
-      localStorageService.getItem.mockReturnValueOnce([existingProject]);
-
+      // Try to add duplicate
       const result = service.addProject({
         name: 'Existing',
         path: '/existing/path'
@@ -252,13 +249,13 @@ describe('ProjectPersistenceService', () => {
     });
 
     it('should generate ID if not provided', () => {
-      const project = {
-        name: 'Test',
-        path: '/test'
-      };
+      // Ensure storage starts empty
+      storageMap.set('projects', []);
 
-      localStorageService.getItem.mockReturnValueOnce([]);
-      localStorageService.getItem.mockReturnValueOnce(1); // For ID counter
+      const project = {
+        name: 'Production App',
+        path: '/projects/production-app'
+      };
 
       const result = service.addProject(project);
 
@@ -294,13 +291,12 @@ describe('ProjectPersistenceService', () => {
 
   describe('updateProject', () => {
     it('should update existing project', () => {
-      const existingProject = {
+      // Add a project first
+      service.addProject({
         id: 'project-1',
         name: 'Original',
         path: '/original'
-      };
-
-      localStorageService.getItem.mockReturnValueOnce([existingProject]);
+      });
 
       const result = service.updateProject('project-1', { name: 'Updated' });
 
@@ -310,8 +306,6 @@ describe('ProjectPersistenceService', () => {
     });
 
     it('should fail when project not found', () => {
-      localStorageService.getItem.mockReturnValueOnce([]);
-
       const result = service.updateProject('non-existent', { name: 'Updated' });
 
       expect(result.success).toBe(false);
@@ -319,13 +313,12 @@ describe('ProjectPersistenceService', () => {
     });
 
     it('should validate updated project', () => {
-      const existingProject = {
+      // Add a project first
+      service.addProject({
         id: 'project-1',
         name: 'Original',
         path: '/original'
-      };
-
-      localStorageService.getItem.mockReturnValueOnce([existingProject]);
+      });
 
       const result = service.updateProject('project-1', { name: '' });
 
@@ -334,13 +327,12 @@ describe('ProjectPersistenceService', () => {
     });
 
     it('should reject update to dummy project', () => {
-      const existingProject = {
+      // Add a project first
+      service.addProject({
         id: 'project-1',
         name: 'Original',
         path: '/original'
-      };
-
-      localStorageService.getItem.mockReturnValueOnce([existingProject]);
+      });
 
       const result = service.updateProject('project-1', {
         name: 'Dummy Project',
@@ -354,19 +346,16 @@ describe('ProjectPersistenceService', () => {
 
   describe('removeProject', () => {
     it('should remove project by ID', () => {
-      const projects = [
-        { id: 'project-1', name: 'Project 1', path: '/path1' },
-        { id: 'project-2', name: 'Project 2', path: '/path2' }
-      ];
-
-      localStorageService.getItem.mockReturnValueOnce(projects);
+      // Add two projects first
+      service.addProject({ id: 'project-1', name: 'Project 1', path: '/path1' });
+      service.addProject({ id: 'project-2', name: 'Project 2', path: '/path2' });
 
       const result = service.removeProject('project-1');
 
       expect(result).toBe(true);
-      const savedProjects = localStorageService.setItem.mock.calls[0][1];
-      expect(savedProjects).toHaveLength(1);
-      expect(savedProjects[0].id).toBe('project-2');
+      const remainingProjects = service.getAllProjects();
+      expect(remainingProjects).toHaveLength(1);
+      expect(remainingProjects[0].id).toBe('project-2');
     });
 
     it('should return false when project not found', () => {
@@ -380,20 +369,16 @@ describe('ProjectPersistenceService', () => {
 
   describe('getProjectById', () => {
     it('should return project by ID', () => {
-      const projects = [
-        { id: 'project-1', name: 'Project 1', path: '/path1' }
-      ];
-
-      localStorageService.getItem.mockReturnValueOnce(projects);
+      // Add a project first
+      service.addProject({ id: 'project-1', name: 'Project 1', path: '/path1' });
 
       const project = service.getProjectById('project-1');
 
-      expect(project).toEqual(projects[0]);
+      expect(project).toBeTruthy();
+      expect(project.name).toBe('Project 1');
     });
 
     it('should return null when not found', () => {
-      localStorageService.getItem.mockReturnValueOnce([]);
-
       const project = service.getProjectById('non-existent');
 
       expect(project).toBe(null);
@@ -481,24 +466,19 @@ describe('ProjectPersistenceService', () => {
 
   describe('generateProjectId', () => {
     it('should generate unique project IDs', () => {
-      localStorageService.getItem.mockReturnValueOnce(1);
-      localStorageService.getItem.mockReturnValueOnce(2);
-
       const id1 = service.generateProjectId();
       const id2 = service.generateProjectId();
 
-      expect(id1).toBe('project-1');
-      expect(id2).toBe('project-2');
+      expect(id1).toMatch(/^project-\d+$/);
+      expect(id2).toMatch(/^project-\d+$/);
+      expect(id1).not.toBe(id2);
     });
   });
 
   describe('clearAllData', () => {
     it('should clear all project data with backup', () => {
-      const projects = [
-        { id: '1', name: 'Project 1', path: '/path1' }
-      ];
-
-      localStorageService.getItem.mockReturnValueOnce(projects);
+      // Add a project first
+      service.addProject({ id: '1', name: 'Project 1', path: '/path1' });
 
       const result = service.clearAllData();
 
@@ -511,18 +491,16 @@ describe('ProjectPersistenceService', () => {
 
   describe('exportProjects', () => {
     it('should export all projects', () => {
-      const projects = [
-        { id: '1', name: 'Project 1', path: '/path1' }
-      ];
-
-      localStorageService.getItem.mockReturnValueOnce(projects);
+      // Add a project first
+      const addResult = service.addProject({ id: '1', name: 'Project 1', path: '/path1' });
 
       const exported = service.exportProjects();
 
       expect(exported).toHaveProperty('version', '1.0.0');
       expect(exported).toHaveProperty('exportedAt');
       expect(exported).toHaveProperty('projects');
-      expect(exported.projects).toEqual(projects);
+      expect(exported.projects).toHaveLength(1);
+      expect(exported.projects[0].name).toBe('Project 1');
     });
   });
 

@@ -88,6 +88,8 @@ describe('StageProgressionService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     service = stageProgressionService;
+    // Clean up any existing progressions
+    service.cleanup();
 
     // Create mock Kanban store
     mockStore = {
@@ -109,6 +111,15 @@ describe('StageProgressionService', () => {
     it('should start progression for a task', () => {
       const taskId = 'task-1';
 
+      // Add a task to the mock store
+      mockStore.getState = vi.fn(() => ({
+        tasks: [{ id: taskId, stage: 'plan', substage: 'analyze' }],
+        addTaskLog: vi.fn(),
+        updateTaskProgress: vi.fn(),
+        moveTaskToStage: vi.fn(),
+        updateTask: vi.fn()
+      }));
+
       service.startProgression(taskId, mockStore);
 
       expect(service.isProgressionActive(taskId)).toBe(true);
@@ -116,6 +127,15 @@ describe('StageProgressionService', () => {
 
     it('should not start duplicate progression', () => {
       const taskId = 'task-1';
+
+      // Add a task to the mock store
+      mockStore.getState = vi.fn(() => ({
+        tasks: [{ id: taskId, stage: 'plan', substage: 'analyze' }],
+        addTaskLog: vi.fn(),
+        updateTaskProgress: vi.fn(),
+        moveTaskToStage: vi.fn(),
+        updateTask: vi.fn()
+      }));
 
       service.startProgression(taskId, mockStore);
       service.startProgression(taskId, mockStore);
@@ -144,6 +164,15 @@ describe('StageProgressionService', () => {
   describe('isProgressionActive', () => {
     it('should return true for active progression', () => {
       const taskId = 'task-1';
+
+      // Add a task to the mock store
+      mockStore.getState = vi.fn(() => ({
+        tasks: [{ id: taskId, stage: 'plan', substage: 'analyze' }],
+        addTaskLog: vi.fn(),
+        updateTaskProgress: vi.fn(),
+        moveTaskToStage: vi.fn(),
+        updateTask: vi.fn()
+      }));
 
       service.startProgression(taskId, mockStore);
 
@@ -477,6 +506,15 @@ describe('StageProgressionService', () => {
     it('should pause active progression', () => {
       const taskId = 'task-1';
 
+      // Add a task to the mock store
+      mockStore.getState = vi.fn(() => ({
+        tasks: [{ id: taskId, stage: 'plan', substage: 'analyze' }],
+        addTaskLog: vi.fn(),
+        updateTaskProgress: vi.fn(),
+        moveTaskToStage: vi.fn(),
+        updateTask: vi.fn()
+      }));
+
       service.startProgression(taskId, mockStore);
       service.pauseProgression(taskId);
 
@@ -513,6 +551,15 @@ describe('StageProgressionService', () => {
     it('should return status for active progression', () => {
       const taskId = 'task-1';
 
+      // Add a task to the mock store
+      mockStore.getState = vi.fn(() => ({
+        tasks: [{ id: taskId, stage: 'plan', substage: 'analyze' }],
+        addTaskLog: vi.fn(),
+        updateTaskProgress: vi.fn(),
+        moveTaskToStage: vi.fn(),
+        updateTask: vi.fn()
+      }));
+
       service.startProgression(taskId, mockStore);
 
       const status = service.getProgressionStatus(taskId);
@@ -531,6 +578,18 @@ describe('StageProgressionService', () => {
 
   describe('getActiveProgressions', () => {
     it('should return all active progressions', () => {
+      // Add tasks to the mock store
+      mockStore.getState = vi.fn(() => ({
+        tasks: [
+          { id: 'task-1', stage: 'plan', substage: 'analyze' },
+          { id: 'task-2', stage: 'implement', substage: 'setup' }
+        ],
+        addTaskLog: vi.fn(),
+        updateTaskProgress: vi.fn(),
+        moveTaskToStage: vi.fn(),
+        updateTask: vi.fn()
+      }));
+
       service.startProgression('task-1', mockStore);
       service.startProgression('task-2', mockStore);
 

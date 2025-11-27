@@ -48,7 +48,7 @@ const AdwIdInput = ({
 
   // Validate ADW ID when value changes
   useEffect(() => {
-    if (value || touched) {
+    if (value || touched || adwIdRequired) {
       const validation = validateAdwId(value, adwIdRequired);
       setValidationState(validation);
     } else {
