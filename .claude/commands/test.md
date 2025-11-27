@@ -59,13 +59,19 @@ TEST_COMMAND_TIMEOUT: 5 minutes
 
 ### Frontend Tests
 
-4. **TypeScript Type Check**
+4. **Frontend Unit Tests**
+   - Preparation Command: None
+   - Command: `npm run test`
+   - test_name: "frontend_unit_tests"
+   - test_purpose: "Validates frontend components, hooks, stores, and utilities using Vitest + React Testing Library"
+
+5. **TypeScript Type Check**
    - Preparation Command: None
    - Command: `npm run typecheck`
    - test_name: "typescript_check"
    - test_purpose: "Validates TypeScript type correctness without generating output files, catching type errors, missing imports, and incorrect function signatures"
 
-5. **Frontend Build**
+6. **Frontend Build**
    - Preparation Command: None
    - Command: `npm run build`
    - test_name: "frontend_build"

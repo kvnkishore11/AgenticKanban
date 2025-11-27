@@ -1,0 +1,34 @@
+import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.js'],
+    include: [
+      'src/**/*.test.{js,jsx,ts,tsx}',
+      'agents/*/tests/unit_test/frontend/**/*.test.{js,jsx,ts,tsx}'
+    ],
+    exclude: [
+      'node_modules',
+      'dist',
+      'trees/**'
+    ],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: [
+        'node_modules/',
+        'src/test/',
+        'agents/'
+      ]
+    },
+    // Reporter configuration for CI/automated parsing
+    reporters: ['verbose'],
+    outputFile: {
+      json: './test-results.json'
+    }
+  },
+})

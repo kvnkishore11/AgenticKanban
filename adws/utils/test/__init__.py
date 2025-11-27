@@ -58,6 +58,14 @@ from .finalization import (
     finalize_test_workflow,
 )
 
+from .discovery import (
+    DiscoveredTests,
+    discover_adw_tests,
+    get_adw_test_paths,
+    ensure_adw_test_dirs,
+    has_adw_tests,
+)
+
 __all__ = [
     # Types
     "TestInitContext",
@@ -99,4 +107,10 @@ __all__ = [
     # Finalization
     "validate_repo_access",
     "finalize_test_workflow",
+    # Discovery
+    "DiscoveredTests",
+    "discover_adw_tests",
+    "get_adw_test_paths",
+    "ensure_adw_test_dirs",
+    "has_adw_tests",
 ]

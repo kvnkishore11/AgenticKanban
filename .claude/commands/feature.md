@@ -21,11 +21,12 @@ issue_json: $3
 - Design for extensibility and maintainability.
 - If you need a new library, use `uv add` and be sure to report it in the `Notes` section of the `Plan Format`.
 - Don't use decorators. Keep it simple.
-- IMPORTANT: If the feature includes UI components or user interactions:
-  - Add a task in the `Step by Step Tasks` section to create a separate E2E test file in `.claude/commands/e2e/test_<descriptive_name>.md` based on examples in that directory
-  - Add E2E test validation to your Validation Commands section
-  - IMPORTANT: When you fill out the `Plan Format: Relevant Files` section, add an instruction to read `.claude/commands/test_e2e.md`, and `.claude/commands/e2e/test_basic_query.md` to understand how to create an E2E test file. List your new E2E test file to the `Plan Format: New Files` section.
-  - To be clear, we're not creating a new E2E test file, we're creating a task to create a new E2E test file in the `Plan Format` below
+- IMPORTANT: Test Generation Strategy:
+  - **Backend Tests**: If the feature modifies Python backend code, add a task to create unit tests in `agents/{adw_id}/tests/unit_test/backend/test_{feature_name}.py` using pytest
+  - **Frontend Tests**: If the feature modifies React/JS frontend code, add a task to create unit tests in `agents/{adw_id}/tests/unit_test/frontend/test_{feature_name}.test.js` using Vitest + React Testing Library
+  - **E2E Tests**: If the feature includes UI components or user interactions, add a task to create E2E test file in `agents/{adw_id}/tests/e2e/test_{feature_name}.md`
+  - IMPORTANT: When you fill out the `Plan Format: Relevant Files` section, add an instruction to read `.claude/commands/test_e2e.md`, and `.claude/commands/e2e/test_basic_query.md` to understand how to create an E2E test file
+  - To be clear, we're not creating the test files directly, we're creating tasks to create them in the `Plan Format` below
 - Respect requested files in the `Relevant Files` section.
 - Start your research by reading the `README.md` file.
 
@@ -92,7 +93,14 @@ IMPORTANT: Execute every step in order, top to bottom.
 
 ## Testing Strategy
 ### Unit Tests
-<describe unit tests needed for the feature>
+#### Backend Unit Tests
+<If backend code was modified, describe Python unit tests to create in `agents/{adw_id}/tests/unit_test/backend/test_{feature_name}.py`>
+
+#### Frontend Unit Tests
+<If frontend code was modified, describe Vitest unit tests to create in `agents/{adw_id}/tests/unit_test/frontend/test_{feature_name}.test.js`>
+
+### E2E Tests
+<If UI was affected, describe E2E tests to create in `agents/{adw_id}/tests/e2e/test_{feature_name}.md`>
 
 ### Edge Cases
 <list edge cases that need to be tested>

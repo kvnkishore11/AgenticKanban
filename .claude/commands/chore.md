@@ -18,6 +18,9 @@ issue_json: $3
 - Research the codebase and put together a plan to accomplish the chore.
 - IMPORTANT: Replace every <placeholder> in the `Plan Format` with the requested value. Add as much detail as needed to accomplish the chore.
 - Use your reasoning model: THINK HARDER about the plan and the steps to accomplish the chore.
+- IMPORTANT: Test Generation Strategy (if the chore modifies code):
+  - **Backend Tests**: If the chore modifies Python backend code, add a task to create/update tests in `agents/{adw_id}/tests/unit_test/backend/test_{chore_name}.py` using pytest
+  - **Frontend Tests**: If the chore modifies React/JS frontend code, add a task to create/update tests in `agents/{adw_id}/tests/unit_test/frontend/test_{chore_name}.test.js` using Vitest + React Testing Library
 - Respect requested files in the `Relevant Files` section.
 - Start your research by reading the `README.md` file.
 - `adws/*.py` contain astral uv single file python scripts. So if you want to run them use `uv run <script_name>`.
@@ -57,13 +60,20 @@ Use these files to resolve the chore:
 ## Step by Step Tasks
 IMPORTANT: Execute every step in order, top to bottom.
 
-<list step by step tasks as h3 headers plus bullet points. use as many h3 headers as needed to accomplish the chore. Order matters, start with the foundational shared changes required to fix the chore then move on to the specific changes required to fix the chore. Your last step should be running the `Validation Commands` to validate the chore is complete with zero regressions.>
+<list step by step tasks as h3 headers plus bullet points. use as many h3 headers as needed to accomplish the chore. Order matters, start with the foundational shared changes required to fix the chore then move on to the specific changes required to fix the chore.>
+
+<If the chore modifies code, include a task to create/update tests:
+- If backend code was modified: Create tests in `agents/{adw_id}/tests/unit_test/backend/test_{chore_name}.py`
+- If frontend code was modified: Create tests in `agents/{adw_id}/tests/unit_test/frontend/test_{chore_name}.test.js`>
+
+<Your last step should be running the `Validation Commands` to validate the chore is complete with zero regressions.>
 
 ## Validation Commands
 Execute every command to validate the chore is complete with zero regressions.
 
 <list commands you'll use to validate with 100% confidence the chore is complete with zero regressions. every command must execute without errors so be specific about what you want to run to validate the chore is complete with zero regressions. Don't validate with curl commands.>
-- `cd server && uv run pytest` - Run server tests to validate the chore is complete with zero regressions
+- `uv run pytest adws/adw_tests/ -v --tb=short` - Run backend tests to validate the chore is complete with zero regressions
+- `npm run test` - Run frontend tests to validate the chore is complete with zero regressions
 
 ## Notes
 <optionally list any additional notes or context that are relevant to the chore that will be helpful to the developer>

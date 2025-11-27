@@ -22,11 +22,12 @@ issue_json: $3
 - IMPORTANT: We want the MINIMAL number of changes that will fix and address the bug.
 - Don't use decorators. Keep it simple.
 - If you need a new library, use `uv add` if it is related to backend and be sure to report it in the `Notes` section of the `Plan Format`.
-- IMPORTANT: If the bug affects the UI or user interactions:
-  - Add a task in the `Step by Step Tasks` section to create a separate E2E test file in `.claude/commands/e2e/test_<descriptive_name>.md` based on examples in that directory
-  - Add E2E test validation to your Validation Commands section
-  - IMPORTANT: When you fill out the `Plan Format: Relevant Files` section, add an instruction to read `.claude/commands/test_e2e.md`, and `.claude/commands/e2e/test_basic_query.md` to understand how to create an E2E test file. List your new E2E test file to the `Plan Format: New Files` section.
-  - To be clear, we're not creating a new E2E test file, we're creating a task to create a new E2E test file in the `Plan Format` below
+- IMPORTANT: Test Generation Strategy (to prevent regression):
+  - **Backend Tests**: If the bug fix modifies Python backend code, add a task to create regression tests in `agents/{adw_id}/tests/unit_test/backend/test_{bug_name}.py` using pytest
+  - **Frontend Tests**: If the bug fix modifies React/JS frontend code, add a task to create regression tests in `agents/{adw_id}/tests/unit_test/frontend/test_{bug_name}.test.js` using Vitest + React Testing Library
+  - **E2E Tests**: If the bug affects UI or user interactions, add a task to create E2E test file in `agents/{adw_id}/tests/e2e/test_{bug_name}.md`
+  - IMPORTANT: When you fill out the `Plan Format: Relevant Files` section, add an instruction to read `.claude/commands/test_e2e.md`, and `.claude/commands/e2e/test_basic_query.md` to understand how to create an E2E test file
+  - To be clear, we're not creating the test files directly, we're creating tasks to create them in the `Plan Format` below
 - Respect requested files in the `Relevant Files` section.
 - Start your research by reading the `README.md` file.
 
@@ -78,7 +79,10 @@ IMPORTANT: Execute every step in order, top to bottom.
 
 <list step by step tasks as h3 headers plus bullet points. use as many h3 headers as needed to fix the bug. Order matters, start with the foundational shared changes required to fix the bug then move on to the specific changes required to fix the bug. Include tests that will validate the bug is fixed with zero regressions.>
 
-<If the bug affects UI, include a task to create a E2E test file. Your task should look like: "Read `.claude/commands/e2e/test_basic_query.md` and `.claude/commands/e2e/test_complex_query.md` and create a new E2E test file in `.claude/commands/e2e/test_<descriptive_name>.md` that validates the bug is fixed, be specific with the steps to prove the bug is fixed. We want the minimal set of steps to validate the bug is fixed and screen shots to prove it if possible.">
+<Include tasks to create regression tests:
+- If backend code was modified: Create regression test in `agents/{adw_id}/tests/unit_test/backend/test_{bug_name}.py`
+- If frontend code was modified: Create regression test in `agents/{adw_id}/tests/unit_test/frontend/test_{bug_name}.test.js`
+- If UI was affected: Read `.claude/commands/e2e/test_basic_query.md` and create E2E test file in `agents/{adw_id}/tests/e2e/test_{bug_name}.md` that validates the bug is fixed>
 
 <Your last step should be running the `Validation Commands` to validate the bug is fixed with zero regressions.>
 

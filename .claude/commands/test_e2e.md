@@ -6,7 +6,9 @@ Execute end-to-end (E2E) tests using Playwright browser automation (MCP Server).
 
 adw_id: $ARGUMENT if provided, otherwise generate a random 8 character hex string
 agent_name: $ARGUMENT if provided, otherwise use 'test_e2e'
-e2e_test_file: $ARGUMENT
+e2e_test_file: $ARGUMENT - Path to E2E test file. Can be:
+  - `agents/{adw_id}/tests/e2e/test_{name}.md` (preferred for ADW-specific tests)
+  - `.claude/commands/e2e/test_{name}.md` (legacy/example templates)
 application_url: $ARGUMENT if provided, otherwise determine from port configuration:
   - If `.ports.env` exists, source it and use http://localhost:${FRONTEND_PORT}
   - Otherwise use default http://localhost:5173
