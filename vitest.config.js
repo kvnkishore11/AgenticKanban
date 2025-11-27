@@ -7,6 +7,9 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.js'],
+    env: {
+      VITE_BACKEND_URL: 'http://localhost:8500',
+    },
     include: [
       'src/**/*.test.{js,jsx,ts,tsx}',
       'agents/*/tests/unit_test/frontend/**/*.test.{js,jsx,ts,tsx}'

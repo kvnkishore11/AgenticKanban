@@ -458,7 +458,9 @@ class ProjectNotificationService {
    */
   isConnected(projectId) {
     const connection = this.connections.get(projectId);
-    return connection && connection.ws.readyState === WebSocket.OPEN;
+    // Use numeric constant 1 (OPEN) for better test compatibility
+    // WebSocket.OPEN may not be available in all environments
+    return !!(connection && connection.ws.readyState === 1);
   }
 
   /**

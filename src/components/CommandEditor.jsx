@@ -402,8 +402,8 @@ const CommandEditor = ({ commandId, isOpen, onClose, onSave = null }) => {
         <div className="p-3 border-t border-gray-100 bg-gray-50">
           <div className="flex items-center justify-between text-xs text-gray-500">
             <div className="flex items-center space-x-4">
-              <span>Lines: {content.split('\n').length}</span>
-              <span>Characters: {content.length}</span>
+              <span>Lines: {(content || '').split('\n').length}</span>
+              <span>Characters: {(content || '').length}</span>
               <span>Reading time: {estimateReadingTime(getCurrentTokenCount())}</span>
             </div>
             <div className="flex items-center space-x-4">

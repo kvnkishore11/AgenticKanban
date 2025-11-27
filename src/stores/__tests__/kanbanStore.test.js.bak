@@ -1,0 +1,1334 @@
+/**
+ * Comprehensive Vitest tests for Zustand kanbanStore
+ * Tests all store actions, state management, and integrations
+ */
+
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { act } from '@testing-library/react';
+import { useKanbanStore } from '../kanbanStore';
+
+// Mock all service dependencies
+vi.mock('../../services/api/adwService', () => ({
+  default: {
+    getAllPipelines: vi.fn(() => [
+      { id: 'full-stack', name: 'Full Stack', stages: ['plan', 'build', 'test', 'review', 'document'] },
+      { id: 'backend', name: 'Backend', stages: ['plan', 'build', 'test'] },
+    ]),
+    triggerWorkflow: vi.fn(() => Promise.resolve({ adw_id: 'test-adw-123', status: 'queued' })),
+    getWorkflowStatus: vi.fn(() => Promise.resolve({ status: 'running', progress: 50 })),
+    getWorkflowLogs: vi.fn(() => Promise.resolve({ logs: [] })),
+    getAgentState: vi.fn(() => Promise.resolve({ state: 'active' })),
+    deleteWorktree: vi.fn(() => Promise.resolve({ success: true })),
+  },
+}));
+
+vi.mock('../../services/adwCreationService', () => ({
+  default: {
+    createWorkItem: vi.fn(() => Promise.resolve({ id: 'work-item-123' })),
+    createAdwConfiguration: vi.fn((task, projectContext) => ({
+      workflowName: task.workflowName || 'adw_plan_iso',
+      projectPath: projectContext?.path || '/test/path',
+      taskId: task.id,
+    })),
+  },
+}));
+
+vi.mock('../../services/storage/localStorage', () => ({
+  default: {
+    getItem: vi.fn((key, defaultValue) => defaultValue || null),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+    clear: vi.fn(() => true), // Must return true for clearAllData to reset state
+    getStorageInfo: vi.fn(() => ({
+      used: 1024,
+      available: 5242880,
+      percentUsed: 0.02,
+    })),
+  },
+}));
+
+vi.mock('../../services/storage/projectPersistenceService', () => ({
+  default: {
+    initialize: vi.fn(() => ({ success: true })),
+    getAllProjects: vi.fn(() => []),
+    saveProject: vi.fn(() => ({ success: true })),
+    getProject: vi.fn(),
+    deleteProject: vi.fn(() => ({ success: true })),
+    updateProject: vi.fn(() => ({ success: true })),
+  },
+}));
+
+vi.mock('../../services/websocket/stageProgressionService', () => ({
+  default: {
+    startProgression: vi.fn(),
+    stopProgression: vi.fn(),
+    pauseProgression: vi.fn(),
+    resumeProgression: vi.fn(),
+  },
+}));
+
+vi.mock('../../services/websocket/websocketService', () => ({
+  default: {
+    connect: vi.fn(() => Promise.resolve({ connected: true })),
+    disconnect: vi.fn(),
+    isConnected: vi.fn(() => false),
+    on: vi.fn(),
+    off: vi.fn(),
+    emit: vi.fn(),
+  },
+}));
+
+vi.mock('../../services/storage/projectNotificationService', () => ({
+  default: {
+    sendNotification: vi.fn(() => Promise.resolve({ success: true })),
+    configureProject: vi.fn(),
+    getConfig: vi.fn(() => ({})),
+  },
+}));
+
+vi.mock('../../utils/dataMigration', () => ({
+  default: {
+    runMigrations: vi.fn(() => ({ success: true, migrationsRun: 0 })),
+    getStorageInfo: vi.fn(() => ({
+      version: '1.0.0',
+      lastMigration: null,
+      pendingMigrations: [],
+    })),
+    validateNoDummyProjects: vi.fn(() => true),
+    validateDataIntegrity: vi.fn(() => ({ valid: true })),
+  },
+}));
+
+vi.mock('../../utils/workflowValidation', () => ({
+  getNextStageInWorkflow: vi.fn((workflow, currentStage) => {
+    const stages = ['plan', 'build', 'test', 'review', 'document'];
+    const currentIndex = stages.indexOf(currentStage);
+    return currentIndex < stages.length - 1 ? stages[currentIndex + 1] : null;
+  }),
+  isWorkflowComplete: vi.fn((workflow, currentStage) => currentStage === 'document'),
+}));
+
+describe('KanbanStore', () => {
+  let store;
+
+  beforeEach(() => {
+    // Clear all mocks first
+    vi.clearAllMocks();
+
+    // Get a fresh store reference
+    store = useKanbanStore.getState();
+
+    // Reset store to a clean initial state manually
+    act(() => {
+      useKanbanStore.setState({
+        selectedProject: null,
+        availableProjects: [],
+        tasks: [],
+        taskIdCounter: 1,
+        showTaskInput: false,
+        selectedTaskId: null,
+        isLoading: false,
+        error: null,
+        showCompletedTasks: false,
+        websocketConnected: false,
+        websocketConnecting: false,
+        websocketError: null,
+        activeWorkflows: new Map(),
+        workflowStatusUpdates: [],
+        taskWorkflowLogs: {},
+        taskWorkflowProgress: {},
+        taskWorkflowMetadata: {},
+        taskStageLogs: {},
+        agentStates: {},
+        projectNotificationEnabled: true,
+        projectNotificationConfigs: {},
+        projectNotificationStatus: {},
+        notificationHistory: [],
+        processedMessages: new Map(),
+      }, true);
+    });
+
+    // Refresh store reference after reset
+    store = useKanbanStore.getState();
+  });
+
+  afterEach(() => {
+    // Clean up after each test
+    vi.clearAllMocks();
+  });
+
+  describe('Initial State', () => {
+    it('should have correct initial state', () => {
+      const state = useKanbanStore.getState();
+
+      expect(state.selectedProject).toBeNull();
+      expect(state.availableProjects).toEqual([]);
+      expect(state.tasks).toEqual([]);
+      expect(state.taskIdCounter).toBe(1);
+      expect(state.showTaskInput).toBe(false);
+      expect(state.selectedTaskId).toBeNull();
+      expect(state.isLoading).toBe(false);
+      expect(state.error).toBeNull();
+      expect(state.websocketConnected).toBe(false);
+    });
+
+    it('should have predefined stages', () => {
+      const state = useKanbanStore.getState();
+
+      expect(state.stages).toHaveLength(8);
+      expect(state.stages[0]).toEqual({ id: 'backlog', name: 'Backlog', color: 'gray' });
+      expect(state.stages[1]).toEqual({ id: 'plan', name: 'Plan', color: 'blue' });
+      expect(state.stages[7]).toEqual({ id: 'errored', name: 'Errored', color: 'red' });
+    });
+
+    it('should have available pipelines', () => {
+      const state = useKanbanStore.getState();
+
+      expect(state.availablePipelines).toHaveLength(2);
+      expect(state.availablePipelines[0].id).toBe('full-stack');
+    });
+  });
+
+  describe('Project Management', () => {
+    it('should select a project', () => {
+      const project = { id: 'proj-1', name: 'Test Project' };
+
+      act(() => {
+        store.selectProject(project);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.selectedProject).toEqual(project);
+    });
+
+    it('should deselect a project', () => {
+      const project = { id: 'proj-1', name: 'Test Project' };
+
+      act(() => {
+        store.selectProject(project);
+        store.deselectProject();
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.selectedProject).toBeNull();
+    });
+
+    it('should add a new project', () => {
+      const project = { id: 'proj-1', name: 'New Project', path: '/test/path' };
+
+      act(() => {
+        store.addProject(project);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.availableProjects).toHaveLength(1);
+      expect(state.availableProjects[0]).toEqual(project);
+    });
+
+    it('should not add duplicate projects', () => {
+      const project = { id: 'proj-1', name: 'Test Project', path: '/test/path' };
+
+      act(() => {
+        store.addProject(project);
+        store.addProject(project);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.availableProjects).toHaveLength(1);
+    });
+
+    it('should update a project', () => {
+      const project = { id: 'proj-1', name: 'Test Project', path: '/test/path' };
+
+      act(() => {
+        store.addProject(project);
+        store.updateProject('proj-1', { name: 'Updated Project' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.availableProjects[0].name).toBe('Updated Project');
+    });
+
+    it('should remove a project', () => {
+      const project = { id: 'proj-1', name: 'Test Project', path: '/test/path' };
+
+      act(() => {
+        store.addProject(project);
+        store.removeProject('proj-1');
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.availableProjects).toHaveLength(0);
+    });
+
+    it('should get current project', () => {
+      const project = { id: 'proj-1', name: 'Test Project' };
+
+      act(() => {
+        store.selectProject(project);
+      });
+
+      const currentProject = store.getCurrentProject();
+      expect(currentProject).toEqual(project);
+    });
+  });
+
+  describe('Task Management', () => {
+    it('should create a new task with correct initial state', () => {
+      const taskData = {
+        title: 'Test Task',
+        description: 'Test Description',
+        workflowName: 'adw_plan_iso',
+        projectId: 'proj-1',
+      };
+
+      act(() => {
+        store.createTask(taskData);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks).toHaveLength(1);
+      expect(state.tasks[0].title).toBe('Test Task');
+      expect(state.tasks[0].description).toBe('Test Description');
+      expect(state.tasks[0].stage).toBe('plan');
+      expect(state.tasks[0].progress).toBe(0);
+      expect(state.tasks[0].workflowName).toBe('adw_plan_iso');
+      expect(state.taskIdCounter).toBe(2);
+    });
+
+    it('should create task with auto-incrementing ID', () => {
+      act(() => {
+        store.createTask({ title: 'Task 1', workflowName: 'adw_plan_iso' });
+        store.createTask({ title: 'Task 2', workflowName: 'adw_build_iso' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].id).toBe(1);
+      expect(state.tasks[1].id).toBe(2);
+      expect(state.taskIdCounter).toBe(3);
+    });
+
+    it('should update a task', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.updateTask(1, { title: 'Updated Task' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].title).toBe('Updated Task');
+    });
+
+    it('should delete a task', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.deleteTask(1);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks).toHaveLength(0);
+    });
+
+    it('should delete task and clean up references', () => {
+      act(() => {
+        const taskId = store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.updateTask(taskId, { adw_id: 'test-adw-123' });
+        store.deleteTask(taskId);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks).toHaveLength(0);
+      expect(state.tasksByAdwId['test-adw-123']).toBeUndefined();
+    });
+
+    it('should move task to different stage', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_build_iso' });
+        store.moveTaskToStage(1, 'build');
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].stage).toBe('build');
+      expect(state.tasks[0].substage).toBeNull();
+      expect(state.tasks[0].progress).toBe(0);
+    });
+
+    it('should update task progress', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.updateTaskProgress(1, 'executing', 50);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].substage).toBe('executing');
+      expect(state.tasks[0].progress).toBe(50);
+    });
+
+    it('should add task log entry', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.addTaskLog(1, { message: 'Test log', level: 'info' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].logs).toHaveLength(1);
+      expect(state.tasks[0].logs[0].message).toBe('Test log');
+    });
+
+    it('should validate task correctly', () => {
+      const validTask = {
+        title: 'Valid Task',
+        workflowName: 'adw_plan_iso',
+      };
+
+      const invalidTask = {
+        title: '',
+      };
+
+      expect(store.validateTask(validTask)).toEqual({ valid: true });
+      expect(store.validateTask(invalidTask).valid).toBe(false);
+    });
+  });
+
+  describe('Task Queries and Filters', () => {
+    beforeEach(() => {
+      act(() => {
+        store.createTask({ title: 'Backlog Task', workflowName: 'adw_plan_iso', stage: 'backlog' });
+        store.createTask({ title: 'Plan Task', workflowName: 'adw_plan_iso', stage: 'plan' });
+        store.createTask({ title: 'Build Task', workflowName: 'adw_build_iso', stage: 'build' });
+        store.moveTaskToStage(1, 'backlog');
+        store.moveTaskToStage(2, 'plan');
+        store.moveTaskToStage(3, 'build');
+      });
+    });
+
+    it('should get tasks by stage', () => {
+      const planTasks = store.getTasksByStage('plan');
+      expect(planTasks).toHaveLength(1);
+      expect(planTasks[0].title).toBe('Plan Task');
+    });
+
+    it('should search tasks by query', () => {
+      const results = store.searchTasks('Build');
+      expect(results).toHaveLength(1);
+      expect(results[0].title).toBe('Build Task');
+    });
+
+    it('should search tasks case-insensitively', () => {
+      const results = store.searchTasks('build');
+      expect(results).toHaveLength(1);
+      expect(results[0].title).toBe('Build Task');
+    });
+
+    it('should get tasks by pipeline', () => {
+      // Create tasks with specific workflow
+      act(() => {
+        store.clearAllData();
+        store.createTask({ title: 'Task 1', workflowName: 'adw_plan_iso' });
+        store.createTask({ title: 'Task 2', workflowName: 'adw_build_iso' });
+        store.createTask({ title: 'Task 3', workflowName: 'adw_plan_iso' });
+      });
+
+      const planTasks = store.getTasksByPipeline('plan');
+      expect(planTasks.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('Task Lookup Optimization', () => {
+    it('should maintain adw_id index for O(1) lookups', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.updateTask(1, { adw_id: 'test-adw-123' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasksByAdwId['test-adw-123']).toBe(1);
+    });
+
+    it('should get task by adw_id in O(1) time', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.updateTask(1, { adw_id: 'test-adw-123' });
+      });
+
+      const task = store.getTaskByAdwId('test-adw-123');
+      expect(task).not.toBeNull();
+      expect(task.id).toBe(1);
+      expect(task.title).toBe('Test Task');
+    });
+
+    it('should return null for non-existent adw_id', () => {
+      const task = store.getTaskByAdwId('non-existent-id');
+      expect(task).toBeNull();
+    });
+
+    it('should update index when adw_id changes', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.updateTask(1, { adw_id: 'adw-1' });
+        store.updateTask(1, { adw_id: 'adw-2' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasksByAdwId['adw-2']).toBe(1);
+    });
+  });
+
+  describe('UI State Management', () => {
+    it('should toggle task input', () => {
+      act(() => {
+        store.toggleTaskInput();
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.showTaskInput).toBe(true);
+
+      act(() => {
+        store.toggleTaskInput();
+      });
+
+      const state2 = useKanbanStore.getState();
+      expect(state2.showTaskInput).toBe(false);
+    });
+
+    it('should select a task', () => {
+      act(() => {
+        store.selectTask(123);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.selectedTaskId).toBe(123);
+    });
+
+    it('should set loading state', () => {
+      act(() => {
+        store.setLoading(true);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.isLoading).toBe(true);
+    });
+
+    it('should set error', () => {
+      const error = { message: 'Test error' };
+
+      act(() => {
+        store.setError(error);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.error).toEqual(error);
+    });
+
+    it('should clear error', () => {
+      act(() => {
+        store.setError({ message: 'Test error' });
+        store.clearError();
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.error).toBeNull();
+    });
+
+    it('should toggle completed tasks view', () => {
+      act(() => {
+        store.toggleCompletedTasksView();
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.showCompletedTasks).toBe(true);
+    });
+  });
+
+  describe('Pipeline Management', () => {
+    it('should get pipeline by ID', () => {
+      const pipeline = store.getPipelineById('full-stack');
+      expect(pipeline).not.toBeNull();
+      expect(pipeline.id).toBe('full-stack');
+    });
+
+    it('should return null for invalid pipeline ID', () => {
+      const pipeline = store.getPipelineById('non-existent');
+      expect(pipeline).toBeNull();
+    });
+
+    it('should create custom pipeline', () => {
+      const customPipeline = {
+        id: 'custom-pipeline',
+        name: 'Custom Pipeline',
+        stages: ['plan', 'build'],
+      };
+
+      act(() => {
+        store.createCustomPipeline(customPipeline);
+      });
+
+      const state = useKanbanStore.getState();
+      const found = state.availablePipelines.find(p => p.id === 'custom-pipeline');
+      expect(found).toBeDefined();
+    });
+  });
+
+  describe('Workflow Integration', () => {
+    it('should append workflow log', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.appendWorkflowLog(1, { message: 'Log entry', type: 'info' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.taskWorkflowLogs[1]).toHaveLength(1);
+      expect(state.taskWorkflowLogs[1][0].message).toBe('Log entry');
+    });
+
+    it('should limit workflow logs to 500 entries', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+
+        // Add 600 logs
+        for (let i = 0; i < 600; i++) {
+          store.appendWorkflowLog(1, { message: `Log ${i}`, type: 'info' });
+        }
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.taskWorkflowLogs[1]).toHaveLength(500);
+    });
+
+    it('should update workflow progress', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.updateWorkflowProgress(1, { progress: 75, status: 'running' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.taskWorkflowProgress[1].progress).toBe(75);
+      expect(state.taskWorkflowProgress[1].status).toBe('running');
+    });
+
+    it('should update workflow metadata', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.updateWorkflowMetadata(1, { adw_id: 'adw-123', started_at: new Date().toISOString() });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.taskWorkflowMetadata[1].adw_id).toBe('adw-123');
+    });
+
+    it('should get workflow logs for task', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.appendWorkflowLog(1, { message: 'Log 1', type: 'info' });
+        store.appendWorkflowLog(1, { message: 'Log 2', type: 'info' });
+      });
+
+      const logs = store.getWorkflowLogsForTask(1);
+      expect(logs).toHaveLength(2);
+    });
+
+    it('should clear workflow logs for task', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.appendWorkflowLog(1, { message: 'Log 1', type: 'info' });
+        store.clearWorkflowLogsForTask(1);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.taskWorkflowLogs[1]).toHaveLength(0);
+    });
+  });
+
+  describe('Message Deduplication', () => {
+    it('should detect duplicate messages', () => {
+      const messageData = { type: 'status_update', data: { status: 'running' } };
+
+      const isDup1 = store.isDuplicateMessage('status_update', messageData);
+      expect(isDup1).toBe(false);
+
+      const isDup2 = store.isDuplicateMessage('status_update', messageData);
+      expect(isDup2).toBe(true);
+    });
+
+    it('should generate consistent fingerprints', () => {
+      const data1 = { type: 'test', value: 123 };
+      const data2 = { type: 'test', value: 123 };
+
+      const fp1 = store.getMessageFingerprint('test', data1);
+      const fp2 = store.getMessageFingerprint('test', data2);
+
+      expect(fp1).toBe(fp2);
+    });
+
+    it('should schedule message cache cleanup', () => {
+      act(() => {
+        store.scheduleMessageCacheCleanup();
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state._cleanupScheduled).toBe(true);
+    });
+  });
+
+  describe('Batched Updates', () => {
+    it('should batch multiple task updates', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+
+        // Batch update with multiple fields
+        store.batchedTaskUpdate(1, {
+          stage: 'build',
+          progress: 50,
+          substage: 'executing',
+          metadata: { adw_id: 'adw-123' },
+        });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].stage).toBe('build');
+      expect(state.tasks[0].progress).toBe(50);
+      expect(state.tasks[0].substage).toBe('executing');
+      expect(state.tasks[0].metadata.adw_id).toBe('adw-123');
+    });
+
+    it('should batch update with log entry', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+
+        store.batchedTaskUpdate(1, {
+          stage: 'build',
+          logEntry: { message: 'Started building', type: 'info' },
+        });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].stage).toBe('build');
+      expect(state.taskWorkflowLogs[1]).toHaveLength(1);
+    });
+  });
+
+  describe('Statistics and Analytics', () => {
+    beforeEach(() => {
+      act(() => {
+        store.createTask({ title: 'Task 1', workflowName: 'adw_plan_iso' });
+        store.createTask({ title: 'Task 2', workflowName: 'adw_build_iso' });
+        store.createTask({ title: 'Task 3', workflowName: 'adw_test_iso' });
+        store.moveTaskToStage(1, 'plan');
+        store.moveTaskToStage(2, 'build');
+        store.moveTaskToStage(3, 'ready-to-merge');
+      });
+    });
+
+    it('should calculate task statistics', () => {
+      const stats = store.getStatistics();
+
+      expect(stats.total).toBe(3);
+      expect(stats.byStage).toBeDefined();
+      expect(stats.byStage.plan).toBe(1);
+      expect(stats.byStage.build).toBe(1);
+    });
+
+    it('should get completed tasks', () => {
+      const completed = store.getCompletedTasks();
+      expect(completed).toHaveLength(1);
+      expect(completed[0].stage).toBe('ready-to-merge');
+    });
+  });
+
+  describe('Data Persistence', () => {
+    it('should export data in correct format', () => {
+      act(() => {
+        store.createTask({ title: 'Task 1', workflowName: 'adw_plan_iso' });
+        store.addProject({ id: 'proj-1', name: 'Project 1', path: '/test' });
+      });
+
+      const exportedData = store.exportData();
+
+      expect(exportedData.tasks).toHaveLength(1);
+      expect(exportedData.availableProjects).toHaveLength(1);
+      expect(exportedData.version).toBeDefined();
+      expect(exportedData.exportedAt).toBeDefined();
+    });
+
+    it('should import data and restore state', () => {
+      const importData = {
+        version: '1.0.0',
+        tasks: [
+          { id: 1, title: 'Imported Task', stage: 'plan', workflowName: 'adw_plan_iso' },
+        ],
+        availableProjects: [
+          { id: 'proj-1', name: 'Imported Project', path: '/test' },
+        ],
+        taskIdCounter: 2,
+      };
+
+      act(() => {
+        store.importData(importData);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks).toHaveLength(1);
+      expect(state.tasks[0].title).toBe('Imported Task');
+      expect(state.availableProjects).toHaveLength(1);
+      expect(state.taskIdCounter).toBe(2);
+    });
+
+    it('should handle corrupted import data gracefully', () => {
+      const corruptedData = {
+        tasks: 'not-an-array',
+        availableProjects: null,
+      };
+
+      act(() => {
+        try {
+          store.importData(corruptedData);
+        } catch (error) {
+          expect(error).toBeDefined();
+        }
+      });
+    });
+
+    it('should clear all data', () => {
+      act(() => {
+        store.createTask({ title: 'Task 1', workflowName: 'adw_plan_iso' });
+        store.addProject({ id: 'proj-1', name: 'Project 1', path: '/test' });
+        store.clearAllData();
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks).toHaveLength(0);
+      expect(state.availableProjects).toHaveLength(0);
+      expect(state.taskIdCounter).toBe(1);
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle errors with context', () => {
+      const error = new Error('Test error');
+
+      act(() => {
+        store.handleError(error, 'test context');
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.error).toBeDefined();
+      expect(state.error.message).toContain('Test error');
+    });
+
+    it('should retry failed operations', async () => {
+      let attemptCount = 0;
+      const operation = vi.fn(async () => {
+        attemptCount++;
+        if (attemptCount < 3) {
+          throw new Error('Temporary failure');
+        }
+        return { success: true };
+      });
+
+      const result = await store.retryOperation(operation, 3, 10);
+
+      expect(result.success).toBe(true);
+      expect(attemptCount).toBe(3);
+    });
+
+    it('should fail after max retries', async () => {
+      const operation = vi.fn(async () => {
+        throw new Error('Permanent failure');
+      });
+
+      try {
+        await store.retryOperation(operation, 2, 10);
+        expect.fail('Should have thrown an error');
+      } catch (error) {
+        expect(error.message).toContain('Permanent failure');
+      }
+    });
+  });
+
+  describe('WebSocket Integration', () => {
+    it('should track active workflows', () => {
+      act(() => {
+        store.trackActiveWorkflow('adw-123', {
+          taskId: 1,
+          status: 'running',
+          stage: 'plan',
+        });
+      });
+
+      const workflows = store.getActiveWorkflows();
+      expect(workflows.size).toBe(1);
+      expect(workflows.get('adw-123').status).toBe('running');
+    });
+
+    it('should get workflow status for task', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.updateTask(1, { adw_id: 'adw-123' });
+        store.trackActiveWorkflow('adw-123', {
+          taskId: 1,
+          status: 'running',
+        });
+      });
+
+      const status = store.getWorkflowStatusForTask(1);
+      expect(status.status).toBe('running');
+    });
+
+    it('should get WebSocket connection status', () => {
+      const status = store.getWebSocketStatus();
+
+      expect(status).toHaveProperty('connected');
+      expect(status).toHaveProperty('connecting');
+      expect(status).toHaveProperty('error');
+    });
+  });
+
+  describe('Stage and Workflow Validation', () => {
+    it('should validate workflow name parsing', () => {
+      act(() => {
+        store.createTask({ title: 'Plan Task', workflowName: 'adw_plan_iso' });
+        store.createTask({ title: 'Build Task', workflowName: 'adw_build_iso' });
+        store.createTask({ title: 'Multi Task', workflowName: 'adw_plan_build_test_iso' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].stage).toBe('plan');
+      expect(state.tasks[1].stage).toBe('build');
+      expect(state.tasks[2].stage).toBe('plan'); // First stage of multi-stage workflow
+    });
+
+    it('should handle SDLC workflow', () => {
+      act(() => {
+        store.createTask({ title: 'SDLC Task', workflowName: 'adw_sdlc_iso' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].stage).toBe('plan'); // First stage of full pipeline
+    });
+
+    it('should validate task before creation', () => {
+      const invalidTask = {
+        title: '',
+        workflowName: '',
+      };
+
+      const validation = store.validateTask(invalidTask);
+      expect(validation.valid).toBe(false);
+      expect(validation.errors).toBeDefined();
+    });
+
+    it('should validate project before adding', () => {
+      const invalidProject = {
+        id: '',
+        name: '',
+      };
+
+      const validation = store.validateProject(invalidProject);
+      expect(validation.valid).toBe(false);
+    });
+  });
+
+  describe('Project Notification', () => {
+    it('should set project notification config', () => {
+      const config = {
+        enabled: true,
+        webhookUrl: 'https://example.com/webhook',
+      };
+
+      act(() => {
+        store.setProjectNotificationConfig('proj-1', config);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.projectNotificationConfigs['proj-1']).toEqual(config);
+    });
+
+    it('should get project notification config', () => {
+      const config = {
+        enabled: true,
+        webhookUrl: 'https://example.com/webhook',
+      };
+
+      act(() => {
+        store.setProjectNotificationConfig('proj-1', config);
+      });
+
+      const retrievedConfig = store.getProjectNotificationConfig('proj-1');
+      expect(retrievedConfig).toEqual(config);
+    });
+
+    it('should return empty config for non-existent project', () => {
+      const config = store.getProjectNotificationConfig('non-existent');
+      expect(config).toEqual({});
+    });
+  });
+
+  describe('Stage Logs Management', () => {
+    it('should get stage logs for task', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        // Simulate stage logs being set
+        const state = useKanbanStore.getState();
+        state.taskStageLogs[1] = {
+          plan: { logs: ['log1', 'log2'], result: null, loading: false, error: null },
+        };
+      });
+
+      const logs = store.getStageLogsForTask(1, 'plan');
+      expect(logs).toBeDefined();
+    });
+
+    it('should clear stage logs for task', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        const state = useKanbanStore.getState();
+        state.taskStageLogs[1] = {
+          plan: { logs: ['log1'], result: null, loading: false, error: null },
+        };
+        store.clearStageLogsForTask(1);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.taskStageLogs[1]).toEqual({});
+    });
+
+    it('should clear specific stage log', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        const state = useKanbanStore.getState();
+        state.taskStageLogs[1] = {
+          plan: { logs: ['log1'], result: null, loading: false, error: null },
+          build: { logs: ['log2'], result: null, loading: false, error: null },
+        };
+        store.clearStageLogForTaskAndStage(1, 'plan');
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.taskStageLogs[1].plan).toBeUndefined();
+      expect(state.taskStageLogs[1].build).toBeDefined();
+    });
+  });
+
+  describe('Agent State Management', () => {
+    it('should get agent state for task', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        const state = useKanbanStore.getState();
+        state.agentStates[1] = {
+          data: { status: 'active' },
+          loading: false,
+          error: null,
+        };
+      });
+
+      const agentState = store.getAgentState(1);
+      expect(agentState).toBeDefined();
+      expect(agentState.data.status).toBe('active');
+    });
+
+    it('should return default state for task without agent state', () => {
+      const agentState = store.getAgentState(999);
+      expect(agentState).toEqual({ data: null, loading: false, error: null });
+    });
+  });
+
+  describe('Workflow Name Parsing', () => {
+    it('should parse single-stage workflow', () => {
+      act(() => {
+        store.createTask({ title: 'Plan Only', workflowName: 'adw_plan_iso' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].stage).toBe('plan');
+    });
+
+    it('should parse multi-stage workflow', () => {
+      act(() => {
+        store.createTask({ title: 'Multi Stage', workflowName: 'adw_plan_build_test_iso' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].stage).toBe('plan');
+    });
+
+    it('should handle workflow without adw prefix', () => {
+      act(() => {
+        store.createTask({ title: 'No Prefix', workflowName: 'plan_iso' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].stage).toBe('plan');
+    });
+
+    it('should handle workflow without iso suffix', () => {
+      act(() => {
+        store.createTask({ title: 'No Suffix', workflowName: 'adw_plan' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].stage).toBe('plan');
+    });
+  });
+
+  describe('Project Storage Stats', () => {
+    it('should get project storage statistics', () => {
+      act(() => {
+        store.addProject({ id: 'proj-1', name: 'Project 1', path: '/test1' });
+        store.addProject({ id: 'proj-2', name: 'Project 2', path: '/test2' });
+      });
+
+      const stats = store.getProjectStorageStats();
+      expect(stats).toBeDefined();
+      expect(stats.count).toBe(2);
+    });
+  });
+
+  describe('Project Deduplication', () => {
+    it('should deduplicate projects by path', () => {
+      act(() => {
+        store.addProject({ id: 'proj-1', name: 'Project 1', path: '/test' });
+        store.addProject({ id: 'proj-2', name: 'Project 2', path: '/test' }); // Same path
+        store.deduplicateProjects();
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.availableProjects).toHaveLength(1);
+    });
+
+    it('should keep most recent project when deduplicating', () => {
+      act(() => {
+        store.addProject({ id: 'proj-1', name: 'Old Project', path: '/test', addedAt: '2024-01-01' });
+        store.addProject({ id: 'proj-2', name: 'New Project', path: '/test', addedAt: '2024-12-01' });
+        store.deduplicateProjects();
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.availableProjects[0].name).toBe('New Project');
+    });
+  });
+
+  describe('Task Progression', () => {
+    it('should get task progression status', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.updateTask(1, { adw_id: 'adw-123' });
+        store.trackActiveWorkflow('adw-123', {
+          taskId: 1,
+          status: 'running',
+        });
+      });
+
+      const status = store.getTaskProgressionStatus(1);
+      expect(status).toBeDefined();
+    });
+
+    it('should get all active progressions', () => {
+      act(() => {
+        store.createTask({ title: 'Task 1', workflowName: 'adw_plan_iso' });
+        store.createTask({ title: 'Task 2', workflowName: 'adw_build_iso' });
+        store.trackActiveWorkflow('adw-123', { taskId: 1, status: 'running' });
+        store.trackActiveWorkflow('adw-456', { taskId: 2, status: 'running' });
+      });
+
+      const activeProgressions = store.getAllActiveProgressions();
+      expect(activeProgressions.size).toBe(2);
+    });
+  });
+
+  describe('Cleanup Operations', () => {
+    it('should cleanup dummy projects', () => {
+      act(() => {
+        store.addProject({ id: 'dummy-1', name: 'Dummy Project', path: '/dummy', isDummy: true });
+        store.addProject({ id: 'real-1', name: 'Real Project', path: '/real' });
+        store.cleanupDummyProjects();
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.availableProjects).toHaveLength(1);
+      expect(state.availableProjects[0].id).toBe('real-1');
+    });
+  });
+
+  describe('Storage Info', () => {
+    it('should get storage information', () => {
+      act(() => {
+        store.createTask({ title: 'Task 1', workflowName: 'adw_plan_iso' });
+        store.addProject({ id: 'proj-1', name: 'Project 1', path: '/test' });
+      });
+
+      const storageInfo = store.getStorageInfo();
+      expect(storageInfo).toBeDefined();
+      expect(storageInfo.tasks).toBe(1);
+      expect(storageInfo.projects).toBe(1);
+    });
+  });
+
+  describe('Date Range Filtering', () => {
+    it('should filter tasks by date range', () => {
+      const now = new Date();
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+      act(() => {
+        store.createTask({ title: 'Task 1', workflowName: 'adw_plan_iso' });
+      });
+
+      const tasks = store.getTasksByDateRange(yesterday, tomorrow);
+      expect(tasks).toHaveLength(1);
+    });
+
+    it('should return empty array for tasks outside date range', () => {
+      const futureStart = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const futureEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+      act(() => {
+        store.createTask({ title: 'Task 1', workflowName: 'adw_plan_iso' });
+      });
+
+      const tasks = store.getTasksByDateRange(futureStart, futureEnd);
+      expect(tasks).toHaveLength(0);
+    });
+  });
+
+  describe('Workflow Plan Storage', () => {
+    it('should store and retrieve workflow plan', () => {
+      const plan = {
+        steps: ['step1', 'step2', 'step3'],
+        estimatedTime: 3600,
+      };
+
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+        store.updateWorkflowMetadata(1, { plan });
+      });
+
+      const retrievedPlan = store.getWorkflowPlanForTask(1);
+      expect(retrievedPlan).toEqual(plan);
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle null task ID gracefully', () => {
+      act(() => {
+        store.updateTask(null, { title: 'Updated' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks).toHaveLength(0);
+    });
+
+    it('should handle updating non-existent task', () => {
+      act(() => {
+        store.updateTask(999, { title: 'Updated' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks).toHaveLength(0);
+    });
+
+    it('should handle deleting non-existent task', () => {
+      act(() => {
+        store.deleteTask(999);
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks).toHaveLength(0);
+    });
+
+    it('should handle empty search query', () => {
+      act(() => {
+        store.createTask({ title: 'Task 1', workflowName: 'adw_plan_iso' });
+      });
+
+      const results = store.searchTasks('');
+      expect(results).toHaveLength(1);
+    });
+
+    it('should handle search with no results', () => {
+      act(() => {
+        store.createTask({ title: 'Task 1', workflowName: 'adw_plan_iso' });
+      });
+
+      const results = store.searchTasks('NonExistent');
+      expect(results).toHaveLength(0);
+    });
+
+    it('should handle getting logs for non-existent task', () => {
+      const logs = store.getWorkflowLogsForTask(999);
+      expect(logs).toEqual([]);
+    });
+
+    it('should handle getting progress for non-existent task', () => {
+      const progress = store.getWorkflowProgressForTask(999);
+      expect(progress).toBeNull();
+    });
+
+    it('should handle null workflow name', () => {
+      act(() => {
+        store.createTask({ title: 'Task', workflowName: null });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].stage).toBe('backlog'); // Default stage
+    });
+
+    it('should handle empty workflow name', () => {
+      act(() => {
+        store.createTask({ title: 'Task', workflowName: '' });
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].stage).toBe('backlog'); // Default stage
+    });
+  });
+
+  describe('Performance Optimizations', () => {
+    it('should handle large number of tasks efficiently', () => {
+      act(() => {
+        for (let i = 0; i < 100; i++) {
+          store.createTask({ title: `Task ${i}`, workflowName: 'adw_plan_iso' });
+        }
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.tasks).toHaveLength(100);
+
+      // Test O(1) lookup still works
+      act(() => {
+        store.updateTask(50, { adw_id: 'adw-50' });
+      });
+
+      const task = store.getTaskByAdwId('adw-50');
+      expect(task).not.toBeNull();
+      expect(task.id).toBe(50);
+    });
+
+    it('should handle rapid message processing without blocking', () => {
+      act(() => {
+        store.createTask({ title: 'Test Task', workflowName: 'adw_plan_iso' });
+
+        // Simulate 100 rapid messages
+        for (let i = 0; i < 100; i++) {
+          store.appendWorkflowLog(1, { message: `Log ${i}`, type: 'info' });
+        }
+      });
+
+      const logs = store.getWorkflowLogsForTask(1);
+      expect(logs).toHaveLength(100);
+    });
+
+    it('should maintain message cache size limit', () => {
+      act(() => {
+        // Add more than max cache size
+        for (let i = 0; i < 1200; i++) {
+          store.isDuplicateMessage(`type-${i}`, { data: i });
+        }
+
+        // Trigger cleanup
+        store.performMessageCacheCleanup();
+      });
+
+      const state = useKanbanStore.getState();
+      expect(state.processedMessages.size).toBeLessThanOrEqual(1000);
+    });
+  });
+});
