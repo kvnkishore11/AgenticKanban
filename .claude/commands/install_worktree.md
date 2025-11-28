@@ -9,7 +9,6 @@ This command sets up an isolated worktree environment with custom port configura
 
 ## Read
 - .env.sample (from parent repo)
-- ./server/.env.sample (from parent repo)
 - .mcp.json (from parent repo)
 - playwright-mcp-config.json (from parent repo)
 
@@ -25,20 +24,19 @@ This command sets up an isolated worktree environment with custom port configura
    ```
    WEBSOCKET_PORT={1}
    FRONTEND_PORT={2}
+   ADW_PORT={1}
    VITE_BACKEND_URL=http://localhost:{1}
    ```
 
 3. **Copy and update .env files**
    - Copy `.env` from parent repo if it exists
    - Append `.ports.env` contents to `.env`
-   - Copy `server/.env` from parent repo if it exists
-   - Append `.ports.env` contents to `server/.env`
 
 4. **Copy and configure MCP files**
    - Copy `.mcp.json` from parent repo if it exists
    - Copy `playwright-mcp-config.json` from parent repo if it exists
    - These files are needed for Model Context Protocol and Playwright automation
-   
+
    After copying, update paths to use absolute paths:
    - Get the absolute worktree path: `WORKTREE_PATH=$(pwd)`
    - Update `.mcp.json`:
@@ -51,17 +49,10 @@ This command sets up an isolated worktree environment with custom port configura
      - Create the videos directory: `mkdir -p ${WORKTREE_PATH}/videos`
    - This ensures MCP configuration works correctly regardless of execution context
 
-5. **Install backend dependencies**
+5. **Install frontend dependencies**
    ```bash
-   cd server && uv sync --all-extras
+   npm install
    ```
-
-6. **Install frontend dependencies**
-   ```bash
-   cd .. && npm install
-   ```
-
-
 
 ## Error Handling
 - If parent .env files don't exist, create minimal versions from .env.sample files
@@ -70,7 +61,7 @@ This command sets up an isolated worktree environment with custom port configura
 ## Report
 - List all files created/modified (including MCP configuration files)
 - Show port assignments
-- Confirm dependencies installed
+- Confirm frontend dependencies installed
 - Note any missing parent .env files that need user attention
 - Note any missing MCP configuration files
 - Show the updated absolute paths in:
