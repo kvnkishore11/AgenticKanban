@@ -28,7 +28,7 @@ Execute the merge worktree Python script:
 
 ```bash
 cd adws
-uv run adw_merge_worktree.py {adw_id} {merge_method}
+uv run adw_merge_iso.py {adw_id} {merge_method}
 ```
 
 The script will:

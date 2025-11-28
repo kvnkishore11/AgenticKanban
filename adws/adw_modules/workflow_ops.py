@@ -228,7 +228,7 @@ AVAILABLE_ADW_WORKFLOWS = [
     "adw_review_iso",
     "adw_document_iso",
     "adw_ship_iso",
-    "adw_merge_worktree",  # Merge workflow for merging ADW worktree to main
+    "adw_merge_iso",  # Merge workflow for merging ADW worktree to main
     "adw_sdlc_ZTE_iso",  # Zero Touch Execution workflow
     "adw_plan_build_iso",
     "adw_plan_build_test_iso",

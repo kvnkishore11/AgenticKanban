@@ -114,12 +114,12 @@ async def trigger_merge(request: MergeTriggerRequest):
     This REST API endpoint is deprecated as of 2025-01-05.
     Please use the WebSocket trigger system instead:
       - Connect to WebSocket server (adw_triggers/trigger_websocket.py)
-      - Send message: { type: "trigger_workflow", data: { workflow_type: "adw_merge_worktree", adw_id: "<id>", ... } }
-      - The "adw_merge_worktree" workflow is now registered in AVAILABLE_ADW_WORKFLOWS
+      - Send message: { type: "trigger_workflow", data: { workflow_type: "adw_merge_iso", adw_id: "<id>", ... } }
+      - The "adw_merge_iso" workflow is now registered in AVAILABLE_ADW_WORKFLOWS
 
     This endpoint will be removed in a future version.
 
-    This endpoint triggers the adw_merge_worktree.py workflow which:
+    This endpoint triggers the adw_merge_iso.py workflow which:
     1. Merges the branch to main using git operations
     2. Handles merge conflicts with Claude Code assistance if needed
     3. Runs validation tests to ensure merge is clean
@@ -153,7 +153,7 @@ async def trigger_merge(request: MergeTriggerRequest):
 
     # Check if already merged
     adw_ids = state_data.get("adw_ids", [])
-    if "adw_merge_worktree" in adw_ids:
+    if "adw_merge_iso" in adw_ids:
         return MergeTriggerResponse(
             success=True,
             message="Worktree already merged",
@@ -162,12 +162,12 @@ async def trigger_merge(request: MergeTriggerRequest):
 
     # Get adws directory and script path
     adws_dir = get_adws_directory()
-    script_path = adws_dir / "adw_merge_worktree.py"
+    script_path = adws_dir / "adw_merge_iso.py"
 
     if not script_path.exists():
         raise HTTPException(
             status_code=500,
-            detail=f"adw_merge_worktree.py script not found at {script_path}"
+            detail=f"adw_merge_iso.py script not found at {script_path}"
         )
 
     # Trigger the workflow using subprocess

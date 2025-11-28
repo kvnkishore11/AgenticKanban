@@ -223,16 +223,16 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
   };
 
   // Check if merge workflow is selected
-  const isMergeSelected = queuedStages.includes('adw_merge_worktree');
+  const isMergeSelected = queuedStages.includes('adw_merge_iso');
 
   const handleMergeToggle = () => {
     setQueuedStages(prev => {
-      if (prev.includes('adw_merge_worktree')) {
+      if (prev.includes('adw_merge_iso')) {
         // Remove merge workflow if already selected
-        return prev.filter(stage => stage !== 'adw_merge_worktree');
+        return prev.filter(stage => stage !== 'adw_merge_iso');
       } else {
         // Add merge workflow
-        return [...prev, 'adw_merge_worktree'];
+        return [...prev, 'adw_merge_iso'];
       }
     });
   };

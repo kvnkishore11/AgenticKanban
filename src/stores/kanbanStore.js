@@ -1585,8 +1585,8 @@ export const useKanbanStore = create()(
             if (status === 'completed') {
               // Check if this is a merge worktree completion
               const adwIds = task.metadata?.adw_ids || [];
-              if (adwIds.includes('adw_merge_worktree') ||
-                  (statusUpdate.workflow_name && statusUpdate.workflow_name.includes('merge_worktree'))) {
+              if (adwIds.includes('adw_merge_iso') ||
+                  (statusUpdate.workflow_name && statusUpdate.workflow_name.includes('merge_iso'))) {
                 console.log(`[Workflow] Merge worktree completed for ADW ${adw_id}`);
                 get().handleMergeCompletion(adw_id);
               } else {
@@ -2197,7 +2197,7 @@ export const useKanbanStore = create()(
             // Trigger merge workflow via WebSocket
             const response = await websocketService.triggerWorkflowForTask(
               task,
-              'adw_merge_worktree',
+              'adw_merge_iso',
               {
                 adw_id,
                 issue_number,
