@@ -1587,18 +1587,24 @@ export const useKanbanStore = create()(
               }
             });
 
-            // Auto-progress task stage based on workflow status
+            // Handle status-based actions
+            // NOTE: Stage transitions are now handled via explicit 'stage_transition' events
+            // from the backend. The 'completed' status here is just informational.
+            // Only 'failed' status triggers automatic stage change (to 'errored')
             if (status === 'completed') {
-              // Check if this is a merge worktree completion
+              // Check if this is a merge worktree completion (special case)
               const adwIds = task.metadata?.adw_ids || [];
               if (adwIds.includes('adw_merge_iso') ||
                   (statusUpdate.workflow_name && statusUpdate.workflow_name.includes('merge_iso'))) {
                 console.log(`[Workflow] Merge worktree completed for ADW ${adw_id}`);
                 get().handleMergeCompletion(adw_id);
-              } else {
-                get().handleWorkflowCompletion(task.id, statusUpdate);
               }
+              // For all other 'completed' statuses, we just log it
+              // The backend will send a 'stage_transition' event to move the task
+              console.log(`[Workflow] Status 'completed' received for ${adw_id}. Waiting for stage_transition event.`);
             } else if (status === 'failed') {
+              // Failed status automatically moves to errored stage
+              console.log(`[Workflow] Workflow failed for ${adw_id}, moving to errored`);
               get().batchedTaskUpdate(task.id, { stage: 'errored' });
             }
           }
@@ -1662,6 +1668,7 @@ export const useKanbanStore = create()(
         },
 
         // Handle explicit stage transition events from WebSocket
+        // This is the PRIMARY mechanism for stage progression - backend tells frontend where to go
         handleStageTransition: (transitionData) => {
           const { adw_id, from_stage, to_stage } = transitionData;
 
@@ -1671,11 +1678,35 @@ export const useKanbanStore = create()(
           const task = get().getTaskByAdwId(adw_id);
 
           if (task) {
-            // Validate that to_stage is a valid kanban stage
-            const validStages = ['backlog', 'plan', 'build', 'test', 'review', 'document', 'errored'];
+            // All valid kanban stages including terminal states
+            const validStages = [
+              'backlog',
+              'plan', 'build', 'test', 'review', 'document',  // Workflow stages
+              'ready-to-merge', 'pr', 'completed',             // Terminal success states
+              'errored'                                         // Error state
+            ];
+
             if (validStages.includes(to_stage)) {
               console.log(`[Workflow] Moving task from ${task.stage} to ${to_stage} via stage transition event`);
               get().moveTaskToStage(task.id, to_stage);
+
+              // Handle terminal states with additional metadata updates
+              if (to_stage === 'ready-to-merge' || to_stage === 'completed') {
+                get().updateTask(task.id, {
+                  metadata: {
+                    ...task.metadata,
+                    workflow_complete: true,
+                  },
+                  progress: 100,
+                });
+              } else if (to_stage === 'errored') {
+                get().updateTask(task.id, {
+                  metadata: {
+                    ...task.metadata,
+                    workflow_status: 'failed',
+                  },
+                });
+              }
             } else {
               console.warn(`[Workflow] Invalid target stage: ${to_stage}`);
             }

@@ -493,4 +493,273 @@ describe('Kanban Store', () => {
       expect(Array.isArray(pipelines)).toBe(true);
     });
   });
+
+  describe('Stage Transitions', () => {
+    beforeEach(() => {
+      // Set up a task with ADW ID for stage transition tests
+      useKanbanStore.setState({
+        tasks: [{
+          id: 1,
+          title: 'Test Task',
+          stage: 'plan',
+          metadata: { adw_id: 'ADW12345678', workflow_name: 'adw_plan_build_iso' }
+        }],
+        tasksByAdwId: { 'ADW12345678': 1 }
+      });
+    });
+
+    it('should handle stage transition from plan to build', () => {
+      const transitionData = {
+        adw_id: 'ADW12345678',
+        from_stage: 'plan',
+        to_stage: 'build',
+        message: 'Moving to build phase'
+      };
+
+      act(() => {
+        useKanbanStore.getState().handleStageTransition(transitionData);
+      });
+
+      const task = useKanbanStore.getState().tasks[0];
+      expect(task.stage).toBe('build');
+    });
+
+    it('should handle stage transition to ready-to-merge', () => {
+      const transitionData = {
+        adw_id: 'ADW12345678',
+        from_stage: 'build',
+        to_stage: 'ready-to-merge',
+        message: 'Workflow complete'
+      };
+
+      act(() => {
+        useKanbanStore.getState().handleStageTransition(transitionData);
+      });
+
+      const task = useKanbanStore.getState().tasks[0];
+      expect(task.stage).toBe('ready-to-merge');
+      // Terminal state should set workflow_complete flag
+      expect(task.metadata.workflow_complete).toBe(true);
+    });
+
+    it('should handle stage transition to completed', () => {
+      const transitionData = {
+        adw_id: 'ADW12345678',
+        from_stage: 'ready-to-merge',
+        to_stage: 'completed',
+        message: 'Task fully completed'
+      };
+
+      act(() => {
+        useKanbanStore.getState().handleStageTransition(transitionData);
+      });
+
+      const task = useKanbanStore.getState().tasks[0];
+      expect(task.stage).toBe('completed');
+      expect(task.metadata.workflow_complete).toBe(true);
+      expect(task.progress).toBe(100);
+    });
+
+    it('should handle stage transition to errored', () => {
+      const transitionData = {
+        adw_id: 'ADW12345678',
+        from_stage: 'build',
+        to_stage: 'errored',
+        message: 'Build failed'
+      };
+
+      act(() => {
+        useKanbanStore.getState().handleStageTransition(transitionData);
+      });
+
+      const task = useKanbanStore.getState().tasks[0];
+      expect(task.stage).toBe('errored');
+    });
+
+    it('should handle stage transition through all workflow stages', () => {
+      const stages = ['plan', 'build', 'test', 'review', 'document'];
+
+      stages.forEach((fromStage, index) => {
+        if (index < stages.length - 1) {
+          const toStage = stages[index + 1];
+
+          // Update task to current stage first
+          useKanbanStore.setState({
+            tasks: [{
+              id: 1,
+              title: 'Test Task',
+              stage: fromStage,
+              metadata: { adw_id: 'ADW12345678' }
+            }],
+            tasksByAdwId: { 'ADW12345678': 1 }
+          });
+
+          act(() => {
+            useKanbanStore.getState().handleStageTransition({
+              adw_id: 'ADW12345678',
+              from_stage: fromStage,
+              to_stage: toStage
+            });
+          });
+
+          const task = useKanbanStore.getState().tasks[0];
+          expect(task.stage).toBe(toStage);
+        }
+      });
+    });
+
+    it('should reject invalid stage names', () => {
+      const initialStage = useKanbanStore.getState().tasks[0].stage;
+
+      act(() => {
+        useKanbanStore.getState().handleStageTransition({
+          adw_id: 'ADW12345678',
+          from_stage: 'plan',
+          to_stage: 'invalid_stage'
+        });
+      });
+
+      // Task should remain in original stage
+      const task = useKanbanStore.getState().tasks[0];
+      expect(task.stage).toBe(initialStage);
+    });
+
+    it('should handle missing adw_id gracefully', () => {
+      const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      act(() => {
+        useKanbanStore.getState().handleStageTransition({
+          from_stage: 'plan',
+          to_stage: 'build'
+        });
+      });
+
+      // Should not throw, just log warning
+      expect(consoleWarn).toHaveBeenCalled();
+      consoleWarn.mockRestore();
+    });
+
+    it('should handle non-existent adw_id gracefully', () => {
+      const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      act(() => {
+        useKanbanStore.getState().handleStageTransition({
+          adw_id: 'NON_EXISTENT',
+          from_stage: 'plan',
+          to_stage: 'build'
+        });
+      });
+
+      // Should not throw, just log warning
+      expect(consoleWarn).toHaveBeenCalled();
+      consoleWarn.mockRestore();
+    });
+
+    it('should accept all valid workflow stages', () => {
+      const validStages = [
+        'backlog', 'plan', 'build', 'test', 'review', 'document',
+        'ready-to-merge', 'pr', 'completed', 'errored'
+      ];
+
+      validStages.forEach(stage => {
+        useKanbanStore.setState({
+          tasks: [{
+            id: 1,
+            title: 'Test Task',
+            stage: 'backlog',
+            metadata: { adw_id: 'ADW12345678' }
+          }],
+          tasksByAdwId: { 'ADW12345678': 1 }
+        });
+
+        act(() => {
+          useKanbanStore.getState().handleStageTransition({
+            adw_id: 'ADW12345678',
+            from_stage: 'backlog',
+            to_stage: stage
+          });
+        });
+
+        const task = useKanbanStore.getState().tasks[0];
+        expect(task.stage).toBe(stage);
+      });
+    });
+
+    it('should handle transition to pr stage', () => {
+      const transitionData = {
+        adw_id: 'ADW12345678',
+        from_stage: 'ready-to-merge',
+        to_stage: 'pr',
+        message: 'PR created'
+      };
+
+      act(() => {
+        useKanbanStore.getState().handleStageTransition(transitionData);
+      });
+
+      const task = useKanbanStore.getState().tasks[0];
+      expect(task.stage).toBe('pr');
+    });
+  });
+
+  describe('Workflow Status Update Handling', () => {
+    beforeEach(() => {
+      // Set up a task with ADW ID for workflow status tests
+      useKanbanStore.setState({
+        tasks: [{
+          id: 1,
+          title: 'Test Task',
+          stage: 'plan',
+          metadata: { adw_id: 'ADW12345678', workflow_name: 'adw_plan_build_iso' }
+        }],
+        tasksByAdwId: { 'ADW12345678': 1 }
+      });
+    });
+
+    it('should handle workflow status in_progress', () => {
+      act(() => {
+        useKanbanStore.getState().handleWorkflowStatusUpdate({
+          adw_id: 'ADW12345678',
+          workflow_name: 'adw_plan_iso',
+          status: 'in_progress',
+          message: 'Working on plan'
+        });
+      });
+
+      // in_progress should not change stage, only update status
+      const task = useKanbanStore.getState().tasks[0];
+      expect(task.stage).toBe('plan'); // Stage unchanged
+    });
+
+    it('should handle workflow status failed - move to errored', () => {
+      act(() => {
+        useKanbanStore.getState().handleWorkflowStatusUpdate({
+          adw_id: 'ADW12345678',
+          workflow_name: 'adw_plan_iso',
+          status: 'failed',
+          message: 'Plan failed'
+        });
+      });
+
+      const task = useKanbanStore.getState().tasks[0];
+      expect(task.stage).toBe('errored');
+    });
+
+    it('should NOT move to ready-to-merge on completed status (wait for stage_transition)', () => {
+      act(() => {
+        useKanbanStore.getState().handleWorkflowStatusUpdate({
+          adw_id: 'ADW12345678',
+          workflow_name: 'adw_plan_iso',
+          status: 'completed',
+          message: 'Plan completed'
+        });
+      });
+
+      // With the new simplified approach, 'completed' status does NOT
+      // automatically move to ready-to-merge. We wait for explicit stage_transition.
+      const task = useKanbanStore.getState().tasks[0];
+      // Should remain in current stage, not move to ready-to-merge
+      expect(task.stage).toBe('plan');
+    });
+  });
 });

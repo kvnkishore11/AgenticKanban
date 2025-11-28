@@ -1656,6 +1656,198 @@ async def receive_workflow_update(request_data: dict):
         )
 
 
+@app.post("/api/stage-event")
+async def receive_stage_event(request_data: dict):
+    """
+    HTTP endpoint for receiving stage lifecycle events from the orchestrator.
+
+    This is the PRIMARY mechanism for moving tasks between stages on the kanban board.
+    The frontend's handleStageTransition listens for 'stage_transition' WebSocket events.
+
+    Accepts TWO formats:
+
+    Format 1 (Direct stage transition):
+    {
+        "adw_id": "...",
+        "workflow_name": "...",
+        "from_stage": "plan",
+        "to_stage": "build",
+        "message": "..."  // optional
+    }
+
+    Format 2 (Orchestrator event - from StageEventPayload):
+    {
+        "adw_id": "...",
+        "event_type": "stage_completed" | "stage_started" | "stage_failed" | "workflow_completed" | ...,
+        "stage_name": "plan",
+        "next_stage": "build",  // for stage_completed
+        "workflow_name": "...",
+        "message": "..."
+    }
+
+    Valid stages include:
+    - Workflow stages: backlog, plan, build, test, review, document
+    - Terminal success states: ready-to-merge, pr, completed
+    - Error state: errored
+    """
+    try:
+        adw_id = request_data.get("adw_id")
+        workflow_name = request_data.get("workflow_name", "unknown")
+
+        if not adw_id:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Missing required field: adw_id"}
+            )
+
+        # Detect which format we received
+        event_type = request_data.get("event_type")
+
+        if event_type:
+            # Format 2: Orchestrator event (from StageEventPayload)
+            stage_name = request_data.get("stage_name")
+            next_stage = request_data.get("next_stage")
+            previous_stage = request_data.get("previous_stage")
+            message = request_data.get("message", "")
+
+            print(f"[Stage Event] Orchestrator event: type={event_type}, stage={stage_name}, next={next_stage}")
+
+            # Handle different event types
+            if event_type == "stage_completed":
+                # Stage completed - transition to next stage
+                if next_stage:
+                    from_stage = stage_name
+                    to_stage = next_stage
+                else:
+                    # Last stage completed, no next stage - this means workflow complete
+                    # Frontend will receive workflow_completed event separately
+                    print(f"[Stage Event] Stage {stage_name} completed (last stage)")
+                    return JSONResponse(
+                        status_code=200,
+                        content={
+                            "status": "success",
+                            "message": f"Stage {stage_name} completed (last stage)",
+                            "adw_id": adw_id,
+                            "event_type": event_type
+                        }
+                    )
+
+            elif event_type == "stage_started":
+                # Stage started - transition to this stage
+                from_stage = previous_stage or "backlog"
+                to_stage = stage_name
+
+            elif event_type == "workflow_completed":
+                # Workflow completed - transition to ready-to-merge
+                from_stage = stage_name
+                to_stage = "ready-to-merge"
+
+            elif event_type == "stage_failed" or event_type == "workflow_failed":
+                # Stage/workflow failed - transition to errored
+                from_stage = stage_name
+                to_stage = "errored"
+
+            elif event_type == "stage_skipped":
+                # Stage skipped - no transition needed, just log
+                print(f"[Stage Event] Stage {stage_name} skipped")
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "status": "success",
+                        "message": f"Stage {stage_name} skipped",
+                        "adw_id": adw_id,
+                        "event_type": event_type
+                    }
+                )
+
+            elif event_type == "workflow_started":
+                # Workflow started - transition to first stage (plan)
+                from_stage = "backlog"
+                to_stage = stage_name
+
+            else:
+                # Unknown event type - just log it
+                print(f"[Stage Event] Unknown event type: {event_type}")
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "status": "success",
+                        "message": f"Event {event_type} logged",
+                        "adw_id": adw_id,
+                        "event_type": event_type
+                    }
+                )
+
+        else:
+            # Format 1: Direct stage transition
+            to_stage = request_data.get("to_stage")
+            from_stage = request_data.get("from_stage", "unknown")
+            message = request_data.get("message", f"Transitioning from {from_stage} to {to_stage}")
+
+            if not to_stage:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "Missing required field: to_stage"}
+                )
+
+        # Validate stage names
+        valid_stages = [
+            'backlog',
+            'plan', 'build', 'test', 'review', 'document',  # Workflow stages
+            'ready-to-merge', 'pr', 'completed',             # Terminal success states
+            'errored'                                         # Error state
+        ]
+
+        if to_stage not in valid_stages:
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Invalid to_stage: {to_stage}. Must be one of: {', '.join(valid_stages)}"}
+            )
+
+        # Add timestamp if not provided
+        timestamp = request_data.get("timestamp") or datetime.utcnow().isoformat() + "Z"
+
+        print(f"[Stage Event] Broadcasting transition: adw_id={adw_id}, {from_stage} -> {to_stage}")
+
+        # Build stage transition event for frontend
+        stage_event = {
+            "type": "stage_transition",
+            "data": {
+                "adw_id": adw_id,
+                "workflow_name": workflow_name,
+                "from_stage": from_stage,
+                "to_stage": to_stage,
+                "message": message,
+                "timestamp": timestamp
+            }
+        }
+
+        # Broadcast to all connected WebSocket clients
+        await manager.broadcast(stage_event, deduplicate_by_session=True)
+
+        print(f"[Stage Event] Broadcasted stage_transition: {adw_id} moving to {to_stage}")
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "message": f"Stage transition broadcasted: {from_stage} -> {to_stage}",
+                "adw_id": adw_id,
+                "to_stage": to_stage,
+                "clients_count": len(manager.active_connections)
+            }
+        )
+
+    except Exception as e:
+        print(f"Error processing stage event: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to process stage event: {str(e)}"}
+        )
+
+
 @app.get("/api/adws/list")
 async def list_adws():
     """List all available ADW IDs with their metadata.
