@@ -483,6 +483,10 @@ class WebSocketService {
         console.log('Spec created:', data.spec_path);
         this.emit('spec_created', data);
         break;
+      case 'stage_transition':
+        console.log('[WebSocket] Stage transition received:', data);
+        this.emit('stage_transition', data);
+        break;
       // Agent management message types
       case 'agent_created':
         this.emit('agent_created', data);

@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock import.meta.env
 vi.stubEnv('VITE_BACKEND_URL', 'http://localhost:8000');
+vi.stubEnv('VITE_ADW_PORT', ''); // Ensure ADW_PORT doesn't override BACKEND_URL port
 
 // Mock fetch
 global.fetch = vi.fn();
@@ -470,6 +471,91 @@ describe('WebSocketService', () => {
       }));
     });
 
+    it('should handle direct stage_transition message type', () => {
+      const listener = vi.fn();
+      service.on('stage_transition', listener);
+
+      mockWs.simulateMessage({
+        type: 'stage_transition',
+        data: {
+          adw_id: 'ADW-12345678',
+          from_stage: 'plan',
+          to_stage: 'build',
+          workflow_name: 'adw_plan_build_iso',
+          message: 'Stage transition from plan to build'
+        }
+      });
+
+      expect(listener).toHaveBeenCalledWith({
+        adw_id: 'ADW-12345678',
+        from_stage: 'plan',
+        to_stage: 'build',
+        workflow_name: 'adw_plan_build_iso',
+        message: 'Stage transition from plan to build'
+      });
+    });
+
+    it('should handle stage_transition to ready-to-merge', () => {
+      const listener = vi.fn();
+      service.on('stage_transition', listener);
+
+      mockWs.simulateMessage({
+        type: 'stage_transition',
+        data: {
+          adw_id: 'ADW-12345678',
+          from_stage: 'document',
+          to_stage: 'ready-to-merge',
+          workflow_name: 'adw_plan_build_review_document_iso',
+          message: 'Workflow completed'
+        }
+      });
+
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+        to_stage: 'ready-to-merge'
+      }));
+    });
+
+    it('should handle stage_transition to errored stage', () => {
+      const listener = vi.fn();
+      service.on('stage_transition', listener);
+
+      mockWs.simulateMessage({
+        type: 'stage_transition',
+        data: {
+          adw_id: 'ADW-12345678',
+          from_stage: 'build',
+          to_stage: 'errored',
+          workflow_name: 'adw_plan_build_iso',
+          message: 'Build failed',
+          error: 'Compilation error'
+        }
+      });
+
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+        to_stage: 'errored',
+        error: 'Compilation error'
+      }));
+    });
+
+    it('should log stage_transition message when received', () => {
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      mockWs.simulateMessage({
+        type: 'stage_transition',
+        data: {
+          adw_id: 'ADW-12345678',
+          to_stage: 'build'
+        }
+      });
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[WebSocket] Stage transition received:',
+        expect.objectContaining({ to_stage: 'build' })
+      );
+
+      consoleSpy.mockRestore();
+    });
+
     it('should emit workflow_log from status_update with message', () => {
       const listener = vi.fn();
       service.on('workflow_log', listener);
@@ -688,19 +774,20 @@ describe('WebSocketService', () => {
   });
 
   describe('Workflow Type Mapping', () => {
-    it('should return combined workflow for all SDLC stages', () => {
+    it('should return orchestrator workflow for all SDLC stages', () => {
       const queuedStages = ['plan', 'build', 'test', 'review', 'document'];
       const result = service.getWorkflowTypeForStage('plan', queuedStages);
 
-      // The implementation creates a combined workflow name
-      expect(result).toBe('adw_plan_build_test_review_document_iso');
+      // The implementation now uses a dynamic orchestrator for multiple stages
+      expect(result).toBe('adw_orchestrator');
     });
 
-    it('should return combined workflow for partial stages', () => {
+    it('should return orchestrator workflow for partial stages', () => {
       const queuedStages = ['plan', 'build'];
       const result = service.getWorkflowTypeForStage('plan', queuedStages);
 
-      expect(result).toBe('adw_plan_build_iso');
+      // The implementation now uses a dynamic orchestrator for multiple stages
+      expect(result).toBe('adw_orchestrator');
     });
 
     it('should return stage-specific workflow for single stage', () => {
