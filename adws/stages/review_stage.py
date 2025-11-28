@@ -48,15 +48,6 @@ class ReviewStage(BaseStage):
         """Execute review phase by running adw_review_iso.py."""
         ctx.logger.info(f"Starting review stage for ADW {ctx.adw_id}")
 
-        # Notify stage transition
-        if ctx.notifier:
-            ctx.notifier.notify_stage_transition(
-                workflow_name="orchestrator",
-                from_stage="test",
-                to_stage="review",
-                message=f"Reviewing implementation for ADW {ctx.adw_id}"
-            )
-
         # Build args: <issue_number> <adw_id>
         args = [str(ctx.issue_number), ctx.adw_id]
 

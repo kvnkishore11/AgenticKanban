@@ -40,15 +40,6 @@ class MergeStage(BaseStage):
         """Execute merge phase by running adw_merge_iso.py."""
         ctx.logger.info(f"Starting merge stage for ADW {ctx.adw_id}")
 
-        # Notify stage transition
-        if ctx.notifier:
-            ctx.notifier.notify_stage_transition(
-                workflow_name="orchestrator",
-                from_stage="document",
-                to_stage="merge",
-                message=f"Merging changes for ADW {ctx.adw_id}"
-            )
-
         # Merge script takes: <adw_id>
         args = [ctx.adw_id]
 

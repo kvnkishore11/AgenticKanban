@@ -327,6 +327,54 @@ class WebSocketNotifier:
             current_step=f"Stage: {to_stage}"
         )
 
+    def notify_stage_event(self, event: "StageEventPayload") -> bool:
+        """
+        Send a stage lifecycle event via WebSocket.
+
+        This is the new event-driven notification method that provides
+        richer information about stage lifecycle events.
+
+        Args:
+            event: StageEventPayload with full event data
+
+        Returns:
+            True if sent successfully
+        """
+        if not self.enabled:
+            return False
+
+        try:
+            endpoint = f"{self.server_url}/api/stage-event"
+            payload = {
+                "adw_id": self.adw_id,
+                **event.to_dict()
+            }
+
+            response = requests.post(
+                endpoint,
+                json=payload,
+                timeout=2,
+                headers={"Content-Type": "application/json"}
+            )
+
+            if response.status_code == 200:
+                self.logger.info(
+                    f"Sent stage event: {event.event_type.value} - {event.stage_name}"
+                )
+                return True
+            else:
+                self.logger.warning(
+                    f"Failed to send stage event: HTTP {response.status_code}"
+                )
+                return False
+
+        except requests.exceptions.ConnectionError:
+            self.logger.debug("WebSocket server not available")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error sending stage event: {str(e)}")
+            return False
+
     # ===== Granular Agent State Update Methods =====
 
     def send_agent_state_update(

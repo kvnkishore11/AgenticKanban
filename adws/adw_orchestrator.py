@@ -52,6 +52,8 @@ from orchestrator.state_machine import (
     WorkflowStatus,
 )
 from orchestrator.stage_interface import StageContext, StageResult, StageStatus
+from orchestrator.events import StageEventType, StageEventPayload
+from orchestrator.event_emitter import StageEventEmitter
 
 
 # Valid stage names
@@ -100,6 +102,10 @@ class ADWOrchestrator:
         # Initialize workflow execution tracking
         self.execution = self._initialize_execution()
 
+        # Initialize event emitter for stage lifecycle notifications
+        self.event_emitter = StageEventEmitter()
+        self._register_default_handlers()
+
     def _initialize_execution(self) -> WorkflowExecution:
         """Initialize or resume workflow execution from state."""
         # Check for existing execution state (resume capability)
@@ -127,6 +133,79 @@ class ADWOrchestrator:
             stages=stages,
         )
 
+    def _register_default_handlers(self) -> None:
+        """Register default event handlers for WebSocket notifications."""
+        def websocket_handler(event: StageEventPayload) -> None:
+            if self.notifier:
+                self.notifier.notify_stage_event(event)
+
+        self.event_emitter.on_all(websocket_handler)
+
+    def _get_previous_completed_stage(self, current_stage: str) -> Optional[str]:
+        """Get the name of the previous stage that completed (not skipped).
+
+        Args:
+            current_stage: Name of the current stage
+
+        Returns:
+            Name of the last completed stage, or None if this is the first
+        """
+        completed = []
+        for stage_exec in self.execution.stages:
+            if stage_exec.stage_name == current_stage:
+                break
+            if stage_exec.status == StageStatus.COMPLETED:
+                completed.append(stage_exec.stage_name)
+        return completed[-1] if completed else None
+
+    def _get_next_stage(self, current_stage: str) -> Optional[str]:
+        """Get the name of the next enabled stage after current.
+
+        Args:
+            current_stage: Name of the current stage
+
+        Returns:
+            Name of the next stage, or None if this is the last
+        """
+        found_current = False
+        for stage_cfg in self.config.stages:
+            if found_current and stage_cfg.enabled:
+                return stage_cfg.name
+            if stage_cfg.name == current_stage:
+                found_current = True
+        return None
+
+    def _emit_stage_event(
+        self,
+        event_type: StageEventType,
+        stage_name: str,
+        message: str,
+        **kwargs
+    ) -> None:
+        """Emit a stage lifecycle event with full context.
+
+        Args:
+            event_type: Type of event to emit
+            stage_name: Name of the stage
+            message: Human-readable message
+            **kwargs: Additional event data (duration_ms, error, skip_reason)
+        """
+        event = StageEventPayload(
+            event_type=event_type,
+            workflow_name=self.config.name,
+            adw_id=self.adw_id,
+            stage_name=stage_name,
+            previous_stage=self._get_previous_completed_stage(stage_name),
+            next_stage=self._get_next_stage(stage_name),
+            message=message,
+            stage_index=self.execution.current_stage_index,
+            total_stages=len(self.config.stages),
+            completed_stages=self.execution.get_completed_stages(),
+            pending_stages=self.execution.get_pending_stages(),
+            **kwargs
+        )
+        self.event_emitter.emit(event)
+
     def run(self) -> bool:
         """Execute the workflow.
 
@@ -140,14 +219,13 @@ class ADWOrchestrator:
         self.logger.info(f"=== Starting workflow: {self.config.display_name} ===")
         self.logger.info(f"Stages: {[s.name for s in self.config.stages]}")
 
-        # Notify workflow start
-        if self.notifier:
-            self.notifier.notify_stage_transition(
-                workflow_name=self.config.name,
-                from_stage="backlog",
-                to_stage=self.config.stages[0].name if self.config.stages else "completed",
-                message=f"Starting {self.config.display_name}",
-            )
+        # Emit WORKFLOW_STARTED event
+        first_stage = self.config.stages[0].name if self.config.stages else "none"
+        self._emit_stage_event(
+            event_type=StageEventType.WORKFLOW_STARTED,
+            stage_name=first_stage,
+            message=f"Starting workflow: {self.config.display_name}",
+        )
 
         try:
             for i, stage_cfg in enumerate(self.config.stages):
@@ -171,7 +249,7 @@ class ADWOrchestrator:
                     self.logger.error(f"Unknown stage: {stage_cfg.name}")
                     continue
 
-                # Create stage context
+                # Create stage context with progression info
                 ctx = StageContext(
                     adw_id=self.adw_id,
                     issue_number=self.issue_number,
@@ -180,6 +258,12 @@ class ADWOrchestrator:
                     logger=self.logger,
                     notifier=self.notifier,
                     config=stage_cfg.custom_args,
+                    # Stage progression context
+                    previous_stage=self._get_previous_completed_stage(stage_cfg.name),
+                    stage_index=i,
+                    total_stages=len(self.config.stages),
+                    completed_stages=self.execution.get_completed_stages(),
+                    skipped_stages=[s.stage_name for s in self.execution.stages if s.status == StageStatus.SKIPPED],
                 )
 
                 # Execute stage
@@ -204,14 +288,13 @@ class ADWOrchestrator:
             self.state.mark_completed()
             self.state.save("orchestrator_complete")
 
-            # Notify completion
-            if self.notifier:
-                self.notifier.notify_stage_transition(
-                    workflow_name=self.config.name,
-                    from_stage=self.config.stages[-1].name if self.config.stages else "unknown",
-                    to_stage="completed",
-                    message=f"Workflow {self.config.display_name} completed successfully",
-                )
+            # Emit WORKFLOW_COMPLETED event
+            last_stage = self.config.stages[-1].name if self.config.stages else "none"
+            self._emit_stage_event(
+                event_type=StageEventType.WORKFLOW_COMPLETED,
+                stage_name=last_stage,
+                message=f"Workflow {self.config.display_name} completed successfully",
+            )
 
             return True
 
@@ -237,6 +320,10 @@ class ADWOrchestrator:
 
         self.logger.info(f"\n=== {stage.display_name.upper()} PHASE ===")
 
+        # Track execution time
+        import time
+        start_time = time.time()
+
         try:
             # Check preconditions
             can_run, error_msg = stage.preconditions(ctx)
@@ -244,6 +331,15 @@ class ADWOrchestrator:
                 self.logger.error(f"Precondition failed: {error_msg}")
                 stage_exec.status = StageStatus.FAILED
                 stage_exec.error = error_msg
+
+                # Emit STAGE_FAILED event for precondition failure
+                self._emit_stage_event(
+                    event_type=StageEventType.STAGE_FAILED,
+                    stage_name=stage.name,
+                    message=f"Precondition failed: {error_msg}",
+                    error=error_msg,
+                )
+
                 return StageResult(
                     status=StageStatus.FAILED,
                     message=f"Precondition failed: {error_msg}",
@@ -256,13 +352,32 @@ class ADWOrchestrator:
                 self.logger.info(f"Skipping stage: {skip_reason}")
                 stage_exec.status = StageStatus.SKIPPED
                 stage_exec.completed_at = datetime.utcnow()
+
+                # Emit STAGE_SKIPPED event
+                self._emit_stage_event(
+                    event_type=StageEventType.STAGE_SKIPPED,
+                    stage_name=stage.name,
+                    message=skip_reason or "Stage skipped",
+                    skip_reason=skip_reason,
+                )
+
                 return StageResult(
                     status=StageStatus.SKIPPED,
                     message=skip_reason or "Stage skipped",
                 )
 
+            # Emit STAGE_STARTED event
+            self._emit_stage_event(
+                event_type=StageEventType.STAGE_STARTED,
+                stage_name=stage.name,
+                message=f"Starting {stage.display_name}",
+            )
+
             # Execute stage
             result = stage.execute(ctx)
+
+            # Calculate duration
+            duration_ms = int((time.time() - start_time) * 1000)
 
             stage_exec.status = result.status
             stage_exec.result = result
@@ -270,19 +385,48 @@ class ADWOrchestrator:
 
             if result.status == StageStatus.COMPLETED:
                 self.logger.info(f"Stage completed: {stage.display_name}")
+
+                # Emit STAGE_COMPLETED event
+                self._emit_stage_event(
+                    event_type=StageEventType.STAGE_COMPLETED,
+                    stage_name=stage.name,
+                    message=f"{stage.display_name} completed successfully",
+                    duration_ms=duration_ms,
+                )
             else:
                 self.logger.error(f"Stage failed: {result.error}")
                 stage_exec.error = result.error
                 stage.on_failure(ctx, Exception(result.error or "Unknown error"))
 
+                # Emit STAGE_FAILED event
+                self._emit_stage_event(
+                    event_type=StageEventType.STAGE_FAILED,
+                    stage_name=stage.name,
+                    message=f"{stage.display_name} failed",
+                    error=result.error,
+                    duration_ms=duration_ms,
+                )
+
             return result
 
         except Exception as e:
+            # Calculate duration even on exception
+            duration_ms = int((time.time() - start_time) * 1000)
+
             self.logger.error(f"Stage exception: {e}")
             stage_exec.status = StageStatus.FAILED
             stage_exec.error = str(e)
             stage_exec.completed_at = datetime.utcnow()
             stage.on_failure(ctx, e)
+
+            # Emit STAGE_FAILED event for exception
+            self._emit_stage_event(
+                event_type=StageEventType.STAGE_FAILED,
+                stage_name=stage.name,
+                message=f"{stage.display_name} failed with exception",
+                error=str(e),
+                duration_ms=duration_ms,
+            )
 
             return StageResult(
                 status=StageStatus.FAILED,

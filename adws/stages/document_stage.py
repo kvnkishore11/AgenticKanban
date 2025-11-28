@@ -60,15 +60,6 @@ class DocumentStage(BaseStage):
         """Execute document phase by running adw_document_iso.py."""
         ctx.logger.info(f"Starting document stage for ADW {ctx.adw_id}")
 
-        # Notify stage transition
-        if ctx.notifier:
-            ctx.notifier.notify_stage_transition(
-                workflow_name="orchestrator",
-                from_stage="review",
-                to_stage="document",
-                message=f"Generating documentation for ADW {ctx.adw_id}"
-            )
-
         # Build args: <issue_number> <adw_id>
         args = [str(ctx.issue_number), ctx.adw_id]
 

@@ -30,15 +30,6 @@ class PlanStage(BaseStage):
         """Execute planning phase by running adw_plan_iso.py."""
         ctx.logger.info(f"Starting plan stage for issue {ctx.issue_number}")
 
-        # Notify stage transition
-        if ctx.notifier:
-            ctx.notifier.notify_stage_transition(
-                workflow_name="orchestrator",
-                from_stage="backlog",
-                to_stage="plan",
-                message=f"Starting planning for issue {ctx.issue_number}"
-            )
-
         # Build args: <issue_number> <adw_id>
         args = [str(ctx.issue_number), ctx.adw_id]
 

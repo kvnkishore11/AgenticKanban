@@ -64,15 +64,6 @@ class TestStage(BaseStage):
         """Execute test phase by running adw_test_iso.py."""
         ctx.logger.info(f"Starting test stage for ADW {ctx.adw_id}")
 
-        # Notify stage transition
-        if ctx.notifier:
-            ctx.notifier.notify_stage_transition(
-                workflow_name="orchestrator",
-                from_stage="build",
-                to_stage="test",
-                message=f"Running tests for ADW {ctx.adw_id}"
-            )
-
         # Build args: <issue_number> <adw_id>
         args = [str(ctx.issue_number), ctx.adw_id]
 

@@ -41,6 +41,13 @@ class StageContext:
     notifier: Any  # WebSocketNotifier instance
     config: Dict[str, Any] = field(default_factory=dict)  # Stage-specific config
 
+    # Stage progression context (populated by orchestrator)
+    previous_stage: Optional[str] = None  # Name of previous completed stage
+    stage_index: int = 0  # Current stage index (0-based)
+    total_stages: int = 0  # Total number of stages in workflow
+    completed_stages: List[str] = field(default_factory=list)  # Names of completed stages
+    skipped_stages: List[str] = field(default_factory=list)  # Names of skipped stages
+
 
 class Stage(ABC):
     """Abstract base class for all workflow stages.

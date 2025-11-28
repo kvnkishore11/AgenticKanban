@@ -48,6 +48,12 @@ const parseWorkflowStages = (workflowName) => {
     return ['plan', 'build', 'test', 'review', 'document'];
   }
 
+  // Handle special case: 'orchestrator' maps to 'plan' as the initial stage
+  // The orchestrator dynamically manages stage progression, but starts with plan
+  if (stagesStr === 'orchestrator') {
+    return ['plan'];
+  }
+
   // Split by underscore to get stage array
   const stages = stagesStr.split('_').filter(s => s.length > 0);
 

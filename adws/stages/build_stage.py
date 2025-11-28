@@ -41,15 +41,6 @@ class BuildStage(BaseStage):
         """Execute build phase by running adw_build_iso.py."""
         ctx.logger.info(f"Starting build stage for ADW {ctx.adw_id}")
 
-        # Notify stage transition
-        if ctx.notifier:
-            ctx.notifier.notify_stage_transition(
-                workflow_name="orchestrator",
-                from_stage="plan",
-                to_stage="build",
-                message=f"Building implementation for ADW {ctx.adw_id}"
-            )
-
         # Build args: <issue_number> <adw_id>
         args = [str(ctx.issue_number), ctx.adw_id]
 
