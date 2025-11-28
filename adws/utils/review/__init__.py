@@ -10,6 +10,9 @@ Usage:
         execute_review_with_retry,
         upload_screenshots,
         finalize_review,
+        # New external tools review
+        run_external_tools_review_sync,
+        format_external_review_comment,
     )
 """
 
@@ -34,6 +37,15 @@ from .resolution import resolve_blocker_issues
 from .summary import build_review_summary
 from .finalization import upload_screenshots, finalize_review
 
+# New external tools review functions
+from .external_tools import (
+    run_external_tools_review_sync,
+    run_external_tools_review,
+    format_external_review_comment,
+    load_review_config_from_metadata,
+    should_fail_review,
+)
+
 __all__ = [
     # Types
     "ReviewInitContext",
@@ -52,4 +64,10 @@ __all__ = [
     "build_review_summary",
     "upload_screenshots",
     "finalize_review",
+    # External tools review
+    "run_external_tools_review_sync",
+    "run_external_tools_review",
+    "format_external_review_comment",
+    "load_review_config_from_metadata",
+    "should_fail_review",
 ]

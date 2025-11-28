@@ -1,7 +1,16 @@
 """
-Review Stage - Reviews implementation against spec.
+Review Stage - Comprehensive code quality and security review.
 
-Can be skipped for patch/chore issue types.
+Review is NEVER skipped by default. Only skip when explicitly configured via:
+1. Task metadata: skip_review: true
+2. Orchestrator config: skip_review: true
+
+Supports multiple review modes:
+- UI validation (Playwright-based visual verification)
+- Code quality (ESLint, Ruff)
+- Security (Bearer CLI, Semgrep)
+- Documentation review
+- Comprehensive (all of the above)
 """
 
 from stages.base_stage import BaseStage
@@ -9,7 +18,7 @@ from orchestrator.stage_interface import StageContext, StageResult, StageStatus
 
 
 class ReviewStage(BaseStage):
-    """Review stage that validates implementation."""
+    """Review stage that validates implementation with comprehensive quality checks."""
 
     @property
     def name(self) -> str:
@@ -31,16 +40,32 @@ class ReviewStage(BaseStage):
         return True, None
 
     def should_skip(self, ctx: StageContext) -> tuple[bool, str | None]:
-        """Skip review for patches and chores."""
-        issue_class = ctx.state.get("issue_class")
+        """Only skip if explicitly configured via task metadata or orchestrator config.
 
-        if issue_class == "/patch":
-            ctx.logger.info("Skipping review for patch issue")
-            return True, "Patches don't require review"
+        Review is NEVER automatically skipped based on issue type (chore, patch, etc.).
+        This ensures all changes receive quality and security review.
 
-        if issue_class == "/chore":
-            ctx.logger.info("Skipping review for chore issue")
-            return True, "Chores don't require review"
+        To skip review, explicitly set skip_review: true in:
+        1. Task metadata (issue_json.metadata.skip_review)
+        2. Orchestrator config (ctx.config.skip_review)
+        """
+        # Check for explicit skip flag in task metadata
+        issue_json = ctx.state.get("issue_json", {})
+        metadata = issue_json.get("metadata", {})
+        skip_review = metadata.get("skip_review", False)
+
+        if skip_review:
+            ctx.logger.info("Review explicitly skipped via task metadata (skip_review: true)")
+            return True, "Review skipped per task configuration"
+
+        # Check for skip in orchestrator config
+        if ctx.config.get("skip_review", False):
+            ctx.logger.info("Review skipped via orchestrator config (skip_review: true)")
+            return True, "Review skipped per workflow configuration"
+
+        # Log that review will run (helpful for debugging)
+        issue_class = ctx.state.get("issue_class", "unknown")
+        ctx.logger.info(f"Review will run for issue_class={issue_class} (review is never auto-skipped)")
 
         return False, None
 
