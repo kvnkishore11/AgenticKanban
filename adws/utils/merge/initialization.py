@@ -34,18 +34,23 @@ def parse_cli_arguments(args: List[str]) -> Tuple[str, str]:
         print("Usage: uv run adw_merge_iso.py <adw-id> [merge-method]")
         print("\nArguments:")
         print("  adw-id: The ADW ID of the worktree to merge (required)")
-        print("  merge-method: Merge strategy - 'squash', 'merge', or 'rebase' (default: 'squash')")
+        print("  merge-method: Merge strategy (default: 'squash-rebase')")
+        print("    - squash-rebase: Rebase feature branch onto main, then squash (cleanest)")
+        print("    - squash: Squash all commits into one")
+        print("    - merge: Regular merge with merge commit")
+        print("    - rebase: Rebase commits onto main")
         print("\nExample:")
-        print("  uv run adw_merge_iso.py a1b2c3d4 squash")
+        print("  uv run adw_merge_iso.py a1b2c3d4 squash-rebase")
         sys.exit(1)
 
     adw_id = args[1]
-    merge_method = args[2] if len(args) > 2 else "squash"
+    merge_method = args[2] if len(args) > 2 else "squash-rebase"
 
     # Validate merge method
-    if merge_method not in ["squash", "merge", "rebase"]:
+    valid_methods = ["squash", "merge", "rebase", "squash-rebase"]
+    if merge_method not in valid_methods:
         print(f"Error: Invalid merge method '{merge_method}'")
-        print("Valid options: squash, merge, rebase")
+        print(f"Valid options: {', '.join(valid_methods)}")
         sys.exit(1)
 
     return adw_id, merge_method

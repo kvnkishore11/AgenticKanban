@@ -22,7 +22,14 @@ class TestParseCLIArguments:
         args = ["script.py", "abc12345"]
         adw_id, merge_method = parse_cli_arguments(args)
         assert adw_id == "abc12345"
-        assert merge_method == "squash"  # default
+        assert merge_method == "squash-rebase"  # default
+
+    def test_parse_with_merge_method_squash_rebase(self):
+        """Test parsing with squash-rebase method."""
+        args = ["script.py", "abc12345", "squash-rebase"]
+        adw_id, merge_method = parse_cli_arguments(args)
+        assert adw_id == "abc12345"
+        assert merge_method == "squash-rebase"
 
     def test_parse_with_merge_method_squash(self):
         """Test parsing with squash merge method."""

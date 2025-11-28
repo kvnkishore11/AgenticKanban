@@ -89,6 +89,18 @@ class TestPerformMerge:
     """Tests for _perform_merge function."""
 
     @patch('subprocess.run')
+    def test_squash_rebase_merge_success(self, mock_run, mock_logger):
+        """Test successful squash-rebase merge."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        result = _perform_merge("feature/test", "squash-rebase", "/repo", "main", mock_logger)
+
+        assert result.success is True
+        assert result.merge_method == "squash-rebase"
+        # checkout feature + rebase + checkout main + merge --squash + commit = 5 calls
+        assert mock_run.call_count == 5
+
+    @patch('subprocess.run')
     def test_squash_merge_success(self, mock_run, mock_logger):
         """Test successful squash merge."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
