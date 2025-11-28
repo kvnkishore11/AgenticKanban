@@ -15,8 +15,6 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 
-from utils.constants import ensure_session_log_dir
-
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -24,6 +22,174 @@ except ImportError:
     pass  # dotenv is optional
 
 
+def get_completion_messages():
+    """Return list of friendly completion messages."""
+    return [
+        "Work complete!",
+        "All done!",
+        "Task finished!",
+        "Job complete!",
+        "Ready for next task!"
+    ]
+
+
+def get_tts_script_path():
+    """
+    Determine which TTS script to use.
+    Priority order: Open-Source (eSpeak > pyttsx3 > Kokoro > ChatTTS > Piper) > Commercial (ElevenLabs > OpenAI)
+    """
+    # Get current script directory and construct utils/tts path
+    script_dir = Path(__file__).parent
+    tts_dir = script_dir / "utils" / "tts"
+
+    # Check for TTS_ENGINE environment variable to force a specific engine
+    forced_engine = os.getenv('TTS_ENGINE', '').lower()
+
+    if forced_engine:
+        engine_map = {
+            'espeak': 'espeak_tts.py',
+            'kokoro': 'kokoro_tts.py',
+            'chattts': 'chattts_tts.py',
+            'piper': 'piper_tts.py',
+            'pyttsx3': 'pyttsx3_tts.py',
+            'elevenlabs': 'elevenlabs_tts.py',
+            'openai': 'openai_tts.py',
+        }
+        if forced_engine in engine_map:
+            script = tts_dir / engine_map[forced_engine]
+            if script.exists():
+                return str(script)
+
+    # Priority 1: eSpeak-ng (open-source, lightweight, fast, no downloads)
+    espeak_script = tts_dir / "espeak_tts.py"
+    if espeak_script.exists():
+        return str(espeak_script)
+
+    # Priority 2: pyttsx3 (offline fallback, always available)
+    pyttsx3_script = tts_dir / "pyttsx3_tts.py"
+    if pyttsx3_script.exists():
+        return str(pyttsx3_script)
+
+    # Priority 3: Kokoro TTS (open-source, CPU-efficient, requires model download)
+    kokoro_script = tts_dir / "kokoro_tts.py"
+    if kokoro_script.exists():
+        return str(kokoro_script)
+
+    # Priority 4: ChatTTS (open-source, great for conversational notifications)
+    chattts_script = tts_dir / "chattts_tts.py"
+    if chattts_script.exists():
+        return str(chattts_script)
+
+    # Priority 5: Piper TTS (open-source, fast and lightweight)
+    piper_script = tts_dir / "piper_tts.py"
+    if piper_script.exists():
+        return str(piper_script)
+
+    # Priority 6: ElevenLabs (commercial, requires API key)
+    if os.getenv('ELEVENLABS_API_KEY'):
+        elevenlabs_script = tts_dir / "elevenlabs_tts.py"
+        if elevenlabs_script.exists():
+            return str(elevenlabs_script)
+
+    # Priority 7: OpenAI (commercial, requires API key)
+    if os.getenv('OPENAI_API_KEY'):
+        openai_script = tts_dir / "openai_tts.py"
+        if openai_script.exists():
+            return str(openai_script)
+
+    return None
+
+
+def get_llm_completion_message():
+    """
+    Generate completion message using available LLM services.
+    Priority order: OpenAI > Anthropic > Ollama > fallback to random message
+    
+    Returns:
+        str: Generated or fallback completion message
+    """
+    # Get current script directory and construct utils/llm path
+    script_dir = Path(__file__).parent
+    llm_dir = script_dir / "utils" / "llm"
+    
+    # Try OpenAI first (highest priority)
+    if os.getenv('OPENAI_API_KEY'):
+        oai_script = llm_dir / "oai.py"
+        if oai_script.exists():
+            try:
+                result = subprocess.run([
+                    "uv", "run", str(oai_script), "--completion"
+                ], 
+                capture_output=True,
+                text=True,
+                timeout=10
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return result.stdout.strip()
+            except (subprocess.TimeoutExpired, subprocess.SubprocessError):
+                pass
+    
+    # Try Anthropic second
+    if os.getenv('ANTHROPIC_API_KEY'):
+        anth_script = llm_dir / "anth.py"
+        if anth_script.exists():
+            try:
+                result = subprocess.run([
+                    "uv", "run", str(anth_script), "--completion"
+                ], 
+                capture_output=True,
+                text=True,
+                timeout=10
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return result.stdout.strip()
+            except (subprocess.TimeoutExpired, subprocess.SubprocessError):
+                pass
+    
+    # Try Ollama third (local LLM)
+    ollama_script = llm_dir / "ollama.py"
+    if ollama_script.exists():
+        try:
+            result = subprocess.run([
+                "uv", "run", str(ollama_script), "--completion"
+            ], 
+            capture_output=True,
+            text=True,
+            timeout=10
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError):
+            pass
+    
+    # Fallback to random predefined message
+    messages = get_completion_messages()
+    return random.choice(messages)
+
+def announce_completion():
+    """Announce completion using the best available TTS service."""
+    try:
+        tts_script = get_tts_script_path()
+        if not tts_script:
+            return  # No TTS scripts available
+        
+        # Get completion message (LLM-generated or fallback)
+        completion_message = get_llm_completion_message()
+        
+        # Call the TTS script with the completion message
+        subprocess.run([
+            "uv", "run", tts_script, completion_message
+        ], 
+        capture_output=True,  # Suppress output
+        timeout=10  # 10-second timeout
+        )
+        
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
+        # Fail silently if TTS encounters issues
+        pass
+    except Exception:
+        # Fail silently for any other errors
+        pass
 
 
 def main():
@@ -31,21 +197,23 @@ def main():
         # Parse command line arguments
         parser = argparse.ArgumentParser()
         parser.add_argument('--chat', action='store_true', help='Copy transcript to chat.json')
+        parser.add_argument('--notify', action='store_true', help='Enable TTS completion announcement')
         args = parser.parse_args()
         
         # Read JSON input from stdin
         input_data = json.load(sys.stdin)
 
         # Extract required fields
-        session_id = input_data.get("session_id", "unknown")
+        session_id = input_data.get("session_id", "")
         stop_hook_active = input_data.get("stop_hook_active", False)
 
-        # Ensure session log directory exists
-        log_dir = ensure_session_log_dir(session_id)
-        log_path = log_dir / "stop.json"
+        # Ensure log directory exists
+        log_dir = os.path.join(os.getcwd(), "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, "stop.json")
 
         # Read existing log data or initialize empty list
-        if log_path.exists():
+        if os.path.exists(log_path):
             with open(log_path, 'r') as f:
                 try:
                     log_data = json.load(f)
@@ -77,13 +245,16 @@ def main():
                                 except json.JSONDecodeError:
                                     pass  # Skip invalid lines
                     
-                    # Write to session-specific chat.json
-                    chat_file = log_dir / 'chat.json'
+                    # Write to logs/chat.json
+                    chat_file = os.path.join(log_dir, 'chat.json')
                     with open(chat_file, 'w') as f:
                         json.dump(chat_data, f, indent=2)
                 except Exception:
                     pass  # Fail silently
 
+        # Announce completion via TTS (only if --notify flag is set)
+        if args.notify:
+            announce_completion()
 
         sys.exit(0)
 

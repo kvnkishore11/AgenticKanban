@@ -49,6 +49,9 @@ trees/
 # Claude hooks logs
 logs/
 
+# Claude session data (auto-generated)
+.claude/data/
+
 # Agent output directories
 agents/
 

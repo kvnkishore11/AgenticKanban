@@ -90,8 +90,83 @@ Generate ONE completion message:"""
     return response
 
 
+def generate_agent_name():
+    """
+    Generate a one-word agent name using OpenAI.
+    
+    Returns:
+        str: A single-word agent name, or fallback name if error
+    """
+    import random
+    
+    # Example names to guide generation
+    example_names = [
+        "Phoenix", "Sage", "Nova", "Echo", "Atlas", "Cipher", "Nexus", 
+        "Oracle", "Quantum", "Zenith", "Aurora", "Vortex", "Nebula",
+        "Catalyst", "Prism", "Axiom", "Helix", "Flux", "Synth", "Vertex"
+    ]
+    
+    # If no API key, return random fallback
+    if not os.getenv("OPENAI_API_KEY"):
+        return random.choice(example_names)
+    
+    # Create examples string
+    examples_str = ", ".join(example_names[:10])  # Use first 10 as examples
+    
+    prompt_text = f"""Generate exactly ONE unique agent/assistant name.
+
+Requirements:
+- Single word only (no spaces, hyphens, or punctuation)
+- Abstract and memorable
+- Professional sounding
+- Easy to pronounce
+- Similar style to these examples: {examples_str}
+
+Generate a NEW name (not from the examples). Respond with ONLY the name, nothing else.
+
+Name:"""
+    
+    try:
+        # Use faster model with lower tokens for name generation
+        load_dotenv()
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise Exception("No API key")
+        
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # Fast, cost-effective model
+            messages=[{"role": "user", "content": prompt_text}],
+            max_tokens=20,
+            temperature=0.7,
+        )
+        
+        # Extract and clean the name
+        name = response.choices[0].message.content.strip()
+        # Ensure it's a single word
+        name = name.split()[0] if name else "Agent"
+        # Remove any punctuation
+        name = ''.join(c for c in name if c.isalnum())
+        # Capitalize first letter
+        name = name.capitalize() if name else "Agent"
+        
+        # Validate it's not empty and reasonable length
+        if name and 3 <= len(name) <= 20:
+            return name
+        else:
+            raise Exception("Invalid name generated")
+        
+    except Exception:
+        # Return random fallback name
+        return random.choice(example_names)
+
+
 def main():
     """Command line interface for testing."""
+    import json
+    
     if len(sys.argv) > 1:
         if sys.argv[1] == "--completion":
             message = generate_completion_message()
@@ -99,6 +174,10 @@ def main():
                 print(message)
             else:
                 print("Error generating completion message")
+        elif sys.argv[1] == "--agent-name":
+            # Generate agent name (no input needed)
+            name = generate_agent_name()
+            print(name)
         else:
             prompt_text = " ".join(sys.argv[1:])
             response = prompt_llm(prompt_text)
@@ -107,7 +186,7 @@ def main():
             else:
                 print("Error calling OpenAI API")
     else:
-        print("Usage: ./oai.py 'your prompt here' or ./oai.py --completion")
+        print("Usage: ./oai.py 'your prompt here' or ./oai.py --completion or ./oai.py --agent-name")
 
 
 if __name__ == "__main__":

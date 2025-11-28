@@ -1,45 +1,73 @@
 # Feature Planning
 
-Create a new plan to implement the `Feature` using the exact specified markdown `Plan Format`. Follow the `Instructions` to create the plan use the `Relevant Files` to focus on the right files.
+Create a new plan to implement the `Feature` using the exact specified markdown
+`Plan Format`. Follow the `Instructions` to create the plan use the
+`Relevant Files` to focus on the right files.
 
 ## Variables
-issue_number: $1
-adw_id: $2
-issue_json: $3
+
+issue_number: $1 adw_id: $2 issue_json: $3
 
 ## Instructions
 
-- IMPORTANT: You're writing a plan to implement a net new feature based on the `Feature` that will add value to the application.
-- IMPORTANT: The `Feature` describes the feature that will be implemented but remember we're not implementing a new feature, we're creating the plan that will be used to implement the feature based on the `Plan Format` below.
-- Create the plan in the `specs/` directory with filename: `issue-{issue_number}-adw-{adw_id}-sdlc_planner-{descriptive-name}.md`
-  - Replace `{descriptive-name}` with a short, descriptive name based on the feature (e.g., "add-auth-system", "implement-search", "create-dashboard")
-- Use the `Plan Format` below to create the plan. 
-- Research the codebase to understand existing patterns, architecture, and conventions before planning the feature.
-- IMPORTANT: Replace every <placeholder> in the `Plan Format` with the requested value. Add as much detail as needed to implement the feature successfully.
-- Use your reasoning model: THINK HARD about the feature requirements, design, and implementation approach.
-- Follow existing patterns and conventions in the codebase. Don't reinvent the wheel.
-- Design for extensibility and maintainability.
-- If you need a new library, use `uv add` and be sure to report it in the `Notes` section of the `Plan Format`.
+- IMPORTANT: You're writing a plan to implement a net new feature based on the
+  `Feature` that will add value to the application.
+- IMPORTANT: The `Feature` describes the feature that will be implemented but
+  remember we're not implementing a new feature, we're creating the plan that
+  will be used to implement the feature based on the `Plan Format` below.
+- Create the plan in the `specs/` directory with filename:
+  `issue-{issue_number}-adw-{adw_id}-sdlc_planner-{descriptive-name}.md`
+  - Replace `{descriptive-name}` with a short, descriptive name based on the
+    feature (e.g., "add-auth-system", "implement-search", "create-dashboard")
+- Use the `Plan Format` below to create the plan.
+- Research the codebase to understand existing patterns, architecture, and
+  conventions before planning the feature.
+- IMPORTANT: Replace every <placeholder> in the `Plan Format` with the requested
+  value. Add as much detail as needed to implement the feature successfully.
+- Use your reasoning model: ULTRA THINK about the feature requirements, design,
+  and implementation approach.
+- Follow existing patterns and conventions in the codebase. Don't reinvent the
+  wheel.
+- Design for extensibility, modularity and maintainability.
+- If you need a new library, use `uv add` for backend and for frontend it is
+  'npm install' and be sure to report it in the `Notes` section of the
+  `Plan Format`.
 - Don't use decorators. Keep it simple.
 - IMPORTANT: Test Generation Strategy:
-  - **Backend Tests**: If the feature modifies Python backend code, add a task to create unit tests co-located with the source (e.g., `server/tests/test_{feature_name}.js` or `adws/utils/{module}/tests/test_{feature_name}.py`) using pytest
-  - **Frontend Tests**: If the feature modifies React/JS frontend code, add a task to create unit tests co-located with the source in `__tests__/` directories (e.g., `src/components/{category}/__tests__/{ComponentName}.test.jsx`, `src/stores/__tests__/{storeName}.test.js`) using Vitest + React Testing Library
-  - **Integration Tests**: If the feature requires cross-component testing, add a task to create integration tests in `src/test/integration/{feature_name}.integration.test.js`
-  - **E2E Tests**: If the feature includes UI components or user interactions, add a task to create E2E test file in `src/test/e2e/issue-{issue_number}-adw-{adw_id}-e2e-{feature_name}.md`
-  - To be clear, we're not creating the test files directly, we're creating tasks to create them in the `Plan Format` below
+  - **Backend Tests**: If the feature modifies Python backend code, add a task
+    to create unit tests co-located with the source (e.g.,
+    `server/tests/test_{feature_name}.js` or
+    `adws/utils/{module}/tests/test_{feature_name}.py`) using pytest
+  - **Frontend Tests**: If the feature modifies React/JS frontend code, add a
+    task to create unit tests co-located with the source in `__tests__/`
+    directories (e.g.,
+    `src/components/{category}/__tests__/{ComponentName}.test.jsx`,
+    `src/stores/__tests__/{storeName}.test.js`) using Vitest + React Testing
+    Library
+  - **Integration Tests**: If the feature requires cross-component testing, add
+    a task to create integration tests in
+    `src/test/integration/{feature_name}.integration.test.js`
+  - **E2E Tests**: If the feature includes UI components or user interactions,
+    add a task to create E2E test file in
+    `src/test/e2e/issue-{issue_number}-adw-{adw_id}-e2e-{feature_name}.md`
+  - To be clear, we're not creating the test files directly, we're creating
+    tasks to create them in the `Plan Format` below
 - Respect requested files in the `Relevant Files` section.
 - Start your research by reading the `README.md` file.
 
 ## Relevant Files
 
 Focus on the following files:
+
 - `README.md` - Contains the project overview and instructions.
 - `src/**` - Contains the codebase client.
 - `scripts/**` - Contains the scripts to start and stop the server + client.
 - `adws/**` - Contains the AI Developer Workflow (ADW) scripts.
 
-- Read `.claude/commands/conditional_docs.md` to check if your task requires additional documentation
-- If your task matches any of the conditions listed, include those documentation files in the `Plan Format: Relevant Files` section of your plan
+- Read `.claude/commands/conditional_docs.md` to check if your task requires
+  additional documentation
+- If your task matches any of the conditions listed, include those documentation
+  files in the `Plan Format: Relevant Files` section of your plan
 
 Ignore all other files in the codebase.
 
@@ -49,82 +77,124 @@ Ignore all other files in the codebase.
 # Feature: <feature name>
 
 ## Metadata
-issue_number: `{issue_number}`
-adw_id: `{adw_id}`
-issue_json: `{issue_json}`
+
+issue_number: `{issue_number}` adw_id: `{adw_id}` issue_json: `{issue_json}`
 
 ## Feature Description
+
 <describe the feature in detail, including its purpose and value to users>
 
 ## User Story
-As a <type of user>
-I want to <action/goal>
-So that <benefit/value>
+
+As a <type of user> I want to <action/goal> So that <benefit/value>
 
 ## Problem Statement
+
 <clearly define the specific problem or opportunity this feature addresses>
 
 ## Solution Statement
+
 <describe the proposed solution approach and how it solves the problem>
 
 ## Relevant Files
+
 Use these files to implement the feature:
 
-<find and list the files that are relevant to the feature describe why they are relevant in bullet points. If there are new files that need to be created to implement the feature, list them in an h3 'New Files' section.>
+<find and list the files that are relevant to the feature describe why they are
+relevant in bullet points. If there are new files that need to be created to
+implement the feature, list them in an h3 'New Files' section.>
 
 ## Implementation Plan
+
 ### Phase 1: Foundation
+
 <describe the foundational work needed before implementing the main feature>
 
 ### Phase 2: Core Implementation
+
 <describe the main implementation work for the feature>
 
 ### Phase 3: Integration
+
 <describe how the feature will integrate with existing functionality>
 
 ## Step by Step Tasks
+
 IMPORTANT: Execute every step in order, top to bottom.
 
-<list step by step tasks as h3 headers plus bullet points. use as many h3 headers as needed to implement the feature. Order matters, start with the foundational shared changes required then move on to the specific implementation. Include creating tests throughout the implementation process.>
+<list step by step tasks as h3 headers plus bullet points. use as many h3
+headers as needed to implement the feature. Order matters, start with the
+foundational shared changes required then move on to the specific
+implementation. Include creating tests throughout the implementation process.>
 
-<Your last step should be running the `Validation Commands` to validate the feature works correctly with zero regressions.>
+<Your last step should be running the `Validation Commands` to validate the
+feature works correctly with zero regressions.>
 
 ## Testing Strategy
+
 ### Unit Tests
+
 #### Backend Unit Tests
-<If backend code was modified, describe Python unit tests to create co-located with source (e.g., `server/tests/test_{feature_name}.js` or `adws/utils/{module}/tests/test_{feature_name}.py`)>
+
+<If backend code was modified, describe Python unit tests to create co-located
+with source (e.g., `server/tests/test_{feature_name}.js` or
+`adws/utils/{module}/tests/test_{feature_name}.py`)>
 
 #### Frontend Unit Tests
-<If frontend code was modified, describe Vitest unit tests to create co-located with source in `__tests__/` directories (e.g., `src/components/{category}/__tests__/{ComponentName}.test.jsx`)>
+
+<If frontend code was modified, describe Vitest unit tests to create co-located
+with source in `__tests__/` directories (e.g.,
+`src/components/{category}/__tests__/{ComponentName}.test.jsx`)>
 
 #### Integration Tests
-<If cross-component testing is needed, describe integration tests to create in `src/test/integration/{feature_name}.integration.test.js`>
+
+<If cross-component testing is needed, describe integration tests to create in
+`src/test/integration/{feature_name}.integration.test.js`>
 
 ### E2E Tests
-<If UI was affected, describe E2E tests to create in `src/test/e2e/issue-{issue_number}-adw-{adw_id}-e2e-{feature_name}.md`>
+
+<If UI was affected, describe E2E tests to create in
+`src/test/e2e/issue-{issue_number}-adw-{adw_id}-e2e-{feature_name}.md`>
 
 ### Edge Cases
+
 <list edge cases that need to be tested>
 
 ## Acceptance Criteria
-<list specific, measurable criteria that must be met for the feature to be considered complete>
+
+<list specific, measurable criteria that must be met for the feature to be
+considered complete>
 
 ## Validation Commands
-Execute every command to validate the feature works correctly with zero regressions.
 
-<list commands you'll use to validate with 100% confidence the feature is implemented correctly with zero regressions. every command must execute without errors so be specific about what you want to run to validate the feature works as expected.>
+Execute every command to validate the feature works correctly with zero
+regressions.
 
-- `cd server && uv run pytest` - Run server tests to validate the feature works with zero regressions
-- `bun tsc --noEmit` - Run frontend tests to validate the feature works with zero regressions
-- `bun run build` - Run frontend build to validate the feature works with zero regressions
+<list commands you'll use to validate with 100% confidence the feature is
+implemented correctly with zero regressions. every command must execute without
+errors so be specific about what you want to run to validate the feature works
+as expected.>
+
+- `cd server && uv run pytest` - Run server tests to validate the feature works
+  with zero regressions
+- `bun tsc --noEmit` - Run frontend tests to validate the feature works with
+  zero regressions
+- `bun run build` - Run frontend build to validate the feature works with zero
+  regressions
 
 ## Notes
-<optionally list any additional notes, future considerations, or context that are relevant to the feature that will be helpful to the developer>
+
+<optionally list any additional notes, future considerations, or context that
+are relevant to the feature that will be helpful to the developer>
 ```
 
 ## Feature
-Extract the feature details from the `issue_json` variable (parse the JSON and use the title and body fields).
+
+Extract the feature details from the `issue_json` variable (parse the JSON and
+use the title and body fields).
 
 ## Report
 
-- IMPORTANT: Return exclusively the path to the plan file created and nothing else.
+- IMPORTANT: Return exclusively the path to the plan file created and nothing
+  else.
+
