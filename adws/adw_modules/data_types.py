@@ -41,6 +41,7 @@ ADWWorkflow = Literal[
     "adw_plan_build_document_iso",  # Plan + Build + Document
     "adw_plan_build_review_iso",  # Plan + Build + Review
     "adw_sdlc_iso",  # Complete SDLC: Plan + Build + Test + Review + Document
+    "adw_orchestrator",  # Dynamic orchestrator with custom stage list
 ]
 
 # All slash commands used in the ADW system
@@ -243,6 +244,8 @@ class ADWStateData(BaseModel):
     patch_file: Optional[str] = None  # Path to the current/latest patch file
     patch_history: Optional[List[dict]] = Field(default_factory=list)  # History of patch attempts
     patch_source_mode: Optional[Literal["github", "kanban"]] = None  # Source of patch content
+    # Orchestrator state (for dynamic workflows)
+    orchestrator: Optional[dict] = None  # Orchestrator execution state
 
 
 class ReviewIssue(BaseModel):

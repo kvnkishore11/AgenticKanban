@@ -236,6 +236,8 @@ AVAILABLE_ADW_WORKFLOWS = [
     "adw_plan_build_document_iso",
     "adw_plan_build_review_iso",
     "adw_sdlc_iso",
+    # Orchestrator-based dynamic multi-stage workflow
+    "adw_orchestrator",
 ]
 
 

@@ -92,6 +92,7 @@ WORKFLOWS_REQUIRING_ISSUE_NUMBER = [
     "adw_plan_build_document_iso",
     "adw_plan_build_review_iso",
     "adw_sdlc_iso",
+    "adw_orchestrator",  # Dynamic orchestrator also requires issue_number
 ]
 
 # Global state
@@ -676,6 +677,7 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
 
     # Build command arguments following ADW workflow conventions:
     # Most workflows expect: <script>.py <issue-number> [adw-id]
+    # Orchestrator expects: <script>.py <issue-number> [adw-id] --stages/--config
     # Validation above ensures issue_number is present for workflows that require it
 
     # Add issue number if provided (first positional argument)
@@ -686,6 +688,15 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
     # Note: For workflows requiring issue_number, this will be the second argument
     # For workflows that don't require issue_number, this will be the first argument
     cmd.append(adw_id)
+
+    # Special handling for adw_orchestrator - add stages or config
+    if request.workflow_type == "adw_orchestrator":
+        if request.config:
+            # Pass full config as JSON (includes stages and other settings)
+            cmd.extend(["--config", json.dumps(request.config)])
+        elif request.stages:
+            # Pass just the stages list
+            cmd.extend(["--stages", ",".join(request.stages)])
 
     print(f"Launching {request.workflow_type} with ADW ID: {adw_id}")
     print(f"Command: {' '.join(cmd)}")

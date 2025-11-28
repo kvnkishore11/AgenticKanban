@@ -4,6 +4,15 @@ import sys
 import os
 import json
 import logging
+from datetime import datetime
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects."""
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -56,7 +65,7 @@ def fetch_and_classify(
 
     make_issue_comment_safe(
         issue_number,
-        f"{adw_id}_ops: Using state\n```json\n{json.dumps(state.data, indent=2)}\n```",
+        f"{adw_id}_ops: Using state\n```json\n{json.dumps(state.data, indent=2, cls=DateTimeEncoder)}\n```",
         state,
     )
 

@@ -1,6 +1,6 @@
 """WebSocket message models for ADW trigger system."""
 
-from typing import Optional, Literal
+from typing import Optional, Literal, List, Dict, Any
 from pydantic import BaseModel, Field, validator, AliasChoices
 from adw_modules.data_types import ModelSet, ADWWorkflow
 
@@ -21,6 +21,10 @@ class WorkflowTriggerRequest(BaseModel):
     # Kanban-provided issue classification (bypasses GitHub classification)
     issue_type: Optional[Literal["feature", "bug", "chore", "patch"]] = None  # Issue type from kanban
     issue_json: Optional[dict] = None  # Complete issue data from Kanban (bypasses GitHub API calls)
+
+    # Orchestrator-specific parameters (used when workflow_type is "adw_orchestrator")
+    stages: Optional[List[str]] = None  # Dynamic stage list (e.g., ["plan", "build", "test"])
+    config: Optional[Dict[str, Any]] = None  # Extensible orchestrator config
 
     # Optional parameters for specific workflows
     trigger_reason: str = "WebSocket request"  # Reason for triggering this workflow

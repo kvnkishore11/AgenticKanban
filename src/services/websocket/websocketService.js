@@ -693,12 +693,23 @@ class WebSocketService {
     const request = {
       workflow_type: workflowType,
       adw_id: options.adw_id || null,
-      issue_number: options.issue_number || null,
+      issue_number: options.issue_number || String(task.id),
       issue_type: task.workItemType || null,
       issue_json: issue_json,
       model_set: options.model_set || 'base',
       trigger_reason: `Kanban task: ${task.title || task.description.substring(0, 50)}`
     };
+
+    // For orchestrator workflow, include the stages array
+    if (workflowType === 'adw_orchestrator' && task.queuedStages) {
+      request.stages = this.getNormalizedStages(task.queuedStages);
+      console.log('[WebSocketService] Using orchestrator with stages:', request.stages);
+    }
+
+    // Include orchestrator config if provided in options
+    if (options.config) {
+      request.config = options.config;
+    }
 
     console.log('[WebSocketService] Triggering workflow with request:', JSON.stringify(request, null, 2));
 
@@ -901,40 +912,34 @@ class WebSocketService {
 
   /**
    * Map kanban stages to ADW workflow types
+   * Returns workflow type and optionally the stages array for orchestrator
    */
   getWorkflowTypeForStage(stage, queuedStages = []) {
-    // If task has queued stages, create dynamic pipeline
+    // If task has queued stages, use the dynamic orchestrator
     if (queuedStages && queuedStages.length > 0) {
-      // Check if all SDLC stages are present (regardless of order or additional stages)
-      // This enables automatic mapping to the comprehensive adw_sdlc_iso workflow
-      const hasAllSdlcStages = SDLC_STAGES.every(stage => queuedStages.includes(stage));
-
-      // If all SDLC stages are present, map to adw_sdlc_iso
-      // Additional stages (like 'pr') are allowed and won't prevent the mapping
-      if (hasAllSdlcStages) {
-        return 'adw_sdlc_iso';
-      }
-
-      // Map kanban stages to ADW stage names
+      // Map kanban stages to ADW stage names (normalize naming)
       const stageMapping = {
         'plan': 'plan',
         'build': 'build',
         'implement': 'build',
         'test': 'test',
         'review': 'review',
-        'document': 'document'
+        'document': 'document',
+        'merge': 'merge'
       };
 
+      // Convert queued stages to ADW stages (filter out unmapped stages like 'pr')
       const adwStages = queuedStages
-        .map(stage => stageMapping[stage] || stage)
-        .filter(stage => stage); // Remove undefined values
+        .map(s => stageMapping[s])
+        .filter(s => s); // Remove undefined values
 
       if (adwStages.length > 0) {
-        return `adw_${adwStages.join('_')}_iso`;
+        // Return orchestrator workflow type - stages will be passed separately
+        return 'adw_orchestrator';
       }
     }
 
-    // Fallback to stage-specific workflows
+    // Fallback to stage-specific workflows for single-stage operations
     const stageWorkflowMap = {
       'plan': 'adw_plan_iso',
       'build': 'adw_build_iso',
@@ -945,6 +950,30 @@ class WebSocketService {
     };
 
     return stageWorkflowMap[stage] || 'adw_plan_build_iso';
+  }
+
+  /**
+   * Get normalized ADW stages from queued stages
+   */
+  getNormalizedStages(queuedStages = []) {
+    if (!queuedStages || queuedStages.length === 0) {
+      return [];
+    }
+
+    // Map kanban stages to ADW stage names
+    const stageMapping = {
+      'plan': 'plan',
+      'build': 'build',
+      'implement': 'build',
+      'test': 'test',
+      'review': 'review',
+      'document': 'document',
+      'merge': 'merge'
+    };
+
+    return queuedStages
+      .map(s => stageMapping[s])
+      .filter(s => s); // Remove undefined values (like 'pr')
   }
 
   /**
