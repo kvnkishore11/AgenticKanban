@@ -2205,7 +2205,8 @@ export const useKanbanStore = create()(
               }
             );
 
-            if (response.success) {
+            // Check for successful trigger - response has status: 'accepted' from WebSocket
+            if (response.status === 'accepted' || response.success) {
               // Update task metadata to indicate merge is in progress
               get().updateTask(taskId, {
                 metadata: {
@@ -2219,7 +2220,7 @@ export const useKanbanStore = create()(
               set({ isLoading: false }, false, 'triggerMergeWorkflowSuccess');
               return response;
             } else {
-              throw new Error(response.message || 'Merge failed');
+              throw new Error(response.error || response.message || 'Merge failed');
             }
 
           } catch (error) {
