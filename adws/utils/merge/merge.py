@@ -14,7 +14,7 @@ from adw_modules.state import ADWState
 
 from .types import MergeResultContext
 from .initialization import get_main_repo_root
-from .conflicts import detect_and_resolve_conflicts
+from .conflicts import detect_and_resolve_conflicts, check_merge_conflicts
 from .config import restore_config_files
 from .testing import run_validation_tests
 
@@ -137,6 +137,26 @@ def execute_merge(
                     format_issue_message(adw_id, AGENT_MERGER, "✅ Conflicts resolved successfully"),
                     state
                 )
+
+            # After resolving conflicts, we need to commit for squash/squash-rebase merges
+            if merge_method in ("squash", "squash-rebase"):
+                logger.info("Committing resolved conflicts for squash merge...")
+                commit_msg = f"Merge branch '{branch_name}' via ADW Merge ISO ({merge_method}) - conflicts resolved"
+                result = subprocess.run(
+                    ["git", "commit", "-m", commit_msg],
+                    capture_output=True, text=True, cwd=repo_root
+                )
+                if result.returncode != 0:
+                    # Check if already committed or nothing to commit
+                    if "nothing to commit" not in result.stdout.lower() and "nothing to commit" not in result.stderr.lower():
+                        subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
+                        return MergeResultContext(
+                            success=False,
+                            original_branch=original_branch,
+                            merge_method=merge_method,
+                            error=f"Failed to commit after conflict resolution: {result.stderr}"
+                        )
+                    logger.info("No commit needed - changes may already be committed")
 
         # Step 6: Restore config files
         logger.info("Checking for worktree-specific config modifications...")
@@ -279,6 +299,19 @@ def _perform_merge(
             capture_output=True, text=True, cwd=repo_root
         )
         if result.returncode != 0:
+            # Check if failure is due to merge conflicts (which can be resolved)
+            # vs a real error (branch not found, etc.)
+            has_conflicts, conflict_files = check_merge_conflicts(repo_root, logger)
+            if has_conflicts:
+                # Conflicts detected - return success to allow conflict resolution step
+                logger.info(f"Merge has conflicts in {len(conflict_files)} file(s), proceeding to resolution")
+                return MergeResultContext(
+                    success=True,  # Allow execute_merge to proceed to conflict resolution
+                    original_branch=original_branch,
+                    merge_method=merge_method,
+                    error=None
+                )
+            # Real failure - not conflicts
             subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
             return MergeResultContext(
                 success=False,
@@ -319,6 +352,18 @@ def _perform_merge(
             capture_output=True, text=True, cwd=repo_root
         )
         if result.returncode != 0:
+            # Check if failure is due to merge conflicts (which can be resolved)
+            has_conflicts, conflict_files = check_merge_conflicts(repo_root, logger)
+            if has_conflicts:
+                # Conflicts detected - return success to allow conflict resolution step
+                logger.info(f"Merge has conflicts in {len(conflict_files)} file(s), proceeding to resolution")
+                return MergeResultContext(
+                    success=True,  # Allow execute_merge to proceed to conflict resolution
+                    original_branch=original_branch,
+                    merge_method=merge_method,
+                    error=None
+                )
+            # Real failure - not conflicts
             subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
             return MergeResultContext(
                 success=False,
@@ -348,6 +393,18 @@ def _perform_merge(
             capture_output=True, text=True, cwd=repo_root
         )
         if result.returncode != 0:
+            # Check if failure is due to merge conflicts (which can be resolved)
+            has_conflicts, conflict_files = check_merge_conflicts(repo_root, logger)
+            if has_conflicts:
+                # Conflicts detected - return success to allow conflict resolution step
+                logger.info(f"Rebase has conflicts in {len(conflict_files)} file(s), proceeding to resolution")
+                return MergeResultContext(
+                    success=True,  # Allow execute_merge to proceed to conflict resolution
+                    original_branch=original_branch,
+                    merge_method=merge_method,
+                    error=None
+                )
+            # Real failure - not conflicts
             subprocess.run(["git", "rebase", "--abort"], cwd=repo_root)
             subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
             return MergeResultContext(
@@ -365,6 +422,18 @@ def _perform_merge(
             capture_output=True, text=True, cwd=repo_root
         )
         if result.returncode != 0:
+            # Check if failure is due to merge conflicts (which can be resolved)
+            has_conflicts, conflict_files = check_merge_conflicts(repo_root, logger)
+            if has_conflicts:
+                # Conflicts detected - return success to allow conflict resolution step
+                logger.info(f"Merge has conflicts in {len(conflict_files)} file(s), proceeding to resolution")
+                return MergeResultContext(
+                    success=True,  # Allow execute_merge to proceed to conflict resolution
+                    original_branch=original_branch,
+                    merge_method=merge_method,
+                    error=None
+                )
+            # Real failure - not conflicts
             subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
             return MergeResultContext(
                 success=False,

@@ -131,22 +131,89 @@ class TestPerformMerge:
         assert result.success is True
         assert result.merge_method == "rebase"
 
+    @patch('utils.merge.merge.check_merge_conflicts')
     @patch('subprocess.run')
-    def test_squash_merge_failure(self, mock_run, mock_logger):
-        """Test squash merge failure."""
+    def test_squash_merge_failure_no_conflicts(self, mock_run, mock_check_conflicts, mock_logger):
+        """Test squash merge failure when there are no conflicts (real error)."""
         mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="merge error")
+        # No conflicts detected - this is a real failure
+        mock_check_conflicts.return_value = (False, [])
 
         result = _perform_merge("feature/test", "squash", "/repo", "main", mock_logger)
 
         assert result.success is False
         assert "Failed to squash merge" in result.error
 
+    @patch('utils.merge.merge.check_merge_conflicts')
     @patch('subprocess.run')
-    def test_rebase_failure_aborts(self, mock_run, mock_logger):
-        """Test that rebase failure triggers abort."""
+    def test_squash_merge_with_conflicts_proceeds_to_resolution(self, mock_run, mock_check_conflicts, mock_logger):
+        """Test that squash merge with conflicts returns success to allow resolution."""
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="CONFLICT in file.txt")
+        # Conflicts detected - should proceed to resolution step
+        mock_check_conflicts.return_value = (True, ["file.txt", "other.txt"])
+
+        result = _perform_merge("feature/test", "squash", "/repo", "main", mock_logger)
+
+        # Should return success to allow conflict resolution step to handle it
+        assert result.success is True
+        assert result.error is None
+
+    @patch('utils.merge.merge.check_merge_conflicts')
+    @patch('subprocess.run')
+    def test_squash_rebase_merge_with_conflicts_proceeds_to_resolution(self, mock_run, mock_check_conflicts, mock_logger):
+        """Test that squash-rebase merge with conflicts returns success to allow resolution."""
+        # Setup mock calls in order: fetch, rev-parse, merge --squash (fails with conflicts)
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),  # fetch
+            MagicMock(returncode=0, stdout="sha123", stderr=""),  # rev-parse
+            MagicMock(returncode=1, stdout="", stderr="CONFLICT"),  # merge --squash fails
+        ]
+        # Conflicts detected - should proceed to resolution step
+        mock_check_conflicts.return_value = (True, ["file.txt"])
+
+        result = _perform_merge("feature/test", "squash-rebase", "/repo", "main", mock_logger)
+
+        # Should return success to allow conflict resolution step to handle it
+        assert result.success is True
+        assert result.error is None
+
+    @patch('utils.merge.merge.check_merge_conflicts')
+    @patch('subprocess.run')
+    def test_rebase_failure_no_conflicts(self, mock_run, mock_check_conflicts, mock_logger):
+        """Test that rebase failure without conflicts triggers abort."""
         mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="rebase error")
+        # No conflicts detected - this is a real failure
+        mock_check_conflicts.return_value = (False, [])
 
         result = _perform_merge("feature/test", "rebase", "/repo", "main", mock_logger)
 
         assert result.success is False
         assert "Failed to rebase" in result.error
+
+    @patch('utils.merge.merge.check_merge_conflicts')
+    @patch('subprocess.run')
+    def test_rebase_with_conflicts_proceeds_to_resolution(self, mock_run, mock_check_conflicts, mock_logger):
+        """Test that rebase with conflicts returns success to allow resolution."""
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="CONFLICT")
+        # Conflicts detected - should proceed to resolution step
+        mock_check_conflicts.return_value = (True, ["file.txt"])
+
+        result = _perform_merge("feature/test", "rebase", "/repo", "main", mock_logger)
+
+        # Should return success to allow conflict resolution step to handle it
+        assert result.success is True
+        assert result.error is None
+
+    @patch('utils.merge.merge.check_merge_conflicts')
+    @patch('subprocess.run')
+    def test_regular_merge_with_conflicts_proceeds_to_resolution(self, mock_run, mock_check_conflicts, mock_logger):
+        """Test that regular merge with conflicts returns success to allow resolution."""
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="CONFLICT")
+        # Conflicts detected - should proceed to resolution step
+        mock_check_conflicts.return_value = (True, ["file.txt"])
+
+        result = _perform_merge("feature/test", "merge", "/repo", "main", mock_logger)
+
+        # Should return success to allow conflict resolution step to handle it
+        assert result.success is True
+        assert result.error is None
