@@ -1,6 +1,5 @@
 """Tests for merge workflow validation module."""
 
-import pytest
 from unittest.mock import patch, Mock
 
 import sys

@@ -5,7 +5,7 @@ This is the final stage that completes the workflow.
 """
 
 from stages.base_stage import BaseStage
-from orchestrator.stage_interface import StageContext, StageResult, StageStatus
+from orchestrator.stage_interface import StageContext, StageResult
 
 
 class MergeStage(BaseStage):

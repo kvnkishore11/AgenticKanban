@@ -1,6 +1,5 @@
 """Tests for finalization module."""
 
-import pytest
 from unittest.mock import Mock, patch
 
 import sys

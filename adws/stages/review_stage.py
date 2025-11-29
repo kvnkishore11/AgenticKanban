@@ -14,7 +14,7 @@ Supports multiple review modes:
 """
 
 from stages.base_stage import BaseStage
-from orchestrator.stage_interface import StageContext, StageResult, StageStatus
+from orchestrator.stage_interface import StageContext, StageResult
 
 
 class ReviewStage(BaseStage):
@@ -51,8 +51,12 @@ class ReviewStage(BaseStage):
         """
         # Check for explicit skip flag in task metadata
         issue_json = ctx.state.get("issue_json", {})
-        metadata = issue_json.get("metadata", {})
-        skip_review = metadata.get("skip_review", False)
+        # Defensive: ensure issue_json is a dict (mocks might return non-dict values)
+        if isinstance(issue_json, dict):
+            metadata = issue_json.get("metadata", {})
+            skip_review = metadata.get("skip_review", False) if isinstance(metadata, dict) else False
+        else:
+            skip_review = False
 
         if skip_review:
             ctx.logger.info("Review explicitly skipped via task metadata (skip_review: true)")

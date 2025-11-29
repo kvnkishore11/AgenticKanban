@@ -27,7 +27,6 @@ from tools.eslint_runner import ESLintRunner
 from tools.semgrep_runner import SemgrepRunner
 from tools.ruff_runner import RuffRunner
 from tools.bearer_runner import BearerRunner
-from schemas.review_config import ReviewToolConfig
 from stages.review_modes import ReviewMode, IssueSeverity
 
 

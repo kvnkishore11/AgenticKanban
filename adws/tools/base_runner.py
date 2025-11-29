@@ -1,11 +1,9 @@
 """Base Tool Runner - Abstract base class for review tool runners."""
 
 import asyncio
-import json
 import shutil
 import time
 from abc import ABC, abstractmethod
-from pathlib import Path
 
 from stages.review_modes import (
     ReviewMode,
@@ -113,7 +111,7 @@ class BaseToolRunner(ABC):
             )
 
             raw_output = stdout.decode("utf-8", errors="replace")
-            raw_error = stderr.decode("utf-8", errors="replace")
+            stderr.decode("utf-8", errors="replace")
 
             # Some tools output results even with non-zero exit codes
             # (e.g., ESLint exits 1 when there are lint errors)

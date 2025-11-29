@@ -12,8 +12,7 @@ Tests cover:
 """
 
 import unittest
-from unittest.mock import patch, MagicMock, Mock
-from datetime import datetime
+from unittest.mock import patch, MagicMock
 import sys
 import os
 
@@ -538,8 +537,8 @@ class TestOrchestratorEventIntegration(unittest.TestCase):
         """Test that ADWOrchestrator has an event emitter."""
         # Mock dependencies
         with patch('adw_orchestrator.ADWState') as mock_state_class, \
-             patch('adw_orchestrator.WebSocketNotifier') as mock_notifier_class, \
-             patch('adw_orchestrator.setup_logger') as mock_logger:
+             patch('adw_orchestrator.WebSocketNotifier'), \
+             patch('adw_orchestrator.setup_logger'):
 
             mock_state = MagicMock()
             mock_state.get.return_value = None
@@ -569,8 +568,8 @@ class TestOrchestratorEventIntegration(unittest.TestCase):
     def test_get_previous_completed_stage(self):
         """Test _get_previous_completed_stage helper method."""
         with patch('adw_orchestrator.ADWState') as mock_state_class, \
-             patch('adw_orchestrator.WebSocketNotifier') as mock_notifier_class, \
-             patch('adw_orchestrator.setup_logger') as mock_logger:
+             patch('adw_orchestrator.WebSocketNotifier'), \
+             patch('adw_orchestrator.setup_logger'):
 
             mock_state = MagicMock()
             mock_state.get.return_value = None
@@ -613,8 +612,8 @@ class TestOrchestratorEventIntegration(unittest.TestCase):
     def test_get_next_stage(self):
         """Test _get_next_stage helper method."""
         with patch('adw_orchestrator.ADWState') as mock_state_class, \
-             patch('adw_orchestrator.WebSocketNotifier') as mock_notifier_class, \
-             patch('adw_orchestrator.setup_logger') as mock_logger:
+             patch('adw_orchestrator.WebSocketNotifier'), \
+             patch('adw_orchestrator.setup_logger'):
 
             mock_state = MagicMock()
             mock_state.get.return_value = None

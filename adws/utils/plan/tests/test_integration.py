@@ -1,9 +1,8 @@
 """Integration tests for plan workflow with kanban mode."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import uuid
-import json
 
 import sys
 import os

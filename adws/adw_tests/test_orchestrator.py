@@ -12,18 +12,15 @@ Tests cover:
 """
 
 import unittest
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import MagicMock
 from datetime import datetime
 import sys
 import os
-import tempfile
-import json
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from orchestrator.stage_interface import (
-    Stage,
     StageContext,
     StageResult,
     StageStatus,

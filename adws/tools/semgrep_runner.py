@@ -106,7 +106,7 @@ class SemgrepRunner(BaseToolRunner):
         # Location
         file_path = result.get("path")
         start = result.get("start", {})
-        end = result.get("end", {})
+        result.get("end", {})
 
         line_number = start.get("line")
         column = start.get("col")

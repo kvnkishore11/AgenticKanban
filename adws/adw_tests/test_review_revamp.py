@@ -11,8 +11,7 @@ This tests the new review system that:
 """
 
 import unittest
-import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock
 import sys
 import os
 

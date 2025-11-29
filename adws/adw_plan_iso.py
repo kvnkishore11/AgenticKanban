@@ -73,7 +73,7 @@ def main():
         )
 
     # 7. Build implementation plan
-    plan = build_plan(
+    build_plan(
         issue_ctx.issue, issue_ctx.issue_command, ctx.adw_id, worktree_path,
         ctx.state, ctx.notifier, ctx.issue_number, ctx.logger
     )

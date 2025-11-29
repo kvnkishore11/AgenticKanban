@@ -1,6 +1,5 @@
 """Tests for document workflow KPI tracking."""
 
-import pytest
 from unittest.mock import Mock, patch
 
 import sys

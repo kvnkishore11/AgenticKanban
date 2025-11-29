@@ -8,12 +8,11 @@ comprehensive code quality and security analysis.
 import sys
 import os
 import asyncio
-import logging
 from typing import Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from utils.review_v2 import ReviewOrchestrator, run_review as run_external_review
+from utils.review_v2 import ReviewOrchestrator
 from schemas.review_config import ReviewConfig
 from stages.review_modes import ComprehensiveReviewResult
 

@@ -5,7 +5,7 @@ Requires plan stage to have completed first.
 """
 
 from stages.base_stage import BaseStage
-from orchestrator.stage_interface import StageContext, StageResult, StageStatus
+from orchestrator.stage_interface import StageContext, StageResult
 
 
 class BuildStage(BaseStage):

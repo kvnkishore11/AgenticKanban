@@ -7,7 +7,7 @@ Can be skipped if no code changes were made.
 import subprocess
 
 from stages.base_stage import BaseStage
-from orchestrator.stage_interface import StageContext, StageResult, StageStatus
+from orchestrator.stage_interface import StageContext, StageResult
 
 
 class DocumentStage(BaseStage):

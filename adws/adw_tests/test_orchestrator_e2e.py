@@ -11,7 +11,7 @@ Tests cover:
 """
 
 import unittest
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import MagicMock
 import sys
 import os
 import tempfile
@@ -21,10 +21,10 @@ import shutil
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from orchestrator.stage_interface import StageContext, StageResult, StageStatus
+from orchestrator.stage_interface import StageContext, StageStatus
 from orchestrator.registry import StageRegistry
 from orchestrator.state_machine import WorkflowExecution, StageExecution, WorkflowStatus
-from orchestrator.config_loader import OrchestratorConfig, ConfigLoader, WorkflowConfig, StageConfig
+from orchestrator.config_loader import OrchestratorConfig, ConfigLoader
 from adw_triggers.websocket_models import WorkflowTriggerRequest
 from adw_modules.data_types import ADWWorkflow
 
@@ -336,8 +336,8 @@ class TestOrchestratorDataTypes(unittest.TestCase):
 class TestStageSkipLogic(unittest.TestCase):
     """Test stage skip conditions."""
 
-    def test_review_skips_for_patch(self):
-        """Test review stage skip condition for patches."""
+    def test_review_runs_for_patch(self):
+        """Test review stage runs for patches (never auto-skips by type)."""
         from stages.review_stage import ReviewStage
 
         stage = ReviewStage()
@@ -354,8 +354,8 @@ class TestStageSkipLogic(unittest.TestCase):
         )
 
         should_skip, reason = stage.should_skip(ctx)
-        self.assertTrue(should_skip)
-        self.assertIn("patch", reason.lower())
+        self.assertFalse(should_skip)
+        self.assertIsNone(reason)
 
     def test_review_runs_for_feature(self):
         """Test review stage runs for features."""

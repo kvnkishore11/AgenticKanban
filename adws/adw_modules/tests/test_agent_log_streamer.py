@@ -11,8 +11,7 @@ Tests the lifecycle management of AgentDirectoryMonitor instances.
 
 import sys
 import os
-import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))

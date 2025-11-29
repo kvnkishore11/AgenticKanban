@@ -1,8 +1,7 @@
 """Tests for merge workflow config restoration module."""
 
-import pytest
 import json
-from unittest.mock import patch, Mock, mock_open, MagicMock
+from unittest.mock import patch, mock_open, MagicMock
 
 import sys
 import os
@@ -43,7 +42,7 @@ class TestRestoreConfigFiles:
         mock_file.return_value.read.return_value = json.dumps(config_data)
 
         with patch('json.load', return_value=config_data):
-            with patch('json.dump') as mock_dump:
+            with patch('json.dump'):
                 result = restore_config_files("/repo", mock_logger)
 
         assert result.success is True
@@ -69,7 +68,7 @@ class TestRestoreConfigFiles:
         mock_file.return_value.read.return_value = json.dumps(playwright_config)
 
         with patch('json.load', return_value=playwright_config):
-            with patch('json.dump') as mock_dump:
+            with patch('json.dump'):
                 result = restore_config_files("/repo", mock_logger)
 
         assert result.success is True

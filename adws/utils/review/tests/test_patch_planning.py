@@ -1,6 +1,5 @@
 """Tests for review patch planning module."""
 
-import pytest
 from unittest.mock import Mock, patch
 import sys
 import os

@@ -3,7 +3,7 @@
 import sys
 import os
 import json
-from typing import Optional, List
+from typing import List
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 

@@ -1,7 +1,7 @@
 """Tests for review finalization module."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import sys
 import os
 
@@ -9,7 +9,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirna
 
 from utils.review.finalization import upload_screenshots, finalize_review
 from utils.review.types import ReviewInitContext, ReviewExecutionContext
-from adw_modules.data_types import ReviewResult, GitHubIssue
 
 
 class TestUploadScreenshots:

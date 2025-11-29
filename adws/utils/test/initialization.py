@@ -2,7 +2,6 @@
 
 import sys
 import json
-import logging
 from typing import List, Tuple
 
 sys.path.insert(0, __file__.rsplit('/', 3)[0])
