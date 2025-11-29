@@ -337,12 +337,19 @@ class TestStageSkipLogic(unittest.TestCase):
     """Test stage skip conditions."""
 
     def test_review_skips_for_patch(self):
-        """Test review stage skip condition for patches."""
+        """Test review stage does NOT auto-skip for patches.
+
+        Review is NEVER auto-skipped based on issue type. Only skips with
+        explicit skip_review: true in metadata or config.
+        """
         from stages.review_stage import ReviewStage
 
         stage = ReviewStage()
         mock_state = MagicMock()
-        mock_state.get.return_value = "/patch"
+        mock_state.get.side_effect = lambda key, default=None: {
+            "issue_class": "/patch",
+            "issue_json": {"metadata": {}},  # No skip_review flag
+        }.get(key, default)
 
         ctx = StageContext(
             adw_id="ADW-TEST",
@@ -354,8 +361,8 @@ class TestStageSkipLogic(unittest.TestCase):
         )
 
         should_skip, reason = stage.should_skip(ctx)
-        self.assertTrue(should_skip)
-        self.assertIn("patch", reason.lower())
+        # Review should NOT auto-skip for any issue type
+        self.assertFalse(should_skip)
 
     def test_review_runs_for_feature(self):
         """Test review stage runs for features."""
@@ -363,7 +370,10 @@ class TestStageSkipLogic(unittest.TestCase):
 
         stage = ReviewStage()
         mock_state = MagicMock()
-        mock_state.get.return_value = "/feature"
+        mock_state.get.side_effect = lambda key, default=None: {
+            "issue_class": "/feature",
+            "issue_json": {"metadata": {}},
+        }.get(key, default)
 
         ctx = StageContext(
             adw_id="ADW-TEST",
@@ -376,6 +386,30 @@ class TestStageSkipLogic(unittest.TestCase):
 
         should_skip, reason = stage.should_skip(ctx)
         self.assertFalse(should_skip)
+
+    def test_review_skips_with_explicit_skip_flag(self):
+        """Test review stage skips when skip_review: true in metadata."""
+        from stages.review_stage import ReviewStage
+
+        stage = ReviewStage()
+        mock_state = MagicMock()
+        mock_state.get.side_effect = lambda key, default=None: {
+            "issue_class": "/feature",
+            "issue_json": {"metadata": {"skip_review": True}},
+        }.get(key, default)
+
+        ctx = StageContext(
+            adw_id="ADW-TEST",
+            issue_number="123",
+            state=mock_state,
+            worktree_path="/tmp/test",
+            logger=MagicMock(),
+            notifier=MagicMock(),
+        )
+
+        should_skip, reason = stage.should_skip(ctx)
+        self.assertTrue(should_skip)
+        self.assertIn("task configuration", reason)
 
 
 def run_tests():

@@ -29,8 +29,15 @@ from adw_modules.data_types import (
     GitHubIssue,
 )
 
-# Import test workflow modules
-import adw_test_iso
+# Import test workflow utilities from utils.test module
+from utils.test import (
+    parse_test_results,
+    format_test_results_comment,
+    parse_e2e_test_results,
+    run_e2e_tests,
+    post_comprehensive_test_summary,
+    run_unit_tests_with_resolution,
+)
 
 
 @pytest.fixture
@@ -203,7 +210,7 @@ class TestTestWorkflowComponents:
         # Create JSON output
         output = json.dumps([r.model_dump() for r in mock_test_results])
 
-        results, passed, failed = adw_test_iso.parse_test_results(output, Mock())
+        results, passed, failed = parse_test_results(output, Mock())
 
         assert len(results) == 3
         assert passed == 3
@@ -213,7 +220,7 @@ class TestTestWorkflowComponents:
         """Test parsing test results with failures."""
         output = json.dumps([r.model_dump() for r in mock_failed_test_results])
 
-        results, passed, failed = adw_test_iso.parse_test_results(output, Mock())
+        results, passed, failed = parse_test_results(output, Mock())
 
         assert len(results) == 1
         assert passed == 0
@@ -221,7 +228,7 @@ class TestTestWorkflowComponents:
 
     def test_format_test_results_comment(self, mock_test_results):
         """Test formatting test results for GitHub comment."""
-        comment = adw_test_iso.format_test_results_comment(mock_test_results, 3, 0)
+        comment = format_test_results_comment(mock_test_results, 3, 0)
 
         assert "✅ Passed Tests" in comment
         assert "Summary" in comment
@@ -230,7 +237,7 @@ class TestTestWorkflowComponents:
 
     def test_format_test_results_comment_with_failures(self, mock_failed_test_results):
         """Test formatting test results with failures."""
-        comment = adw_test_iso.format_test_results_comment(mock_failed_test_results, 0, 1)
+        comment = format_test_results_comment(mock_failed_test_results, 0, 1)
 
         assert "❌ Failed Tests" in comment
         assert "Summary" in comment
@@ -245,7 +252,7 @@ class TestE2ETestComponents:
         """Test parsing E2E test results."""
         output = json.dumps([r.model_dump() for r in mock_e2e_test_results])
 
-        results, passed, failed = adw_test_iso.parse_e2e_test_results(output, Mock())
+        results, passed, failed = parse_e2e_test_results(output, Mock())
 
         assert len(results) == 1
         assert passed == 1
@@ -253,7 +260,7 @@ class TestE2ETestComponents:
         assert results[0].screenshots == ["screenshot1.png"]
         assert results[0].passed is True
 
-    @patch('adw_test_iso.execute_template')
+    @patch('utils.test.e2e_tests.execute_template')
     def test_run_e2e_tests(self, mock_execute, mock_adw_id):
         """Test running E2E tests."""
         # Mock E2E test execution
@@ -263,7 +270,7 @@ class TestE2ETestComponents:
             session_id="e2e-session",
         )
 
-        response = adw_test_iso.run_e2e_tests(mock_adw_id, Mock(), "/tmp/worktree")
+        response = run_e2e_tests(mock_adw_id, Mock(), "/tmp/worktree")
 
         assert response.success
         assert mock_execute.called
@@ -274,12 +281,12 @@ class TestE2ETestComponents:
         assert call_args.adw_id == mock_adw_id
         assert call_args.working_dir == "/tmp/worktree"
 
-    @patch('adw_test_iso.make_issue_comment')
+    @patch('utils.test.summary.make_issue_comment')
     def test_comprehensive_test_summary(
         self, mock_comment, mock_test_results, mock_e2e_test_results, mock_adw_id
     ):
         """Test comprehensive test summary generation."""
-        adw_test_iso.post_comprehensive_test_summary(
+        post_comprehensive_test_summary(
             "42", mock_adw_id, mock_test_results, mock_e2e_test_results, Mock()
         )
 
@@ -296,13 +303,11 @@ class TestE2ETestComponents:
 class TestTestRetryResolution:
     """Tests for test retry and resolution logic."""
 
-    @patch('adw_test_iso.run_tests')
-    @patch('adw_test_iso.resolve_failed_tests')
-    @patch('adw_test_iso.make_issue_comment')
+    @patch('utils.test.unit_tests.run_tests')
+    @patch('utils.test.unit_tests.make_issue_comment')
     def test_run_tests_with_resolution_success_first_try(
         self,
         mock_comment,
-        mock_resolve,
         mock_run_tests,
         mock_test_results,
         mock_adw_id,
@@ -316,23 +321,24 @@ class TestTestRetryResolution:
         )
         mock_run_tests.return_value = test_response
 
-        results, passed, failed, response = adw_test_iso.run_tests_with_resolution(
-            mock_adw_id, "42", Mock(), "/tmp/worktree", max_attempts=2
+        # Mock resolve function
+        mock_resolve = Mock(return_value=(0, 0))
+
+        ctx = run_unit_tests_with_resolution(
+            mock_adw_id, "42", Mock(), "/tmp/worktree", mock_resolve, max_attempts=2
         )
 
         # Verify results
-        assert passed == 3
-        assert failed == 0
+        assert ctx.passed_count == 3
+        assert ctx.failed_count == 0
         assert mock_run_tests.call_count == 1
         assert mock_resolve.call_count == 0  # No resolution needed
 
-    @patch('adw_test_iso.run_tests')
-    @patch('adw_test_iso.resolve_failed_tests')
-    @patch('adw_test_iso.make_issue_comment')
+    @patch('utils.test.unit_tests.run_tests')
+    @patch('utils.test.unit_tests.make_issue_comment')
     def test_run_tests_with_resolution_retry_and_pass(
         self,
         mock_comment,
-        mock_resolve,
         mock_run_tests,
         mock_test_results,
         mock_failed_test_results,
@@ -353,24 +359,24 @@ class TestTestRetryResolution:
         )
 
         mock_run_tests.side_effect = [first_response, second_response]
-        mock_resolve.return_value = (1, 0)  # 1 resolved, 0 unresolved
 
-        results, passed, failed, response = adw_test_iso.run_tests_with_resolution(
-            mock_adw_id, "42", Mock(), "/tmp/worktree", max_attempts=2
+        # Mock resolve function
+        mock_resolve = Mock(return_value=(1, 0))  # 1 resolved, 0 unresolved
+
+        ctx = run_unit_tests_with_resolution(
+            mock_adw_id, "42", Mock(), "/tmp/worktree", mock_resolve, max_attempts=2
         )
 
         # Verify resolution was attempted
         assert mock_run_tests.call_count == 2
         assert mock_resolve.call_count == 1
-        assert failed == 0  # All tests should pass after resolution
+        assert ctx.failed_count == 0  # All tests should pass after resolution
 
-    @patch('adw_test_iso.run_tests')
-    @patch('adw_test_iso.resolve_failed_tests')
-    @patch('adw_test_iso.make_issue_comment')
+    @patch('utils.test.unit_tests.run_tests')
+    @patch('utils.test.unit_tests.make_issue_comment')
     def test_run_tests_with_resolution_max_attempts(
         self,
         mock_comment,
-        mock_resolve,
         mock_run_tests,
         mock_failed_test_results,
         mock_adw_id,
@@ -383,17 +389,19 @@ class TestTestRetryResolution:
             session_id="test-session",
         )
         mock_run_tests.return_value = failed_response
-        mock_resolve.return_value = (0, 1)  # 0 resolved, 1 unresolved
 
-        results, passed, failed, response = adw_test_iso.run_tests_with_resolution(
-            mock_adw_id, "42", Mock(), "/tmp/worktree", max_attempts=2
+        # Mock resolve function
+        mock_resolve = Mock(return_value=(0, 1))  # 0 resolved, 1 unresolved
+
+        ctx = run_unit_tests_with_resolution(
+            mock_adw_id, "42", Mock(), "/tmp/worktree", mock_resolve, max_attempts=2
         )
 
         # When no tests are resolved, the loop stops early (doesn't retry)
         # This is the expected behavior - no point in retrying if resolution didn't help
         assert mock_run_tests.call_count == 1
         assert mock_resolve.call_count == 1  # Tried to resolve after first failure
-        assert failed == 1
+        assert ctx.failed_count == 1
 
 
 class TestCompositeWorkflow:

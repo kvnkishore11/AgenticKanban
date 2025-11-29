@@ -43,14 +43,20 @@ class MockStageContext:
         plan_file="/tmp/specs/plan.md",
         has_worktree=True,
         config=None,
+        issue_json=None,
     ):
         """Create a mock StageContext."""
+        # Default issue_json structure with metadata
+        if issue_json is None:
+            issue_json = {"metadata": {}}
+
         mock_state = MagicMock()
         mock_state.get.side_effect = lambda key, default=None: {
             "worktree_path": worktree_path if has_worktree else None,
             "issue_class": issue_class,
             "branch_name": branch_name,
             "plan_file": plan_file,
+            "issue_json": issue_json,
         }.get(key, default)
 
         mock_logger = MagicMock()
@@ -265,25 +271,59 @@ class TestReviewStage(unittest.TestCase):
         self.assertEqual(stage.display_name, "Reviewing")
         self.assertEqual(stage.dependencies, ["build"])
 
-    def test_should_skip_for_patch(self):
-        """Test that review skips for patch issues."""
+    def test_should_not_skip_for_patch_by_default(self):
+        """Test that review does NOT skip for patch issues by default.
+
+        Review is NEVER auto-skipped based on issue type. This ensures
+        all changes receive quality and security review.
+        """
         ctx = MockStageContext.create(issue_class="/patch")
         stage = ReviewStage()
 
         should_skip, reason = stage.should_skip(ctx)
 
-        self.assertTrue(should_skip)
-        self.assertIn("patch", reason.lower())
+        # Review should NOT auto-skip for any issue type
+        self.assertFalse(should_skip)
 
-    def test_should_skip_for_chore(self):
-        """Test that review skips for chore issues."""
+    def test_should_not_skip_for_chore_by_default(self):
+        """Test that review does NOT skip for chore issues by default.
+
+        Review is NEVER auto-skipped based on issue type. This ensures
+        all changes receive quality and security review.
+        """
         ctx = MockStageContext.create(issue_class="/chore")
         stage = ReviewStage()
 
         should_skip, reason = stage.should_skip(ctx)
 
+        # Review should NOT auto-skip for any issue type
+        self.assertFalse(should_skip)
+
+    def test_skip_when_metadata_skip_review_true(self):
+        """Test that review skips when skip_review: true is in task metadata."""
+        ctx = MockStageContext.create(
+            issue_class="/feature",
+            issue_json={"metadata": {"skip_review": True}}
+        )
+        stage = ReviewStage()
+
+        should_skip, reason = stage.should_skip(ctx)
+
         self.assertTrue(should_skip)
-        self.assertIn("chore", reason.lower())
+        self.assertIn("task configuration", reason)
+
+    def test_skip_when_config_skip_review_true(self):
+        """Test that review skips when skip_review: true is in orchestrator config."""
+        ctx = MockStageContext.create(
+            issue_class="/feature",
+            config={"skip_review": True}
+        )
+        stage = ReviewStage()
+
+        should_skip, reason = stage.should_skip(ctx)
+
+        self.assertTrue(should_skip)
+        self.assertIn("workflow configuration", reason)
 
     def test_should_not_skip_for_feature(self):
         """Test that review runs for feature issues."""
