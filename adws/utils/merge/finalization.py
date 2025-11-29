@@ -146,7 +146,7 @@ def finalize_merge(
 
     # Send WebSocket notification for frontend to update merge state
     try:
-        notifier = WebSocketNotifier(adw_id, logger)
+        notifier = WebSocketNotifier(adw_id)
         notifier.send_status_update(
             workflow_name=WORKFLOW_NAME,
             status="completed",
@@ -196,7 +196,7 @@ def post_error_status(
     """
     # Send WebSocket notification for frontend to update merge state
     try:
-        notifier = WebSocketNotifier(adw_id, logger)
+        notifier = WebSocketNotifier(adw_id)
         notifier.send_status_update(
             workflow_name=WORKFLOW_NAME,
             status="failed",
