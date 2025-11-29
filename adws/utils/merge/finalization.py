@@ -10,10 +10,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from adw_modules.state import ADWState
 from adw_modules.github import make_issue_comment_safe
 from adw_modules.workflow_ops import format_issue_message
+from adw_modules.websocket_client import WebSocketNotifier
 
 
 # Agent name constant
 AGENT_MERGER = "merger"
+WORKFLOW_NAME = "adw_merge_iso"
 
 
 def post_merge_status(
@@ -142,7 +144,21 @@ def finalize_merge(
     state.append_adw_id("adw_merge_iso")
     state.save("adw_merge_iso")
 
-    # Post success message
+    # Send WebSocket notification for frontend to update merge state
+    try:
+        notifier = WebSocketNotifier(adw_id, logger)
+        notifier.send_status_update(
+            workflow_name=WORKFLOW_NAME,
+            status="completed",
+            message=f"Successfully merged {branch_name} to main using {merge_method}",
+            progress_percent=100,
+            current_step="completed"
+        )
+        logger.info("Sent WebSocket completion notification for merge")
+    except Exception as e:
+        logger.warning(f"Failed to send WebSocket notification: {e}")
+
+    # Post success message to GitHub issue
     if issue_number:
         make_issue_comment_safe(
             issue_number,
@@ -169,7 +185,7 @@ def post_error_status(
     state: ADWState,
     logger: logging.Logger
 ) -> None:
-    """Post error status to GitHub issue.
+    """Post error status to GitHub issue and WebSocket.
 
     Args:
         adw_id: The ADW ID
@@ -178,6 +194,20 @@ def post_error_status(
         state: ADW state object
         logger: Logger instance
     """
+    # Send WebSocket notification for frontend to update merge state
+    try:
+        notifier = WebSocketNotifier(adw_id, logger)
+        notifier.send_status_update(
+            workflow_name=WORKFLOW_NAME,
+            status="failed",
+            message=error_message,
+            current_step="error"
+        )
+        logger.info(f"Sent WebSocket failure notification for merge: {error_message}")
+    except Exception as e:
+        logger.warning(f"Failed to send WebSocket notification: {e}")
+
+    # Post to GitHub issue if available
     if issue_number:
         make_issue_comment_safe(
             issue_number,

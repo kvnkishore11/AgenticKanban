@@ -89,15 +89,16 @@ class TestPerformMerge:
 
     @patch('subprocess.run')
     def test_squash_rebase_merge_success(self, mock_run, mock_logger):
-        """Test successful squash-rebase merge."""
+        """Test successful squash-rebase merge (worktree-safe approach)."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         result = _perform_merge("feature/test", "squash-rebase", "/repo", "main", mock_logger)
 
         assert result.success is True
         assert result.merge_method == "squash-rebase"
-        # checkout feature + rebase + checkout main + merge --squash + commit = 5 calls
-        assert mock_run.call_count == 5
+        # Worktree-safe approach: fetch + rev-parse + merge --squash + commit = 4 calls
+        # (We no longer checkout the feature branch which avoids worktree conflicts)
+        assert mock_run.call_count == 4
 
     @patch('subprocess.run')
     def test_squash_merge_success(self, mock_run, mock_logger):

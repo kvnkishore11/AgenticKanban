@@ -733,16 +733,25 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
     # Build command arguments following ADW workflow conventions:
     # Most workflows expect: <script>.py <issue-number> [adw-id]
     # Orchestrator expects: <script>.py <issue-number> [adw-id] --stages/--config
+    # Merge workflow expects: <script>.py <adw-id> [merge-method]
     # Validation above ensures issue_number is present for workflows that require it
 
-    # Add issue number if provided (first positional argument)
-    if request.issue_number:
-        cmd.append(str(request.issue_number))
+    # Special handling for adw_merge_iso - different argument order
+    # Merge workflow expects: adw_merge_iso.py <adw-id> [merge-method]
+    # NOT: adw_merge_iso.py <issue-number> <adw-id>
+    if request.workflow_type == "adw_merge_iso":
+        cmd.append(adw_id)
+        # Default merge method is squash-rebase (handled by the script itself)
+    else:
+        # Standard workflow argument order
+        # Add issue number if provided (first positional argument)
+        if request.issue_number:
+            cmd.append(str(request.issue_number))
 
-    # Add ADW ID (second positional argument)
-    # Note: For workflows requiring issue_number, this will be the second argument
-    # For workflows that don't require issue_number, this will be the first argument
-    cmd.append(adw_id)
+        # Add ADW ID (second positional argument)
+        # Note: For workflows requiring issue_number, this will be the second argument
+        # For workflows that don't require issue_number, this will be the first argument
+        cmd.append(adw_id)
 
     # Special handling for adw_orchestrator - add stages or config
     if request.workflow_type == "adw_orchestrator":

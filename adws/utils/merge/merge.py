@@ -236,61 +236,46 @@ def _perform_merge(
 
     Returns:
         MergeResultContext with merge operation results
+
+    Note:
+        For squash-rebase, we use a worktree-safe approach that doesn't require
+        checking out the feature branch (which may be locked by a worktree).
+        Instead, we fetch the remote branch and merge from origin/branch-name.
     """
     logger.info(f"Merging branch {branch_name} using {merge_method}...")
 
     if merge_method == "squash-rebase":
-        # Step 1: Checkout the feature branch
-        logger.info(f"Checking out feature branch {branch_name} for rebase...")
+        # Worktree-safe squash-rebase: merge from remote branch without checkout
+        # This avoids the "branch already checked out" error when worktree exists
+
+        # Step 1: Ensure we have the latest from origin for this branch
+        logger.info(f"Fetching latest {branch_name} from origin...")
         result = subprocess.run(
-            ["git", "checkout", branch_name],
+            ["git", "fetch", "origin", branch_name],
             capture_output=True, text=True, cwd=repo_root
         )
         if result.returncode != 0:
-            subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
-            return MergeResultContext(
-                success=False,
-                original_branch=original_branch,
-                merge_method=merge_method,
-                error=f"Failed to checkout {branch_name}: {result.stderr}"
-            )
+            # Try without specific branch (in case it doesn't exist on remote yet)
+            logger.warning(f"Could not fetch specific branch, trying general fetch")
+            subprocess.run(["git", "fetch", "origin"], cwd=repo_root)
 
-        # Step 2: Rebase feature branch onto main
-        logger.info("Rebasing feature branch onto main...")
-        result = subprocess.run(
-            ["git", "rebase", "main"],
+        # Step 2: Squash merge from origin/branch-name (or local branch if not on remote)
+        # Try origin first, fall back to local
+        logger.info(f"Squash merging {branch_name}...")
+        merge_ref = f"origin/{branch_name}"
+
+        # Check if origin/branch exists
+        check_result = subprocess.run(
+            ["git", "rev-parse", "--verify", merge_ref],
             capture_output=True, text=True, cwd=repo_root
         )
-        if result.returncode != 0:
-            # Abort rebase on failure
-            subprocess.run(["git", "rebase", "--abort"], cwd=repo_root)
-            subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
-            return MergeResultContext(
-                success=False,
-                original_branch=original_branch,
-                merge_method=merge_method,
-                error=f"Failed to rebase {branch_name} onto main: {result.stderr}"
-            )
+        if check_result.returncode != 0:
+            # Fall back to local branch reference
+            logger.info(f"Remote branch not found, using local ref: {branch_name}")
+            merge_ref = branch_name
 
-        # Step 3: Checkout main
-        logger.info("Checking out main for squash merge...")
         result = subprocess.run(
-            ["git", "checkout", "main"],
-            capture_output=True, text=True, cwd=repo_root
-        )
-        if result.returncode != 0:
-            subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
-            return MergeResultContext(
-                success=False,
-                original_branch=original_branch,
-                merge_method=merge_method,
-                error=f"Failed to checkout main: {result.stderr}"
-            )
-
-        # Step 4: Squash merge the rebased branch
-        logger.info(f"Squash merging rebased {branch_name}...")
-        result = subprocess.run(
-            ["git", "merge", "--squash", branch_name],
+            ["git", "merge", "--squash", merge_ref],
             capture_output=True, text=True, cwd=repo_root
         )
         if result.returncode != 0:
@@ -302,19 +287,28 @@ def _perform_merge(
                 error=f"Failed to squash merge {branch_name}: {result.stderr}"
             )
 
-        # Step 5: Commit the squash
-        commit_msg = f"Merge branch '{branch_name}' via ADW Merge ISO (squash-rebase)"
+        # Step 3: Commit the squash
+        commit_msg = f"Merge branch '{branch_name}' via ADW Merge ISO (squash)"
         result = subprocess.run(
             ["git", "commit", "-m", commit_msg],
             capture_output=True, text=True, cwd=repo_root
         )
         if result.returncode != 0:
+            # Check if there's nothing to commit (already up to date)
+            if "nothing to commit" in result.stdout.lower() or "nothing to commit" in result.stderr.lower():
+                logger.info("No changes to commit - branch may already be merged")
+                return MergeResultContext(
+                    success=True,
+                    original_branch=original_branch,
+                    merge_method=merge_method,
+                    error=None
+                )
             subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
             return MergeResultContext(
                 success=False,
                 original_branch=original_branch,
                 merge_method=merge_method,
-                error=f"Failed to commit squash-rebase merge: {result.stderr}"
+                error=f"Failed to commit squash merge: {result.stderr}"
             )
 
         logger.info("✅ Squash-rebase merge completed successfully")

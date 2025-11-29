@@ -762,4 +762,80 @@ describe('Kanban Store', () => {
       expect(task.stage).toBe('plan');
     });
   });
+
+  describe('Merge Workflow State', () => {
+    beforeEach(() => {
+      // Set up a task in ready-to-merge stage directly using setState
+      useKanbanStore.setState({
+        tasks: [{
+          id: 1,
+          title: 'Merge Test Task',
+          stage: 'ready-to-merge',
+          metadata: { adw_id: 'test-adw-merge-123' }
+        }],
+        tasksByAdwId: { 'test-adw-merge-123': 1 },
+        mergingTasks: {}
+      });
+    });
+
+    it('should initialize with empty mergingTasks', () => {
+      const { mergingTasks } = useKanbanStore.getState();
+      expect(mergingTasks).toEqual({});
+    });
+
+    it('should get null merge state for task without merge in progress', () => {
+      const task = useKanbanStore.getState().tasks[0];
+      const mergeState = useKanbanStore.getState().getMergeState(task.id);
+      expect(mergeState).toBeNull();
+    });
+
+    it('should handleMergeCompletion and keep task in ready-to-merge stage', () => {
+      act(() => {
+        useKanbanStore.getState().handleMergeCompletion('test-adw-merge-123');
+      });
+
+      const updatedTask = useKanbanStore.getState().tasks[0];
+
+      // Task should stay in ready-to-merge, NOT moved to completed
+      expect(updatedTask.stage).toBe('ready-to-merge');
+
+      // Merge metadata should be set
+      expect(updatedTask.metadata.merge_completed).toBe(true);
+      expect(updatedTask.metadata.merge_completed_at).toBeDefined();
+      expect(updatedTask.metadata.merge_in_progress).toBe(false);
+    });
+
+    it('should update mergingTasks state on handleMergeCompletion', () => {
+      const task = useKanbanStore.getState().tasks[0];
+
+      act(() => {
+        useKanbanStore.getState().handleMergeCompletion('test-adw-merge-123');
+      });
+
+      const mergeState = useKanbanStore.getState().getMergeState(task.id);
+      expect(mergeState).toBeDefined();
+      expect(mergeState.status).toBe('success');
+      expect(mergeState.message).toContain('merged');
+    });
+
+    it('should clear merge state with clearMergeState', () => {
+      const task = useKanbanStore.getState().tasks[0];
+
+      // First set up a merge state
+      act(() => {
+        useKanbanStore.getState().handleMergeCompletion('test-adw-merge-123');
+      });
+
+      // Verify it exists
+      expect(useKanbanStore.getState().getMergeState(task.id)).not.toBeNull();
+
+      // Clear it
+      act(() => {
+        useKanbanStore.getState().clearMergeState(task.id);
+      });
+
+      // Verify it's gone
+      expect(useKanbanStore.getState().getMergeState(task.id)).toBeNull();
+    });
+  });
 });

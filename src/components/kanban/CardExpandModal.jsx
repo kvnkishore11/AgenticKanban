@@ -8,7 +8,7 @@
  * @module components/kanban/CardExpandModal
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import {
   X,
@@ -22,8 +22,11 @@ import {
   GitMerge,
   CheckCircle,
   Pencil,
-  XCircle
+  XCircle,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
+import Toast from '../ui/Toast';
 import MDEditor from '@uiw/react-md-editor';
 import ReactMarkdown from 'react-markdown';
 import StageLogsViewer from './StageLogsViewer';
@@ -65,7 +68,9 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
     getWorkflowProgressForTask,
     getWorkflowMetadataForTask,
     clearWorkflowLogsForTask,
-    triggerMergeWorkflow
+    triggerMergeWorkflow,
+    getMergeState,
+    clearMergeState
   } = useKanbanStore();
 
   const [viewMode, setViewMode] = useState('details'); // 'details' or 'plan'
@@ -84,11 +89,17 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   const [stageResult, setStageResult] = useState(null);
   const [resultLoading, setResultLoading] = useState(false);
 
+  // Toast notification state
+  const [toast, setToast] = useState(null);
+
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
   const workflowProgress = getWorkflowProgressForTask(task.id);
   const workflowMetadata = getWorkflowMetadataForTask(task.id);
   const websocketStatus = getWebSocketStatus();
+
+  // Get merge state from store
+  const mergeState = getMergeState(task.id);
 
   // Handle escape key to close modal
   useEffect(() => {
@@ -108,6 +119,31 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
       document.body.style.overflow = 'unset';
     };
   }, [isOpen, onClose]);
+
+  // Show toast when merge state changes
+  useEffect(() => {
+    if (mergeState) {
+      if (mergeState.status === 'success') {
+        setToast({
+          type: 'success',
+          title: 'Merge Successful',
+          message: mergeState.message || 'Branch has been merged to main!',
+          duration: 5000
+        });
+        // Clear the merge state after showing toast
+        setTimeout(() => clearMergeState(task.id), 100);
+      } else if (mergeState.status === 'error') {
+        setToast({
+          type: 'error',
+          title: 'Merge Failed',
+          message: mergeState.message || 'Failed to merge branch.',
+          duration: 8000
+        });
+        // Clear the merge state after showing toast
+        setTimeout(() => clearMergeState(task.id), 100);
+      }
+    }
+  }, [mergeState, task.id, clearMergeState]);
 
   // Dynamically get pipeline stages from task's queuedStages or pipelineId
   const getPipelineStages = () => {
@@ -355,9 +391,34 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
 
   const handleMerge = async () => {
     try {
-      await triggerMergeWorkflow(task.id);
+      // Show immediate feedback that merge is being triggered
+      setToast({
+        type: 'info',
+        title: 'Merge Started',
+        message: 'Triggering merge workflow...',
+        duration: 3000
+      });
+
+      const result = await triggerMergeWorkflow(task.id);
+
+      if (result?.success) {
+        setToast({
+          type: 'info',
+          title: 'Merge In Progress',
+          message: 'Merge workflow is running. You will be notified when complete.',
+          duration: 5000
+        });
+      }
     } catch (error) {
       console.error('Failed to trigger merge:', error);
+      // Toast will be shown by the useEffect watching mergeState
+      // But show an immediate error toast as well for better UX
+      setToast({
+        type: 'error',
+        title: 'Merge Failed',
+        message: error.message || 'Failed to trigger merge workflow.',
+        duration: 8000
+      });
     }
   };
 
@@ -814,17 +875,32 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                 <span>TRIGGER</span>
               </button>
 
-              {/* MERGE TO MAIN - Always visible, disabled when not ready */}
+              {/* MERGE TO MAIN - Always visible, disabled when not ready or when merging */}
               {!task.metadata?.merge_completed ? (
                 <button
                   type="button"
                   onClick={handleMerge}
-                  disabled={!isReadyToMerge}
-                  className={`brutalist-footer-btn ${isReadyToMerge ? 'merge' : 'merge-disabled'}`}
-                  title={isReadyToMerge ? 'Merge to main branch' : 'Complete all stages to merge'}
+                  disabled={!isReadyToMerge || mergeState?.status === 'in_progress'}
+                  className={`brutalist-footer-btn ${
+                    mergeState?.status === 'in_progress' ? 'merge-in-progress' :
+                    isReadyToMerge ? 'merge' : 'merge-disabled'
+                  }`}
+                  title={
+                    mergeState?.status === 'in_progress' ? 'Merge in progress...' :
+                    isReadyToMerge ? 'Merge to main branch' : 'Complete all stages to merge'
+                  }
                 >
-                  <GitMerge size={16} />
-                  <span>MERGE TO MAIN</span>
+                  {mergeState?.status === 'in_progress' ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>MERGING...</span>
+                    </>
+                  ) : (
+                    <>
+                      <GitMerge size={16} />
+                      <span>MERGE TO MAIN</span>
+                    </>
+                  )}
                 </button>
               ) : (
                 <div className="brutalist-footer-btn merged">
@@ -859,6 +935,18 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
           )}
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          type={toast.type}
+          title={toast.title}
+          message={toast.message}
+          duration={toast.duration}
+          onClose={() => setToast(null)}
+          show={!!toast}
+        />
+      )}
     </div>
   );
 };

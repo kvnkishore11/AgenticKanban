@@ -134,6 +134,10 @@ const initialState = {
   // Notifications state
   notifications: [], // Array of { id, type, message, timestamp }
 
+  // Merge workflow state tracking
+  mergingTasks: {}, // Map of taskId -> { status: 'pending'|'in_progress'|'success'|'error', message: string, timestamp: Date }
+
+
   // Cleanup state (internal)
   _cleanupScheduled: false,
 };
@@ -1628,9 +1632,15 @@ export const useKanbanStore = create()(
               // The backend will send a 'stage_transition' event to move the task
               console.log(`[Workflow] Status 'completed' received for ${adw_id}. Waiting for stage_transition event.`);
             } else if (status === 'failed') {
-              // Failed status automatically moves to errored stage
-              console.log(`[Workflow] Workflow failed for ${adw_id}, moving to errored`);
-              get().batchedTaskUpdate(task.id, { stage: 'errored' });
+              // Check if this is a merge workflow failure (special case)
+              if (statusUpdate.workflow_name && statusUpdate.workflow_name.includes('merge_iso')) {
+                console.log(`[Workflow] Merge workflow failed for ${adw_id}`);
+                get().handleMergeFailure(adw_id, statusUpdate.message || 'Merge failed');
+              } else {
+                // Failed status automatically moves to errored stage
+                console.log(`[Workflow] Workflow failed for ${adw_id}, moving to errored`);
+                get().batchedTaskUpdate(task.id, { stage: 'errored' });
+              }
             }
           }
         },
@@ -2309,7 +2319,18 @@ export const useKanbanStore = create()(
           // The workflow can work with or without it
 
           try {
-            set({ isLoading: true }, false, 'triggerMergeWorkflow');
+            // Set merge state to in_progress BEFORE triggering
+            set((state) => ({
+              isLoading: true,
+              mergingTasks: {
+                ...state.mergingTasks,
+                [taskId]: {
+                  status: 'in_progress',
+                  message: 'Triggering merge workflow...',
+                  timestamp: new Date().toISOString()
+                }
+              }
+            }), false, 'triggerMergeWorkflow');
 
             // Trigger merge workflow via WebSocket
             const response = await websocketService.triggerWorkflowForTask(
@@ -2334,17 +2355,27 @@ export const useKanbanStore = create()(
                 }
               });
 
-              set({ isLoading: false }, false, 'triggerMergeWorkflowSuccess');
-              return response;
+              // Update merge state to indicate workflow was accepted
+              set((state) => ({
+                isLoading: false,
+                mergingTasks: {
+                  ...state.mergingTasks,
+                  [taskId]: {
+                    status: 'in_progress',
+                    message: 'Merge workflow started. Waiting for completion...',
+                    timestamp: new Date().toISOString()
+                  }
+                }
+              }), false, 'triggerMergeWorkflowSuccess');
+
+              return { success: true, message: 'Merge workflow triggered successfully' };
             } else {
               throw new Error(response.error || response.message || 'Merge failed');
             }
 
           } catch (error) {
-            // Move task to errored stage on failure
-            get().moveTaskToStage(taskId, 'errored');
-
-            // Update task with error message
+            // DO NOT move task to errored stage - keep it in ready-to-merge so user can retry
+            // Update task with error message in metadata
             get().updateTask(taskId, {
               metadata: {
                 ...task.metadata,
@@ -2353,10 +2384,20 @@ export const useKanbanStore = create()(
               }
             });
 
-            set({
+            // Update merge state to error
+            set((state) => ({
               isLoading: false,
-              error: `Failed to trigger merge: ${error.message}`
-            }, false, 'triggerMergeWorkflowError');
+              error: `Failed to trigger merge: ${error.message}`,
+              mergingTasks: {
+                ...state.mergingTasks,
+                [taskId]: {
+                  status: 'error',
+                  message: error.message || 'Failed to trigger merge workflow',
+                  timestamp: new Date().toISOString()
+                }
+              }
+            }), false, 'triggerMergeWorkflowError');
+
             throw error;
           }
         },
@@ -2369,8 +2410,8 @@ export const useKanbanStore = create()(
             return;
           }
 
-          // Move task to completed stage
-          get().moveTaskToStage(task.id, 'completed');
+          // DO NOT move task to completed stage - keep it in ready-to-merge with merged status
+          // This allows user to see the task is merged before it's cleaned up
 
           // Update task metadata with merge completion info
           get().updateTask(task.id, {
@@ -2384,7 +2425,68 @@ export const useKanbanStore = create()(
             }
           });
 
-          console.log(`Task ${task.id} moved to completed stage after successful merge`);
+          // Update merge state to success
+          set((state) => ({
+            mergingTasks: {
+              ...state.mergingTasks,
+              [task.id]: {
+                status: 'success',
+                message: 'Branch successfully merged to main!',
+                timestamp: new Date().toISOString()
+              }
+            }
+          }), false, 'handleMergeCompletion');
+
+          console.log(`Task ${task.id} merge completed - staying in ready-to-merge with merged status`);
+        },
+
+        // Handle merge failure - called by WebSocket listener when merge workflow fails
+        handleMergeFailure: (adw_id, errorMessage) => {
+          const task = get().getTaskByAdwId(adw_id);
+          if (!task) {
+            console.warn(`Task not found for ADW ID: ${adw_id}`);
+            return;
+          }
+
+          // DO NOT move task to errored stage - keep it in ready-to-merge so user can retry
+          // Update task metadata with error info
+          get().updateTask(task.id, {
+            metadata: {
+              ...task.metadata,
+              merge_error: errorMessage,
+              merge_error_at: new Date().toISOString(),
+              merge_in_progress: false,
+            }
+          });
+
+          // Update merge state to error
+          set((state) => ({
+            mergingTasks: {
+              ...state.mergingTasks,
+              [task.id]: {
+                status: 'error',
+                message: errorMessage || 'Merge failed',
+                timestamp: new Date().toISOString()
+              }
+            }
+          }), false, 'handleMergeFailure');
+
+          console.log(`Task ${task.id} merge failed - staying in ready-to-merge for retry. Error: ${errorMessage}`);
+        },
+
+        // Get merge state for a task
+        getMergeState: (taskId) => {
+          const { mergingTasks } = get();
+          return mergingTasks?.[taskId] || null;
+        },
+
+        // Clear merge state for a task (after user has seen the notification)
+        clearMergeState: (taskId) => {
+          set((state) => {
+            const newMergingTasks = { ...state.mergingTasks };
+            delete newMergingTasks[taskId];
+            return { mergingTasks: newMergingTasks };
+          }, false, 'clearMergeState');
         },
 
         /**

@@ -23,8 +23,10 @@ import {
   Play,
   ChevronDown,
   ChevronUp,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
+import Toast from '../ui/Toast';
 import StageLogsViewer from './StageLogsViewer';
 import PlanViewer from './PlanViewer';
 import adwDiscoveryService from '../../services/api/adwDiscoveryService';
@@ -41,7 +43,9 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
     clearWorkflowLogsForTask,
     triggerMergeWorkflow,
     deleteWorktree,
-    getDeletionState
+    getDeletionState,
+    getMergeState,
+    clearMergeState
   } = useKanbanStore();
 
   const [showLogs, setShowLogs] = useState(false);
@@ -50,12 +54,16 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [toast, setToast] = useState(null);
 
   // Get deletion state from store
   const adwId = task?.metadata?.adw_id;
   const deletionState = getDeletionState(adwId);
   const isDeleting = deletionState?.loading || false;
   const deletionError = deletionState?.error || null;
+
+  // Get merge state from store
+  const mergeState = getMergeState(task.id);
 
   // Collapsible section states (with localStorage persistence)
   const [taskInfoExpanded, setTaskInfoExpanded] = useState(() => {
@@ -83,6 +91,29 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
   useEffect(() => {
     localStorage.setItem('taskDetailsWorkflowControlsExpanded', String(workflowControlsExpanded));
   }, [workflowControlsExpanded]);
+
+  // Show toast when merge state changes
+  useEffect(() => {
+    if (mergeState) {
+      if (mergeState.status === 'success') {
+        setToast({
+          type: 'success',
+          title: 'Merge Successful',
+          message: mergeState.message || 'Branch has been merged to main!',
+          duration: 5000
+        });
+        setTimeout(() => clearMergeState(task.id), 100);
+      } else if (mergeState.status === 'error') {
+        setToast({
+          type: 'error',
+          title: 'Merge Failed',
+          message: mergeState.message || 'Failed to merge branch.',
+          duration: 8000
+        });
+        setTimeout(() => clearMergeState(task.id), 100);
+      }
+    }
+  }, [mergeState, task.id, clearMergeState]);
 
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
@@ -138,9 +169,31 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
 
   const handleMerge = async () => {
     try {
-      await triggerMergeWorkflow(task.id);
+      setToast({
+        type: 'info',
+        title: 'Merge Started',
+        message: 'Triggering merge workflow...',
+        duration: 3000
+      });
+
+      const result = await triggerMergeWorkflow(task.id);
+
+      if (result?.success) {
+        setToast({
+          type: 'info',
+          title: 'Merge In Progress',
+          message: 'Merge workflow is running. You will be notified when complete.',
+          duration: 5000
+        });
+      }
     } catch (error) {
       console.error('Failed to trigger merge:', error);
+      setToast({
+        type: 'error',
+        title: 'Merge Failed',
+        message: error.message || 'Failed to trigger merge workflow.',
+        duration: 8000
+      });
     }
   };
 
@@ -569,10 +622,24 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
                       e.stopPropagation();
                       handleMerge();
                     }}
-                    className="flex items-center justify-center space-x-1 flex-1 text-sm bg-teal-600 text-white rounded px-3 py-1.5 hover:bg-teal-700"
+                    disabled={mergeState?.status === 'in_progress'}
+                    className={`flex items-center justify-center space-x-1 flex-1 text-sm rounded px-3 py-1.5 ${
+                      mergeState?.status === 'in_progress'
+                        ? 'bg-amber-500 text-white cursor-wait'
+                        : 'bg-teal-600 text-white hover:bg-teal-700'
+                    }`}
                   >
-                    <GitMerge className="h-4 w-4" />
-                    <span>Merge to Main</span>
+                    {mergeState?.status === 'in_progress' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Merging...</span>
+                      </>
+                    ) : (
+                      <>
+                        <GitMerge className="h-4 w-4" />
+                        <span>Merge to Main</span>
+                      </>
+                    )}
                   </button>
                 )}
                 {/* Show Merged status indicator for completed merges */}
@@ -671,6 +738,18 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          type={toast.type}
+          title={toast.title}
+          message={toast.message}
+          duration={toast.duration}
+          onClose={() => setToast(null)}
+          show={!!toast}
+        />
       )}
     </>
   );

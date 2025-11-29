@@ -40,6 +40,19 @@ vi.mock('../PlanViewer', () => ({
   )
 }));
 
+// Mock Toast component
+vi.mock('../../ui/Toast', () => ({
+  default: ({ type, title, message, show, onClose }) => (
+    show ? (
+      <div data-testid="toast" className={`toast-${type}`}>
+        <div>{title}</div>
+        <div>{message}</div>
+        <button onClick={onClose}>Dismiss</button>
+      </div>
+    ) : null
+  )
+}));
+
 // Mock clipboard API
 Object.assign(navigator, {
   clipboard: {
@@ -88,9 +101,11 @@ describe('TaskDetailsModal Component', () => {
       getWorkflowProgressForTask: vi.fn(() => ({ progress: 50, status: 'in_progress' })),
       getWorkflowMetadataForTask: vi.fn(() => ({ adw_id: 'adw-123' })),
       clearWorkflowLogsForTask: vi.fn(),
-      triggerMergeWorkflow: vi.fn(),
+      triggerMergeWorkflow: vi.fn(() => Promise.resolve({ success: true })),
       deleteWorktree: vi.fn(() => Promise.resolve(true)),
-      getDeletionState: vi.fn(() => null)
+      getDeletionState: vi.fn(() => null),
+      getMergeState: vi.fn(() => null),
+      clearMergeState: vi.fn()
     };
 
     useKanbanStore.mockReturnValue(mockStore);
@@ -575,6 +590,85 @@ describe('TaskDetailsModal Component', () => {
       );
 
       expect(screen.getByText('Merged')).toBeInTheDocument();
+    });
+
+    it('should show loading state when merge is in progress', () => {
+      const readyTask = { ...mockTask, stage: 'ready-to-merge' };
+
+      // Return merge state as in_progress
+      mockStore.getMergeState.mockReturnValue({
+        status: 'in_progress',
+        message: 'Merge workflow started...',
+        timestamp: new Date().toISOString()
+      });
+
+      render(
+        <TaskDetailsModal
+          task={readyTask}
+          onClose={mockOnClose}
+          onEdit={mockOnEdit}
+        />
+      );
+
+      expect(screen.getByText('Merging...')).toBeInTheDocument();
+    });
+
+    it('should disable merge button when merge is in progress', () => {
+      const readyTask = { ...mockTask, stage: 'ready-to-merge' };
+
+      // Return merge state as in_progress
+      mockStore.getMergeState.mockReturnValue({
+        status: 'in_progress',
+        message: 'Merge workflow started...',
+        timestamp: new Date().toISOString()
+      });
+
+      render(
+        <TaskDetailsModal
+          task={readyTask}
+          onClose={mockOnClose}
+          onEdit={mockOnEdit}
+        />
+      );
+
+      const mergeButton = screen.getByText('Merging...').closest('button');
+      expect(mergeButton).toBeDisabled();
+    });
+
+    it('should handle merge error and show toast', async () => {
+      const readyTask = { ...mockTask, stage: 'ready-to-merge' };
+
+      // Mock triggerMergeWorkflow to reject
+      mockStore.triggerMergeWorkflow.mockRejectedValue(new Error('Merge conflict detected'));
+
+      render(
+        <TaskDetailsModal
+          task={readyTask}
+          onClose={mockOnClose}
+          onEdit={mockOnEdit}
+        />
+      );
+
+      const mergeButton = screen.getByText('Merge to Main');
+      fireEvent.click(mergeButton);
+
+      // Toast should be shown with error
+      await waitFor(() => {
+        expect(screen.getByText('Merge Failed')).toBeInTheDocument();
+      });
+    });
+
+    it('should not show merge button when task is not in ready-to-merge stage', () => {
+      // Task is in build stage, not ready-to-merge
+      render(
+        <TaskDetailsModal
+          task={mockTask}
+          onClose={mockOnClose}
+          onEdit={mockOnEdit}
+        />
+      );
+
+      expect(screen.queryByText('Merge to Main')).not.toBeInTheDocument();
     });
   });
 
