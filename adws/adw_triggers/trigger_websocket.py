@@ -46,6 +46,7 @@ from adw_modules import worktree_ops
 from adw_modules.websocket_client import WebSocketNotifier
 from adw_modules.websocket_manager import get_websocket_manager
 from adw_modules.agent_directory_monitor import AgentDirectoryMonitor
+from adw_modules.agent_log_streamer import get_agent_log_streamer
 from adw_triggers.websocket_models import (
     WorkflowTriggerRequest,
     WorkflowTriggerResponse,
@@ -807,7 +808,7 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
 
 def start_agent_directory_monitoring(adw_id: str) -> Optional[AgentDirectoryMonitor]:
     """
-    Start monitoring agent directory for real-time changes.
+    Start monitoring agent directory for real-time changes using AgentLogStreamer.
 
     Args:
         adw_id: ADW ID to monitor
@@ -823,18 +824,24 @@ def start_agent_directory_monitoring(adw_id: str) -> Optional[AgentDirectoryMoni
         return active_monitors[adw_id]
 
     try:
-        # Get WebSocket manager
+        # Get WebSocket manager and agent log streamer
         ws_manager = get_websocket_manager()
+        streamer = get_agent_log_streamer()
 
-        # Create and start monitor
-        monitor = AgentDirectoryMonitor(adw_id=adw_id, websocket_manager=ws_manager)
-        monitor.start_monitoring()
+        # Start monitoring via streamer
+        success = streamer.start_monitoring(adw_id=adw_id, websocket_manager=ws_manager)
 
-        # Track monitor
-        active_monitors[adw_id] = monitor
-        print(f"Started directory monitoring for ADW {adw_id}")
-
-        return monitor
+        if success:
+            # Get the monitor instance from streamer's internal registry for backward compatibility
+            # (The monitor is stored in streamer._monitors[adw_id])
+            monitor = streamer._monitors.get(adw_id)
+            if monitor:
+                active_monitors[adw_id] = monitor
+            print(f"Started directory monitoring for ADW {adw_id}")
+            return monitor
+        else:
+            print(f"Failed to start monitoring for {adw_id}")
+            return None
 
     except Exception as e:
         print(f"Failed to start directory monitoring for {adw_id}: {e}")
@@ -843,21 +850,28 @@ def start_agent_directory_monitoring(adw_id: str) -> Optional[AgentDirectoryMoni
 
 def cleanup_monitor(adw_id: str):
     """
-    Stop and cleanup monitor for a specific ADW ID.
+    Stop and cleanup monitor for a specific ADW ID using AgentLogStreamer.
 
     Args:
         adw_id: ADW ID to cleanup
     """
     global active_monitors
 
-    if adw_id in active_monitors:
-        try:
-            monitor = active_monitors[adw_id]
-            monitor.stop_monitoring()
+    try:
+        # Use streamer to stop monitoring
+        streamer = get_agent_log_streamer()
+        success = streamer.stop_monitoring(adw_id)
+
+        # Also clean up local registry for backward compatibility
+        if adw_id in active_monitors:
             del active_monitors[adw_id]
+
+        if success:
             print(f"Cleaned up directory monitor for ADW {adw_id}")
-        except Exception as e:
-            print(f"Error cleaning up monitor for {adw_id}: {e}")
+        else:
+            print(f"Monitor for {adw_id} was not active")
+    except Exception as e:
+        print(f"Error cleaning up monitor for {adw_id}: {e}")
 
 
 async def send_status_update(
