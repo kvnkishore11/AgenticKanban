@@ -221,7 +221,47 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   // Derive effective stage - use selectedLogStage if set, otherwise fall back to first stage
   const effectiveStage = selectedLogStage || (pipelineStages.length > 0 ? pipelineStages[0].stage : null);
 
-  // Fetch result when switching to result tab or stage changes
+  // Proactively check for result availability (for enabling/disabling Result tab)
+  // Poll periodically when no result is available yet
+  useEffect(() => {
+    const adwId = task.metadata?.adw_id || workflowMetadata?.adw_id;
+    if (!adwId || !effectiveStage) return;
+
+    const checkResultAvailability = async () => {
+      try {
+        const wsPort = window.APP_CONFIG?.WS_PORT || 8501;
+        const response = await fetch(`http://localhost:${wsPort}/api/stage-logs/${adwId}/${effectiveStage}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data?.has_result && data?.result) {
+            setStageResult(data.result);
+          } else {
+            // Keep existing result if we had one (don't clear it)
+            if (!stageResult) {
+              setStageResult(null);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error checking result availability:', err);
+      }
+    };
+
+    // Initial check
+    checkResultAvailability();
+
+    // Poll every 3 seconds if no result yet
+    let pollInterval;
+    if (!stageResult) {
+      pollInterval = setInterval(checkResultAvailability, 3000);
+    }
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [effectiveStage, task.metadata?.adw_id, workflowMetadata?.adw_id, stageResult]);
+
+  // Fetch full result when switching to result tab
   useEffect(() => {
     const adwId = task.metadata?.adw_id || workflowMetadata?.adw_id;
     if (activeContentType === 'result' && adwId && effectiveStage) {

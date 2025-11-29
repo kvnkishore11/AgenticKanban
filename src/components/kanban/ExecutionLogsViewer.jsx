@@ -23,15 +23,17 @@ const ExecutionLogsViewer = ({
   const [stageFolder, setStageFolder] = useState(null);
   const logsContainerRef = useRef(null);
 
-  // Fetch execution logs when adwId or stage changes
+  // Fetch execution logs when adwId or stage changes, with polling
   useEffect(() => {
-    const fetchLogs = async () => {
-      if (!adwId || !stage) {
-        setLogs([]);
-        return;
-      }
+    if (!adwId || !stage) {
+      setLogs([]);
+      return;
+    }
 
-      setLoading(true);
+    const fetchLogs = async (isInitial = false) => {
+      if (isInitial) {
+        setLoading(true);
+      }
       setError(null);
 
       try {
@@ -58,13 +60,26 @@ const ExecutionLogsViewer = ({
       } catch (err) {
         console.error('Error fetching execution logs:', err);
         setError(err.message);
-        setLogs([]);
+        // Don't clear logs on polling error, only on initial load
+        if (isInitial) {
+          setLogs([]);
+        }
       } finally {
-        setLoading(false);
+        if (isInitial) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchLogs();
+    // Initial fetch
+    fetchLogs(true);
+
+    // Poll every 2 seconds for new logs
+    const pollInterval = setInterval(() => fetchLogs(false), 2000);
+
+    return () => {
+      clearInterval(pollInterval);
+    };
   }, [adwId, stage, onLogCountChange]);
 
   // Auto-scroll to bottom when logs update

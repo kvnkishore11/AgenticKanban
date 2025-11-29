@@ -761,6 +761,121 @@ describe('CardExpandModal Component', () => {
     });
   });
 
+  describe('Proactive Result Detection', () => {
+    beforeEach(() => {
+      // Mock global fetch for result checking
+      global.fetch = vi.fn();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should check for result availability when component mounts', async () => {
+      global.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          has_result: true,
+          result: { status: 'completed', output: 'test result' }
+        })
+      });
+
+      render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining('/api/stage-logs/adw_plan_build_test_issue_123/plan')
+        );
+      });
+    });
+
+    it('should enable Result tab when result becomes available', async () => {
+      global.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          has_result: true,
+          result: { status: 'completed' }
+        })
+      });
+
+      render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
+
+      // The result tab mock shows hasResult prop - when true, button should not be disabled
+      await waitFor(() => {
+        const resultButton = screen.getByText(/RESULT/);
+        expect(resultButton).toBeInTheDocument();
+      });
+    });
+
+    it('should set up polling interval when no result is available', async () => {
+      const setIntervalSpy = vi.spyOn(global, 'setInterval');
+
+      // Return no result to trigger polling
+      global.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          has_result: false,
+          result: null
+        })
+      });
+
+      render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalled();
+      });
+
+      // Verify setInterval was called with 3000ms for result polling
+      expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 3000);
+
+      setIntervalSpy.mockRestore();
+    });
+
+    it('should clear polling interval after result is found on subsequent render', async () => {
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+
+      // Return result immediately
+      global.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          has_result: true,
+          result: { status: 'completed' }
+        })
+      });
+
+      const { unmount } = render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalled();
+      });
+
+      // Unmount to trigger cleanup
+      unmount();
+
+      // Verify clearInterval was called during cleanup
+      expect(clearIntervalSpy).toHaveBeenCalled();
+
+      clearIntervalSpy.mockRestore();
+    });
+
+    it('should handle fetch error gracefully during result check', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      global.fetch.mockRejectedValue(new Error('Network error'));
+
+      render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
+
+      await waitFor(() => {
+        expect(consoleError).toHaveBeenCalledWith(
+          'Error checking result availability:',
+          expect.any(Error)
+        );
+      }, { timeout: 3000 });
+
+      consoleError.mockRestore();
+    });
+  });
+
   describe('Edge Cases', () => {
     it('should handle task without description', () => {
       const taskWithoutDescription = { ...mockTask, description: undefined };

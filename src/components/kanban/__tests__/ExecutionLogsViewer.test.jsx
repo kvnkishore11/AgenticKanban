@@ -217,4 +217,70 @@ describe('ExecutionLogsViewer Component', () => {
       });
     });
   });
+
+  describe('Polling Behavior', () => {
+    it('should set up polling interval on mount', async () => {
+      const setIntervalSpy = vi.spyOn(global, 'setInterval');
+
+      render(<ExecutionLogsViewer {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+
+      // Verify setInterval was called with 2000ms
+      expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 2000);
+
+      setIntervalSpy.mockRestore();
+    });
+
+    it('should clear polling interval when unmounted', async () => {
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+
+      const { unmount } = render(<ExecutionLogsViewer {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+
+      // Unmount the component
+      unmount();
+
+      // Verify clearInterval was called
+      expect(clearIntervalSpy).toHaveBeenCalled();
+
+      clearIntervalSpy.mockRestore();
+    });
+
+    it('should clear polling interval when adwId/stage changes', async () => {
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+
+      const { rerender } = render(<ExecutionLogsViewer {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+
+      // Change stage - should clear old interval
+      rerender(<ExecutionLogsViewer {...defaultProps} stage="build" />);
+
+      await waitFor(() => {
+        expect(clearIntervalSpy).toHaveBeenCalled();
+      });
+
+      clearIntervalSpy.mockRestore();
+    });
+
+    it('should not show loading during subsequent fetches (polling scenario)', async () => {
+      render(<ExecutionLogsViewer {...defaultProps} />);
+
+      // Wait for initial load to complete
+      await waitFor(() => {
+        expect(screen.getByText('Starting stage execution')).toBeInTheDocument();
+      });
+
+      // After initial load, loading should not be shown
+      expect(screen.queryByText('Loading execution logs...')).not.toBeInTheDocument();
+    });
+  });
 });
