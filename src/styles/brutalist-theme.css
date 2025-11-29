@@ -364,7 +364,7 @@ h1, h2, h3, h4, h5, h6,
   cursor: pointer;
   min-height: 64px;
   transition: background 0.1s;
-  letter-spacing: 1px;
+  letter-spacing: 2px;
 }
 
 .brutalist-column-header:hover {
@@ -502,7 +502,7 @@ h1, h2, h3, h4, h5, h6,
   font-weight: bold;
   margin-bottom: 8px;
   text-transform: uppercase;
-  letter-spacing: -0.5px;
+  letter-spacing: 0.5px;
   line-height: 1.3;
 }
 
