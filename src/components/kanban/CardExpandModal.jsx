@@ -762,6 +762,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                     (task.metadata?.adw_id || workflowMetadata?.adw_id) && effectiveStage ? (
                       <AgentLogsPanel
                         taskId={task.id}
+                        adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
                         stage={effectiveStage}
                         maxHeight="100%"
                         autoScrollDefault={true}

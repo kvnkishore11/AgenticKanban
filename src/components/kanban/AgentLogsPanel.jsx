@@ -2,13 +2,13 @@
  * @fileoverview Agent Logs Panel Component
  *
  * Displays agent-specific logs (thinking blocks, tool usage, file changes, text blocks)
- * filtered from the general workflow logs. Uses AgentLogEntry component for specialized
- * rendering of different agent event types.
+ * fetched from the stage-specific API endpoint. This ensures proper isolation of logs
+ * per stage (plan shows only plan logs, build shows only build logs, etc.)
  *
  * @module components/kanban/AgentLogsPanel
  */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import AgentLogEntry from './AgentLogEntry';
 import {
@@ -16,87 +16,140 @@ import {
   Filter,
   Trash2,
   ArrowDown,
-  Wifi,
-  WifiOff,
+  RefreshCw,
   Brain,
   Wrench,
   FileEdit,
-  FileText
+  FileText,
+  Loader2
 } from 'lucide-react';
 
 const AGENT_EVENT_TYPES = ['ALL', 'THINKING', 'TOOL', 'FILE', 'TEXT'];
 
-// Stage to agent role mapping for filtering logs by stage
-const STAGE_TO_ROLES = {
-  plan: ['planner', 'sdlc_planner'],
-  build: ['implementor', 'sdlc_implementor', 'sdlc_implementor_committer'],
-  test: ['tester', 'test_runner', 'e2e_test_runner', 'test_resolver'],
-  review: ['reviewer', 'in_loop_review'],
-  document: ['documenter', 'ops']
-};
-
 const AgentLogsPanel = ({
   taskId,
-  stage = null,  // null = all stages, string = filter by stage
+  adwId = null,  // ADW ID for fetching stage-specific logs
+  stage = null,  // Stage to fetch logs for (plan, build, test, review, document)
   maxHeight = '500px',
   autoScrollDefault = true,
   onLogCountChange
 }) => {
-  const { getWorkflowLogsForTask, clearWorkflowLogsForTask, getWebSocketStatus } = useKanbanStore();
+  const { getWebSocketStatus } = useKanbanStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [eventFilter, setEventFilter] = useState('ALL');
   const [autoScroll, setAutoScroll] = useState(autoScrollDefault);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
 
+  // API-based logs state
+  const [stageLogs, setStageLogs] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [lastFetchTime, setLastFetchTime] = useState(null);
+
   const logsContainerRef = useRef(null);
   const bottomRef = useRef(null);
+  const pollIntervalRef = useRef(null);
 
-  // Get logs from store
-  const allLogs = getWorkflowLogsForTask(taskId) || [];
   const websocketStatus = getWebSocketStatus();
 
-  // Filter for agent-specific logs only, optionally by stage
+  // Fetch stage-specific logs from API
+  const fetchStageLogs = useCallback(async () => {
+    if (!adwId || !stage) {
+      setStageLogs([]);
+      return;
+    }
+
+    try {
+      const wsPort = window.APP_CONFIG?.WS_PORT || 8501;
+      const response = await fetch(`http://localhost:${wsPort}/api/stage-logs/${adwId}/${stage}`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch stage logs: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (data && data.logs) {
+        // Transform logs to match expected format for AgentLogEntry
+        const transformedLogs = data.logs.map((log, index) => ({
+          id: `${adwId}-${stage}-${index}-${log.timestamp || Date.now()}`,
+          entry_type: log.entry_type || 'system',
+          subtype: log.subtype || 'info',
+          message: log.message || '',
+          content: log.message || log.details || '',
+          timestamp: log.timestamp || new Date().toISOString(),
+          tool_name: log.tool_name,
+          tool_input: log.tool_input,
+          usage: log.usage,
+          level: log.level,
+          raw_data: log.raw_data || log,
+          stage: stage,
+          adw_id: adwId,
+        }));
+
+        setStageLogs(transformedLogs);
+        setLastFetchTime(new Date());
+        setError(null);
+      }
+    } catch (err) {
+      console.error('Error fetching stage logs:', err);
+      setError(err.message);
+    }
+  }, [adwId, stage]);
+
+  // Initial fetch and polling
+  useEffect(() => {
+    // Initial fetch
+    if (adwId && stage) {
+      setIsLoading(true);
+      fetchStageLogs().finally(() => setIsLoading(false));
+    }
+
+    // Set up polling for updates (every 3 seconds)
+    pollIntervalRef.current = setInterval(() => {
+      if (adwId && stage) {
+        fetchStageLogs();
+      }
+    }, 3000);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [adwId, stage, fetchStageLogs]);
+
+  // Filter for agent-specific logs only
   const agentLogs = useMemo(() => {
-    return allLogs.filter(log => {
+    return stageLogs.filter(log => {
       // Filter for agent-specific entry types
       const entryType = log.entry_type;
       const subtype = log.subtype;
 
       // Include logs that are agent-specific:
       // - thinking blocks (entry_type: assistant, subtype: thinking)
-      // - tool calls (entry_type: assistant, subtype: tool_call)
-      // - tool results (entry_type: result, subtype: tool_result)
+      // - tool calls (entry_type: assistant, subtype: tool_use or tool_call)
+      // - tool results (entry_type: result, subtype: tool_result OR entry_type: user with tool_result content)
       // - text blocks (entry_type: assistant, subtype: text)
       // - file changes (entry_type: assistant, subtype: file_changed)
+      // Also include init and system messages for context
+      //
+      // Note: The backend derives subtypes from content blocks for assistant entries
+      // (text, tool_use, thinking, tool_result) to enable proper filtering here.
       const isAgentLog =
-        (entryType === 'assistant' && ['thinking', 'tool_call', 'text', 'file_changed'].includes(subtype)) ||
-        (entryType === 'result' && subtype === 'tool_result');
+        // Assistant messages with derived subtypes
+        (entryType === 'assistant' && ['thinking', 'tool_use', 'tool_call', 'text', 'file_changed'].includes(subtype)) ||
+        // Result messages
+        (entryType === 'result' && subtype === 'tool_result') ||
+        // User messages containing tool results (tool_result subtype from content blocks)
+        (entryType === 'user' && subtype === 'tool_result') ||
+        // System init messages for context
+        (entryType === 'system' && subtype === 'init');
 
-      if (!isAgentLog) return false;
-
-      // If stage filter is provided, filter by agent role (if available)
-      if (stage) {
-        const roles = STAGE_TO_ROLES[stage.toLowerCase()] || [];
-        const agentRole = (log.agent_role || log.source || '').toLowerCase();
-
-        // If log has no agent_role/source, include it (don't filter out)
-        // This ensures thinking_block, tool_use events without agent_role are shown
-        if (!agentRole) {
-          return true;
-        }
-
-        // Check if the log's agent role matches any of the stage's roles
-        const matchesStage = roles.some(role =>
-          agentRole.includes(role.toLowerCase())
-        );
-
-        return matchesStage;
-      }
-
-      return true;
+      return isAgentLog;
     });
-  }, [allLogs, stage]);
+  }, [stageLogs]);
 
   // Apply event type filter and search
   const filteredLogs = useMemo(() => {
@@ -110,7 +163,7 @@ const AgentLogsPanel = ({
           case 'THINKING':
             return subtype === 'thinking';
           case 'TOOL':
-            return subtype === 'tool_call' || subtype === 'tool_result';
+            return subtype === 'tool_call' || subtype === 'tool_use' || subtype === 'tool_result';
           case 'FILE':
             return subtype === 'file_changed';
           case 'TEXT':
@@ -151,10 +204,9 @@ const AgentLogsPanel = ({
     }
   }, [agentLogs.length, onLogCountChange]);
 
-  const handleClearLogs = () => {
-    if (confirm('Are you sure you want to clear all logs?')) {
-      clearWorkflowLogsForTask(taskId);
-    }
+  const handleRefresh = () => {
+    setIsLoading(true);
+    fetchStageLogs().finally(() => setIsLoading(false));
   };
 
   const handleJumpToLatest = () => {
@@ -183,7 +235,7 @@ const AgentLogsPanel = ({
     <div className="bg-white overflow-hidden h-full flex flex-col">
       {/* Header Controls */}
       <div className="flex items-center justify-between p-2 bg-gray-50 border-b border-gray-200">
-        {/* Left: Agent indicator, connection status and log count */}
+        {/* Left: Agent indicator, stage badge, and log count */}
         <div className="flex items-center space-x-2">
           {/* Agent Indicator */}
           <div className="flex items-center space-x-1 text-xs text-gray-700">
@@ -191,27 +243,22 @@ const AgentLogsPanel = ({
             <span className="font-medium">Agent Logs</span>
           </div>
 
+          {/* Stage Badge */}
+          {stage && (
+            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium uppercase">
+              {stage}
+            </span>
+          )}
+
           {/* Log Count */}
           <span className="text-xs text-gray-600 font-medium">
             {filteredLogs.length} {filteredLogs.length === agentLogs.length ? 'entries' : `/ ${agentLogs.length} entries`}
           </span>
 
-          {/* Connection Status */}
-          <div className={`flex items-center space-x-1 px-2 py-1 rounded text-xs ${
-            websocketStatus.connected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-          }`}>
-            {websocketStatus.connected ? (
-              <>
-                <Wifi className="h-3 w-3" />
-                <span>Connected</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="h-3 w-3" />
-                <span>Disconnected</span>
-              </>
-            )}
-          </div>
+          {/* Loading indicator */}
+          {isLoading && (
+            <Loader2 className="h-3 w-3 text-purple-600 animate-spin" />
+          )}
         </div>
 
         {/* Right: Action buttons */}
@@ -298,14 +345,15 @@ const AgentLogsPanel = ({
             <ArrowDown className="h-4 w-4" />
           </button>
 
-          {/* Clear logs */}
+          {/* Refresh logs */}
           <button
             type="button"
-            onClick={handleClearLogs}
-            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-            title="Clear all logs"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="p-1 text-purple-600 hover:bg-purple-50 rounded transition-colors disabled:opacity-50"
+            title="Refresh logs"
           >
-            <Trash2 className="h-4 w-4" />
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
@@ -316,13 +364,36 @@ const AgentLogsPanel = ({
         className="flex-1 overflow-y-auto p-3 space-y-2"
         style={{ maxHeight }}
       >
-        {filteredLogs.length === 0 ? (
+        {isLoading && stageLogs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-500">
+            <Loader2 className="h-12 w-12 mb-3 text-purple-300 animate-spin" />
+            <div className="text-sm font-medium">Loading Logs...</div>
+            <div className="text-xs text-gray-400 mt-1">
+              Fetching {stage ? `${stage.toUpperCase()} stage` : ''} agent logs...
+            </div>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-500">
+            <Brain className="h-12 w-12 mb-3 text-red-300" />
+            <div className="text-sm font-medium text-red-600">Error Loading Logs</div>
+            <div className="text-xs text-red-400 mt-1">{error}</div>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              className="mt-2 px-3 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
+            >
+              Retry
+            </button>
+          </div>
+        ) : filteredLogs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
             <Brain className="h-12 w-12 mb-3 text-gray-300" />
             <div className="text-sm font-medium">No Agent Logs</div>
             <div className="text-xs text-gray-400 mt-1">
               {agentLogs.length === 0
-                ? 'Agent thinking and tool usage will appear here...'
+                ? stage
+                  ? `No ${stage.toUpperCase()} stage logs yet...`
+                  : 'Agent thinking and tool usage will appear here...'
                 : 'No logs match the current filters'}
             </div>
           </div>

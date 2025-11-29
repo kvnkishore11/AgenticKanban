@@ -115,6 +115,10 @@ app.add_middleware(
         "http://localhost:5173",  # Vite dev server default
         f"http://localhost:{os.getenv('FRONTEND_PORT', '9202')}",  # Frontend port from env
         "http://localhost:3000",  # Alternative frontend port
+        "http://localhost:9201",  # Additional frontend port for testing
+        "http://localhost:9203",  # Additional frontend port for testing
+        "http://localhost:9204",  # Additional frontend port for testing
+        "http://localhost:9205",  # Additional frontend port for testing
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -2183,7 +2187,12 @@ def parse_execution_log(log_file: Path):
 
 
 def parse_jsonl_logs(jsonl_file: Path):
-    """Parse JSONL file and extract log entries."""
+    """Parse JSONL file and extract log entries.
+
+    This function parses raw_output.jsonl files from Claude Code agent output.
+    It extracts entry types and derives subtypes from content blocks to enable
+    proper filtering in the frontend (thinking, tool_use, text, etc.).
+    """
     logs = []
 
     try:
@@ -2198,18 +2207,47 @@ def parse_jsonl_logs(jsonl_file: Path):
                     entry_type = data.get('type')
                     subtype = data.get('subtype')
                     message = data.get('message', '')
+                    tool_name = None
+                    tool_input = None
 
+                    # For assistant entries, derive subtype from content blocks
+                    # This is crucial for proper filtering (thinking, tool_use, text)
                     if isinstance(message, dict):
                         msg_content = message.get('content', [])
                         if isinstance(msg_content, list):
                             text_parts = []
+                            derived_subtypes = []
                             for block in msg_content:
                                 if isinstance(block, dict):
-                                    if block.get('type') == 'text':
+                                    block_type = block.get('type')
+                                    if block_type == 'text':
                                         text_parts.append(block.get('text', ''))
-                                    elif block.get('type') == 'tool_use':
-                                        text_parts.append(f"[Tool: {block.get('name', 'unknown')}]")
+                                        derived_subtypes.append('text')
+                                    elif block_type == 'tool_use':
+                                        tool_name = block.get('name', 'unknown')
+                                        tool_input = block.get('input')
+                                        text_parts.append(f"[Tool: {tool_name}]")
+                                        derived_subtypes.append('tool_use')
+                                    elif block_type == 'thinking':
+                                        text_parts.append(block.get('thinking', ''))
+                                        derived_subtypes.append('thinking')
+                                    elif block_type == 'tool_result':
+                                        text_parts.append(str(block.get('content', '')))
+                                        derived_subtypes.append('tool_result')
+
                             message = ' '.join(text_parts) if text_parts else ''
+
+                            # Set subtype based on derived content types if not already set
+                            # Priority: thinking > tool_use > tool_result > text
+                            if not subtype and derived_subtypes:
+                                if 'thinking' in derived_subtypes:
+                                    subtype = 'thinking'
+                                elif 'tool_use' in derived_subtypes:
+                                    subtype = 'tool_use'
+                                elif 'tool_result' in derived_subtypes:
+                                    subtype = 'tool_result'
+                                elif 'text' in derived_subtypes:
+                                    subtype = 'text'
                         else:
                             message = ''
 
@@ -2230,14 +2268,22 @@ def parse_jsonl_logs(jsonl_file: Path):
                     elif entry_type == 'result':
                         level = 'SUCCESS' if subtype == 'success' else 'ERROR'
 
-                    logs.append({
+                    log_entry = {
                         "timestamp": data.get('timestamp'),
                         "level": level,
                         "message": message,
                         "entry_type": entry_type,
                         "subtype": subtype,
                         "raw_data": data
-                    })
+                    }
+
+                    # Add tool info if available
+                    if tool_name:
+                        log_entry["tool_name"] = tool_name
+                    if tool_input:
+                        log_entry["tool_input"] = tool_input
+
+                    logs.append(log_entry)
 
                 except json.JSONDecodeError as e:
                     logs.append({
