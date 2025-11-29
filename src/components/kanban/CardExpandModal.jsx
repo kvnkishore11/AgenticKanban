@@ -28,6 +28,11 @@ import MDEditor from '@uiw/react-md-editor';
 import ReactMarkdown from 'react-markdown';
 import StageLogsViewer from './StageLogsViewer';
 import LiveLogsPanel from './LiveLogsPanel';
+import AgentLogsPanel from './AgentLogsPanel';
+import StageTabsPanel from './StageTabsPanel';
+import ContentTypeTabs from './ContentTypeTabs';
+import ExecutionLogsViewer from './ExecutionLogsViewer';
+import ResultViewer from './ResultViewer';
 import adwDiscoveryService from '../../services/api/adwDiscoveryService';
 import fileOperationsService from '../../services/api/fileOperationsService';
 
@@ -69,8 +74,15 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   const [planError, setPlanError] = useState(null);
   const [ideOpenLoading, setIdeOpenLoading] = useState(false);
   const [ideOpenSuccess, setIdeOpenSuccess] = useState(false);
-  const [activeLogsTab, setActiveLogsTab] = useState('live'); // 'live' or 'all'
-  const [selectedStage, setSelectedStage] = useState(null); // For viewing stage-specific logs
+
+  // New two-level tab state
+  const [selectedLogStage, setSelectedLogStage] = useState(null); // Primary: stage selection
+  const [autoFollowStage, setAutoFollowStage] = useState(true); // Auto-follow running stage
+  const [activeContentType, setActiveContentType] = useState('thinking'); // Secondary: execution|thinking|result
+  const [executionLogCount, setExecutionLogCount] = useState(0);
+  const [thinkingLogCount, setThinkingLogCount] = useState(0);
+  const [stageResult, setStageResult] = useState(null);
+  const [resultLoading, setResultLoading] = useState(false);
 
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
@@ -181,6 +193,74 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
 
   const currentStageInfo = getCurrentStageInfo();
 
+  // Derive the currently running stage from task.stage
+  const currentRunningStage = (() => {
+    const stageLower = task.stage?.toLowerCase();
+    // Map 'build' to 'build' and 'implement' to 'build'
+    if (stageLower === 'implement') return 'build';
+    if (stageLower === 'ready-to-merge') return null;
+    if (stageLower === 'backlog') return null;
+    return stageLower;
+  })();
+
+  // Auto-follow: update selectedLogStage when running stage changes
+  useEffect(() => {
+    if (autoFollowStage && currentRunningStage) {
+      setSelectedLogStage(currentRunningStage);
+    }
+  }, [autoFollowStage, currentRunningStage]);
+
+  // Initialize selectedLogStage when pipelineStages become available
+  useEffect(() => {
+    if (!selectedLogStage && pipelineStages.length > 0) {
+      const initialStage = currentRunningStage || pipelineStages[0].stage;
+      setSelectedLogStage(initialStage);
+    }
+  }, [selectedLogStage, pipelineStages, currentRunningStage]);
+
+  // Derive effective stage - use selectedLogStage if set, otherwise fall back to first stage
+  const effectiveStage = selectedLogStage || (pipelineStages.length > 0 ? pipelineStages[0].stage : null);
+
+  // Fetch result when switching to result tab or stage changes
+  useEffect(() => {
+    const adwId = task.metadata?.adw_id || workflowMetadata?.adw_id;
+    if (activeContentType === 'result' && adwId && effectiveStage) {
+      setResultLoading(true);
+      const wsPort = window.APP_CONFIG?.WS_PORT || 8501;
+      fetch(`http://localhost:${wsPort}/api/stage-logs/${adwId}/${effectiveStage}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.result) {
+            setStageResult(data.result);
+          } else {
+            setStageResult(null);
+          }
+        })
+        .catch(() => setStageResult(null))
+        .finally(() => setResultLoading(false));
+    }
+  }, [activeContentType, effectiveStage, task.metadata?.adw_id, workflowMetadata?.adw_id]);
+
+  // Get stages as array of stage names for StageTabsPanel
+  const stageNames = pipelineStages.map(s => s.stage);
+
+  // Handle stage selection (disables auto-follow)
+  const handleStageSelect = (stage) => {
+    setSelectedLogStage(stage);
+    if (autoFollowStage) {
+      setAutoFollowStage(false);
+    }
+  };
+
+  // Handle auto-follow toggle
+  const handleAutoFollowToggle = () => {
+    const newAutoFollow = !autoFollowStage;
+    setAutoFollowStage(newAutoFollow);
+    if (newAutoFollow && currentRunningStage) {
+      setSelectedLogStage(currentRunningStage);
+    }
+  };
+
   const formatTimeAgo = (dateString) => {
     if (!dateString) return 'N/A';
     const now = new Date();
@@ -210,6 +290,12 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
     if (currentIndex === stageIndex) return 'active';
     return 'pending';
   };
+
+  // Build stageStatuses object for StageTabsPanel (after getStageStatus is defined)
+  const stageStatuses = pipelineStages.reduce((acc, s) => {
+    acc[s.stage] = getStageStatus(s.id);
+    return acc;
+  }, {});
 
   const calculateProgress = () => {
     // Build stage order from pipeline stages
@@ -589,160 +675,75 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
               )}
             </div>
 
-            {/* RIGHT PANEL */}
+            {/* RIGHT PANEL - Two-Level Tab Navigation */}
             <div className="brutalist-modal-right-panel">
-              {/* PIPELINE SECTION */}
-              <div className="pipeline-section">
-                <div className="pipeline-header">
-                  <div className="pipeline-title">PIPELINE STAGES</div>
-                  <div className="pipeline-status-badge">
-                    {workflowProgress?.status?.toUpperCase() || 'READY'}
-                  </div>
-                </div>
+              {/* PRIMARY TABS: Stage Selection */}
+              <StageTabsPanel
+                stages={stageNames}
+                activeStage={effectiveStage}
+                currentRunningStage={currentRunningStage}
+                onStageSelect={handleStageSelect}
+                autoFollow={autoFollowStage}
+                onAutoFollowToggle={handleAutoFollowToggle}
+                stageStatuses={stageStatuses}
+              />
 
-                {/* Progress Bar */}
-                <div className="brutalist-progress-bar">
-                  <div
-                    className="brutalist-progress-fill"
-                    style={{ width: `${calculateProgress()}%` }}
-                  >
-                    <div className="brutalist-progress-shimmer"></div>
-                  </div>
-                  <div className="brutalist-progress-text">
-                    {Math.round(calculateProgress())}%
-                  </div>
-                </div>
+              {/* SECONDARY TABS: Content Type Selection */}
+              <ContentTypeTabs
+                activeContentType={activeContentType}
+                onContentTypeChange={setActiveContentType}
+                executionLogCount={executionLogCount}
+                thinkingLogCount={thinkingLogCount}
+                hasResult={!!stageResult}
+              />
 
-                {/* Stage Boxes */}
-                <div className="stage-boxes">
-                  {pipelineStages.map((stage) => (
-                    <div
-                      key={stage.id}
-                      className={`stage-box ${getStageStatus(stage.id)}`}
-                      onClick={() => setSelectedStage(stage.id)}
-                    >
-                      <div className="stage-box-icon">{stage.icon}</div>
-                      <div className="stage-box-name">{stage.name}</div>
-                      <div className="stage-box-time">
-                        {getStageStatus(stage.id) === 'completed'
-                          ? '✓ DONE'
-                          : getStageStatus(stage.id) === 'active'
-                          ? '▶ NOW'
-                          : '○ TODO'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* LOGS PANEL (Activity Log) */}
-              <div className="logs-panel">
-                {/* Logs Header - Title and Tabs only */}
-                <div className="logs-header">
-                  <div className="logs-header-left">
-                    <div className="logs-header-icon">📋</div>
-                    <div className="logs-title">ACTIVITY LOG</div>
-                    <div className="logs-tabs">
-                      <button
-                        type="button"
-                        onClick={() => setActiveLogsTab('live')}
-                        className={`logs-tab-btn ${
-                          activeLogsTab === 'live' ? 'active' : ''
-                        }`}
-                      >
-                        LIVE
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveLogsTab('all')}
-                        className={`logs-tab-btn ${
-                          activeLogsTab === 'all' ? 'active' : ''
-                        }`}
-                      >
-                        ALL
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* STAGE INFO BANNER - Inside Activity Log */}
-                <div className="stage-info-banner">
-                  <div className="stage-info-icon">
-                    {selectedStage
-                      ? pipelineStages.find((s) => s.id === selectedStage)?.icon
-                      : currentStageInfo?.icon || '📋'}
-                  </div>
-                  <div className="stage-info-content">
-                    <div className="stage-info-header-row">
-                      <div className="stage-info-name">
-                        {selectedStage
-                          ? pipelineStages.find((s) => s.id === selectedStage)?.name + ' STAGE'
-                          : (currentStageInfo?.name || task.stage?.toUpperCase()) + ' STAGE'}
-                        <span className="stage-info-status-inline">
-                          {' — '}
-                          {selectedStage
-                            ? getStageStatus(selectedStage) === 'completed'
-                              ? 'COMPLETED'
-                              : getStageStatus(selectedStage) === 'active'
-                              ? 'IN PROGRESS'
-                              : 'PENDING'
-                            : getStageStatus(currentStageInfo?.id) === 'completed'
-                            ? 'COMPLETED'
-                            : 'IN PROGRESS'}
-                        </span>
-                      </div>
-                      <div className="stage-info-percent">
-                        {Math.round(calculateProgress())}%
-                        <span className="stage-info-percent-label">COMPLETE</span>
-                      </div>
-                    </div>
-                    <div className="stage-info-description">
-                      {workflowLogs && workflowLogs.length > 0
-                        ? workflowLogs[workflowLogs.length - 1]?.message?.slice(0, 60) || 'Processing...'
-                        : 'Building implementation plan using AI agent'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Logs Container */}
+              {/* CONTENT PANEL */}
+              <div className="logs-panel stage-content-panel">
                 <div className="logs-container">
-                  {activeLogsTab === 'live' ? (
-                    task.metadata?.adw_id ? (
-                      <LiveLogsPanel
-                        taskId={task.id}
+                  {activeContentType === 'execution' ? (
+                    (task.metadata?.adw_id || workflowMetadata?.adw_id) && effectiveStage ? (
+                      <ExecutionLogsViewer
+                        adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
+                        stage={effectiveStage}
+                        autoScroll={true}
                         maxHeight="100%"
-                        autoScrollDefault={true}
+                        onLogCountChange={setExecutionLogCount}
                       />
                     ) : (
                       <div className="empty-logs">
-                        <div className="empty-logs-icon">📭</div>
-                        <div className="empty-logs-text">No Workflow Started</div>
+                        <div className="empty-logs-icon">📊</div>
+                        <div className="empty-logs-text">No Execution Logs</div>
                         <div className="empty-logs-subtext">
-                          Trigger a workflow to see live logs
+                          Trigger a workflow to see stage execution logs
                         </div>
                       </div>
                     )
-                  ) : task.metadata?.adw_id ? (
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <StageLogsViewer
+                  ) : activeContentType === 'thinking' ? (
+                    (task.metadata?.adw_id || workflowMetadata?.adw_id) && effectiveStage ? (
+                      <AgentLogsPanel
                         taskId={task.id}
-                        adwId={task.metadata?.adw_id}
-                        title=""
+                        stage={effectiveStage}
                         maxHeight="100%"
-                        onClear={() => clearWorkflowLogsForTask(task.id)}
-                        showTimestamps={true}
-                        autoScroll={true}
+                        autoScrollDefault={true}
+                        onLogCountChange={setThinkingLogCount}
                       />
-                    </div>
-                  ) : (
-                    <div className="empty-logs">
-                      <div className="empty-logs-icon">📭</div>
-                      <div className="empty-logs-text">No Logs Available</div>
-                      <div className="empty-logs-subtext">
-                        No workflow associated with this task
+                    ) : (
+                      <div className="empty-logs">
+                        <div className="empty-logs-icon">🧠</div>
+                        <div className="empty-logs-text">No Agent Logs</div>
+                        <div className="empty-logs-subtext">
+                          Trigger a workflow to see agent thinking and tool usage
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )
+                  ) : activeContentType === 'result' ? (
+                    <ResultViewer
+                      result={stageResult}
+                      loading={resultLoading}
+                      error={null}
+                      maxHeight="100%"
+                    />
+                  ) : null}
                 </div>
               </div>
             </div>

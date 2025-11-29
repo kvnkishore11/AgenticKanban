@@ -563,11 +563,19 @@ export const useKanbanStore = create()(
               images: taskData.images || [], // Support for uploaded images
             };
 
-            set((state) => ({
-              tasks: [...state.tasks, newTask],
-              taskIdCounter: state.taskIdCounter + 1,
-              showTaskInput: false,
-            }), false, 'createTask');
+            set((state) => {
+              const newState = {
+                tasks: [...state.tasks, newTask],
+                taskIdCounter: state.taskIdCounter + 1,
+                showTaskInput: false,
+              };
+              // Update tasksByAdwId index immediately when task is created with adw_id
+              // This ensures logs can be matched to tasks before triggerWorkflow completes
+              if (adwConfig.adw_id) {
+                newState.tasksByAdwId = { ...state.tasksByAdwId, [adwConfig.adw_id]: taskId };
+              }
+              return newState;
+            }, false, 'createTask');
 
             // Send project notification after successful task creation
             get().sendProjectNotification(newTask);

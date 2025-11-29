@@ -3,6 +3,7 @@ Stage-specific logs API endpoint for ADW workflows.
 Fetches logs from agents/{adw_id}/{stage_folder} directories.
 """
 import os
+import re
 import json
 import logging
 from pathlib import Path
@@ -23,6 +24,15 @@ STAGE_TO_FOLDERS = {
     "test": ["tester", "adw_test_iso"],
     "review": ["reviewer", "adw_review_iso"],
     "document": ["documenter", "adw_document_iso", "ops"],
+}
+
+# Stage to ISO folder mapping for execution.log
+STAGE_TO_ISO_FOLDER = {
+    "plan": "adw_plan_iso",
+    "build": "adw_build_iso",
+    "test": "adw_test_iso",
+    "review": "adw_review_iso",
+    "document": "adw_document_iso",
 }
 
 class LogEntry(BaseModel):
@@ -56,6 +66,24 @@ class StageLogsResponse(BaseModel):
     stage_folder: Optional[str] = None
     has_streaming_logs: bool = False
     has_result: bool = False
+    error: Optional[str] = None
+
+
+class ExecutionLogEntry(BaseModel):
+    """Individual execution log entry parsed from execution.log"""
+    timestamp: Optional[str] = None
+    level: str = "INFO"
+    message: str = ""
+    raw_line: Optional[str] = None
+
+
+class ExecutionLogsResponse(BaseModel):
+    """Response format for execution logs endpoint"""
+    adw_id: str
+    stage: str
+    logs: List[ExecutionLogEntry]
+    stage_folder: Optional[str] = None
+    has_logs: bool = False
     error: Optional[str] = None
 
 def get_agents_directory() -> Path:
@@ -144,6 +172,22 @@ def parse_jsonl_logs(jsonl_file: Path) -> List[LogEntry]:
 
                     # Extract message/content
                     message = data.get('message', '')
+
+                    # Handle case where message is a dict (assistant messages)
+                    if isinstance(message, dict):
+                        msg_content = message.get('content', [])
+                        if isinstance(msg_content, list):
+                            text_parts = []
+                            for block in msg_content:
+                                if isinstance(block, dict):
+                                    if block.get('type') == 'text':
+                                        text_parts.append(block.get('text', ''))
+                                    elif block.get('type') == 'tool_use':
+                                        text_parts.append(f"[Tool: {block.get('name', 'unknown')}]")
+                            message = ' '.join(text_parts) if text_parts else ''
+                        else:
+                            message = ''
+
                     if not message and 'content' in data:
                         content = data['content']
                         if isinstance(content, str):
@@ -483,4 +527,162 @@ async def get_agent_state(adw_id: str) -> Dict[str, Any]:
         raise HTTPException(
             status_code=500,
             detail=f"Error reading agent state file: {e}"
+        )
+
+
+def parse_execution_log(log_file: Path) -> List[ExecutionLogEntry]:
+    """
+    Parse execution.log file and extract log entries.
+
+    Format: "2025-11-28 21:49:19 - INFO - message"
+
+    Args:
+        log_file: Path to the execution.log file
+
+    Returns:
+        List of ExecutionLogEntry objects
+    """
+    logs = []
+
+    # Pattern to match: timestamp - LEVEL - message
+    log_pattern = re.compile(
+        r'^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+-\s+(\w+)\s+-\s+(.*)$'
+    )
+
+    try:
+        with open(log_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.rstrip('\n')
+                if not line:
+                    continue
+
+                match = log_pattern.match(line)
+                if match:
+                    timestamp, level, message = match.groups()
+                    logs.append(ExecutionLogEntry(
+                        timestamp=timestamp,
+                        level=level.upper(),
+                        message=message,
+                        raw_line=line
+                    ))
+                else:
+                    # Line doesn't match expected format, add as raw message
+                    logs.append(ExecutionLogEntry(
+                        message=line,
+                        level="INFO",
+                        raw_line=line
+                    ))
+
+    except Exception as e:
+        logger.error(f"Error reading execution log file {log_file}: {e}")
+        raise
+
+    return logs
+
+
+@router.get("/api/execution-logs/{adw_id}/{stage}", response_model=ExecutionLogsResponse)
+async def get_execution_logs(adw_id: str, stage: str) -> ExecutionLogsResponse:
+    """
+    Get execution.log content for a specific stage.
+
+    Args:
+        adw_id: Unique workflow identifier (8-character string)
+        stage: Stage name (plan, build, test, review, document)
+
+    Returns:
+        ExecutionLogsResponse containing parsed execution logs
+
+    Raises:
+        HTTPException: If ADW ID or stage is invalid
+    """
+    # Validate adw_id format (should be 8 characters)
+    if not adw_id or len(adw_id) != 8:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid ADW ID format: {adw_id}. Expected 8-character identifier."
+        )
+
+    # Validate stage name
+    valid_stages = list(STAGE_TO_ISO_FOLDER.keys())
+    if stage.lower() not in valid_stages:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid stage: {stage}. Must be one of {valid_stages}"
+        )
+
+    # Get agents directory
+    agents_dir = get_agents_directory()
+
+    if not agents_dir.exists():
+        raise HTTPException(
+            status_code=500,
+            detail=f"Agents directory not found at {agents_dir}"
+        )
+
+    # Get ADW directory
+    adw_dir = agents_dir / adw_id
+
+    if not adw_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"ADW directory not found: {adw_id}"
+        )
+
+    # Get the ISO folder for this stage
+    iso_folder_name = STAGE_TO_ISO_FOLDER.get(stage.lower())
+    if not iso_folder_name:
+        return ExecutionLogsResponse(
+            adw_id=adw_id,
+            stage=stage,
+            logs=[],
+            stage_folder=None,
+            has_logs=False,
+            error=f"No ISO folder mapping for stage: {stage}"
+        )
+
+    iso_folder = adw_dir / iso_folder_name
+
+    if not iso_folder.exists():
+        return ExecutionLogsResponse(
+            adw_id=adw_id,
+            stage=stage,
+            logs=[],
+            stage_folder=iso_folder_name,
+            has_logs=False,
+            error=f"ISO folder not found: {iso_folder_name}"
+        )
+
+    # Read execution.log
+    log_file = iso_folder / "execution.log"
+
+    if not log_file.exists():
+        return ExecutionLogsResponse(
+            adw_id=adw_id,
+            stage=stage,
+            logs=[],
+            stage_folder=iso_folder_name,
+            has_logs=False,
+            error=f"Execution log not found in {iso_folder_name}"
+        )
+
+    try:
+        logs = parse_execution_log(log_file)
+        logger.info(f"Parsed {len(logs)} execution log entries from {log_file}")
+        return ExecutionLogsResponse(
+            adw_id=adw_id,
+            stage=stage,
+            logs=logs,
+            stage_folder=iso_folder_name,
+            has_logs=True,
+            error=None
+        )
+    except Exception as e:
+        logger.error(f"Failed to parse execution logs: {e}")
+        return ExecutionLogsResponse(
+            adw_id=adw_id,
+            stage=stage,
+            logs=[],
+            stage_folder=iso_folder_name,
+            has_logs=False,
+            error=f"Failed to parse execution log: {e}"
         )
