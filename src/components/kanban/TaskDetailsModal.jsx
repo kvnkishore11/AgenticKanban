@@ -40,7 +40,8 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
     getWorkflowMetadataForTask,
     clearWorkflowLogsForTask,
     triggerMergeWorkflow,
-    deleteWorktree
+    deleteWorktree,
+    getDeletionState
   } = useKanbanStore();
 
   const [showLogs, setShowLogs] = useState(false);
@@ -49,7 +50,12 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Get deletion state from store
+  const adwId = task?.metadata?.adw_id;
+  const deletionState = getDeletionState(adwId);
+  const isDeleting = deletionState?.loading || false;
+  const deletionError = deletionState?.error || null;
 
   // Collapsible section states (with localStorage persistence)
   const [taskInfoExpanded, setTaskInfoExpanded] = useState(() => {
@@ -199,17 +205,18 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
       return;
     }
 
-    setIsDeleting(true);
     try {
       const success = await deleteWorktree(adwId);
       if (success) {
-        // Close the modal after successful deletion
-        onClose();
+        console.log('Deletion request sent, waiting for WebSocket confirmation...');
+        // Keep the modal open until WebSocket confirms deletion
+        // The modal will close automatically when the task is deleted from the store
+      } else {
+        // If deletion failed immediately, close the confirmation dialog
+        setShowDeleteConfirm(false);
       }
     } catch (error) {
       console.error('Failed to delete worktree:', error);
-    } finally {
-      setIsDeleting(false);
       setShowDeleteConfirm(false);
     }
   };
@@ -627,6 +634,13 @@ const TaskDetailsModal = ({ task, onClose, onEdit }) => {
                 <p className="text-sm font-semibold text-red-600">
                   This action cannot be undone.
                 </p>
+                {deletionError && (
+                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-sm text-red-800">
+                      <strong>Error:</strong> {deletionError}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
             <div className="mt-6 flex justify-end space-x-3">

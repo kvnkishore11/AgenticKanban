@@ -128,6 +128,12 @@ const initialState = {
   // Task index for O(1) lookups by adw_id (performance optimization)
   tasksByAdwId: {}, // Map of adw_id -> taskId for fast lookup
 
+  // ADW deletion state
+  deletingAdws: {}, // Map of adw_id -> { loading: boolean, error: string | null } for tracking deletion state
+
+  // Notifications state
+  notifications: [], // Array of { id, type, message, timestamp }
+
   // Cleanup state (internal)
   _cleanupScheduled: false,
 };
@@ -1268,6 +1274,16 @@ export const useKanbanStore = create()(
             };
             websocketService.on('agent_summary_update', websocketService._storeListeners.onAgentSummaryUpdate);
 
+            // System log handler for worktree deletion notifications
+            websocketService._storeListeners.onSystemLog = (data) => {
+              try {
+                get().handleSystemLog(data);
+              } catch (error) {
+                console.error('[KanbanStore] Error handling system log:', error);
+              }
+            };
+            websocketService.on('system_log', websocketService._storeListeners.onSystemLog);
+
             // Mark listeners as registered
             websocketService._storeListenersRegistered = true;
 
@@ -1304,6 +1320,7 @@ export const useKanbanStore = create()(
             websocketService.off('text_block', websocketService._storeListeners.onTextBlock);
             websocketService.off('file_changed', websocketService._storeListeners.onFileChanged);
             websocketService.off('agent_summary_update', websocketService._storeListeners.onAgentSummaryUpdate);
+            websocketService.off('system_log', websocketService._storeListeners.onSystemLog);
 
             // Clear listener references
             websocketService._storeListeners = null;
@@ -1865,6 +1882,61 @@ export const useKanbanStore = create()(
           }
         },
 
+        /**
+         * Handle system log events from WebSocket, including worktree deletion
+         */
+        handleSystemLog: (data) => {
+          console.log('[KanbanStore] Received system_log event:', data);
+
+          const { context, level, message } = data;
+
+          // Check if this is a worktree deletion event
+          if (context && context.event_type === 'worktree_deleted' && context.adw_id) {
+            const adw_id = context.adw_id;
+            console.log(`[KanbanStore] Processing worktree_deleted event for ${adw_id}`);
+
+            // Find the task associated with this ADW
+            const task = get().getTaskByAdwId(adw_id);
+
+            if (task) {
+              console.log(`[KanbanStore] Deleting task ${task.id} associated with ADW ${adw_id}`);
+
+              // Delete the task from the kanban board
+              get().deleteTask(task.id);
+
+              // Clear deletion loading state
+              set((state) => {
+                const deletingAdws = { ...state.deletingAdws };
+                delete deletingAdws[adw_id];
+                return { deletingAdws };
+              }, false, 'worktreeDeletedSuccess');
+
+              // Show success notification
+              get().addNotification('success', message || `ADW ${adw_id} deleted successfully`, 5000);
+              console.log(`✅ ${message || `ADW ${adw_id} deleted successfully`}`);
+            } else {
+              console.warn(`[KanbanStore] No task found for ADW ${adw_id}`);
+            }
+          } else if (context && context.event_type === 'worktree_delete_failed' && context.adw_id) {
+            const adw_id = context.adw_id;
+            console.error(`[KanbanStore] Worktree deletion failed for ${adw_id}: ${message}`);
+
+            // Update deletion state with error
+            set((state) => ({
+              deletingAdws: {
+                ...state.deletingAdws,
+                [adw_id]: { loading: false, error: message || 'Deletion failed' }
+              }
+            }), false, 'worktreeDeleteFailed');
+
+            // Show error notification
+            get().addNotification('error', message || `Failed to delete ADW ${adw_id}`, 7000);
+          } else {
+            // Generic system log - just log it
+            console.log(`[SystemLog] ${level}: ${message}`);
+          }
+        },
+
         // Append log entry to task
         appendWorkflowLog: (taskId, logEntry) => {
           console.log('[KanbanStore] appendWorkflowLog called for taskId:', taskId, 'logEntry:', logEntry);
@@ -2321,30 +2393,30 @@ export const useKanbanStore = create()(
          * - Kill processes on allocated ports
          * - Remove the git worktree
          * - Delete the agents/{adw_id} directory
-         * - Remove the task from the kanban board
+         * The task is only removed after receiving WebSocket confirmation.
          *
          * @param {string} adw_id - The ADW identifier to delete
-         * @returns {Promise<boolean>} True if deletion succeeded
+         * @returns {Promise<boolean>} True if deletion request succeeded
          */
         deleteWorktree: async (adw_id) => {
           try {
-            set({ isLoading: true, error: null }, false, 'deleteWorktree');
+            // Set loading state for this specific ADW
+            set((state) => ({
+              deletingAdws: {
+                ...state.deletingAdws,
+                [adw_id]: { loading: true, error: null }
+              }
+            }), false, 'deleteWorktreeStart');
 
-            // Find the task associated with this ADW
-            const task = get().getTaskByAdwId(adw_id);
+            console.log(`Starting deletion of worktree ${adw_id}`);
 
             // Call the backend API to delete the worktree
             const response = await adwService.deleteWorktree(adw_id);
 
             if (response.success) {
-              // Remove the task from the kanban board if it exists
-              if (task) {
-                get().deleteTask(task.id);
-                console.log(`Deleted task ${task.id} associated with ADW ${adw_id}`);
-              }
-
-              set({ isLoading: false }, false, 'deleteWorktreeSuccess');
-              console.log(`Successfully deleted worktree ${adw_id}`);
+              console.log(`Backend confirmed deletion request for ${adw_id}, waiting for WebSocket confirmation`);
+              // DO NOT delete the task here - wait for WebSocket confirmation
+              // The WebSocket handler will receive 'worktree_deleted' event and remove the task
               return true;
             } else {
               throw new Error(response.message || 'Deletion failed');
@@ -2352,12 +2424,76 @@ export const useKanbanStore = create()(
 
           } catch (error) {
             console.error(`Failed to delete worktree ${adw_id}:`, error);
-            set({
-              isLoading: false,
+
+            // Update error state for this specific ADW
+            set((state) => ({
+              deletingAdws: {
+                ...state.deletingAdws,
+                [adw_id]: { loading: false, error: error.message }
+              },
               error: `Failed to delete worktree: ${error.message}`
-            }, false, 'deleteWorktreeError');
+            }), false, 'deleteWorktreeError');
+
+            // Show error notification
+            get().addNotification('error', `Failed to delete worktree: ${error.message}`, 7000);
+
             return false;
           }
+        },
+
+        /**
+         * Get the deletion state for a specific ADW
+         * @param {string} adw_id - The ADW identifier
+         * @returns {{ loading: boolean, error: string | null } | null} Deletion state or null
+         */
+        getDeletionState: (adw_id) => {
+          return get().deletingAdws[adw_id] || null;
+        },
+
+        /**
+         * Add a notification to the notifications list
+         * @param {string} type - 'success', 'error', 'warning', 'info'
+         * @param {string} message - Notification message
+         * @param {number} duration - Auto-dismiss duration in ms (default: 5000, 0 for no auto-dismiss)
+         */
+        addNotification: (type, message, duration = 5000) => {
+          const id = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const notification = {
+            id,
+            type,
+            message,
+            timestamp: new Date().toISOString()
+          };
+
+          set((state) => ({
+            notifications: [...state.notifications, notification]
+          }), false, 'addNotification');
+
+          // Auto-dismiss after duration
+          if (duration > 0) {
+            setTimeout(() => {
+              get().removeNotification(id);
+            }, duration);
+          }
+
+          return id;
+        },
+
+        /**
+         * Remove a notification by ID
+         * @param {string} id - Notification ID
+         */
+        removeNotification: (id) => {
+          set((state) => ({
+            notifications: state.notifications.filter(n => n.id !== id)
+          }), false, 'removeNotification');
+        },
+
+        /**
+         * Clear all notifications
+         */
+        clearAllNotifications: () => {
+          set({ notifications: [] }, false, 'clearAllNotifications');
         },
 
         // Handle workflow completion

@@ -12,6 +12,7 @@ import CommandsPalette from './components/CommandsPalette';
 import SettingsModal from './components/forms/SettingsModal';
 import CompletedTasksModal from './components/kanban/CompletedTasksModal';
 import ErrorBoundary from './components/ui/ErrorBoundary';
+import NotificationToast from './components/common/NotificationToast';
 import { Search } from 'lucide-react';
 import './styles/kanban.css';
 
@@ -242,6 +243,9 @@ function App() {
           onClick={() => setShowDropdownMenu(false)}
         />
       )}
+
+      {/* Notification Toasts */}
+      <NotificationToast />
       </div>
     </ErrorBoundary>
   );
