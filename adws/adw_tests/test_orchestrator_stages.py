@@ -12,16 +12,14 @@ Tests cover:
 """
 
 import unittest
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import patch, MagicMock
 import sys
 import os
-import tempfile
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from orchestrator.stage_interface import StageContext, StageResult, StageStatus
-from stages.base_stage import BaseStage
 from stages.plan_stage import PlanStage
 from stages.build_stage import BuildStage
 from stages.test_stage import TestStage
@@ -152,7 +150,7 @@ class TestPlanStage(unittest.TestCase):
             status=StageStatus.COMPLETED, message="Plan complete"
         )
 
-        result = stage.execute(ctx)
+        stage.execute(ctx)
 
         mock_run_script.assert_called_once()
         args = mock_run_script.call_args[0]
@@ -201,7 +199,7 @@ class TestBuildStage(unittest.TestCase):
             status=StageStatus.COMPLETED, message="Build complete"
         )
 
-        result = stage.execute(ctx)
+        stage.execute(ctx)
 
         mock_run_script.assert_called_once()
         args = mock_run_script.call_args[0]
@@ -271,8 +269,8 @@ class TestReviewStage(unittest.TestCase):
         self.assertEqual(stage.display_name, "Reviewing")
         self.assertEqual(stage.dependencies, ["build"])
 
-    def test_should_not_skip_for_patch_by_default(self):
-        """Test that review does NOT skip for patch issues by default.
+    def test_should_not_skip_for_patch(self):
+        """Test that review runs for patch issues (never auto-skips by type).
 
         Review is NEVER auto-skipped based on issue type. This ensures
         all changes receive quality and security review.
@@ -285,8 +283,8 @@ class TestReviewStage(unittest.TestCase):
         # Review should NOT auto-skip for any issue type
         self.assertFalse(should_skip)
 
-    def test_should_not_skip_for_chore_by_default(self):
-        """Test that review does NOT skip for chore issues by default.
+    def test_should_not_skip_for_chore(self):
+        """Test that review runs for chore issues (never auto-skips by type).
 
         Review is NEVER auto-skipped based on issue type. This ensures
         all changes receive quality and security review.
@@ -353,7 +351,7 @@ class TestReviewStage(unittest.TestCase):
             status=StageStatus.COMPLETED, message="Review complete"
         )
 
-        result = stage.execute(ctx)
+        stage.execute(ctx)
 
         mock_run_script.assert_called_once()
         args = mock_run_script.call_args[0]
@@ -445,7 +443,7 @@ class TestMergeStage(unittest.TestCase):
             status=StageStatus.COMPLETED, message="Merge complete"
         )
 
-        result = stage.execute(ctx)
+        stage.execute(ctx)
 
         mock_run_script.assert_called_once()
         args = mock_run_script.call_args[0]

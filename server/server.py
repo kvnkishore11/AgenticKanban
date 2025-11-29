@@ -42,6 +42,10 @@ app.add_middleware(
         "http://localhost:5173",  # Vite dev server default
         f"http://localhost:{os.getenv('FRONTEND_PORT', '9204')}",  # Frontend port from env
         "http://localhost:3000",  # Alternative frontend port
+        "http://localhost:9205",  # Additional frontend port for testing
+        "http://localhost:9201",  # Additional frontend port
+        "http://localhost:9202",  # Additional frontend port
+        "http://localhost:9203",  # Additional frontend port
     ],
     allow_credentials=True,
     allow_methods=["*"],

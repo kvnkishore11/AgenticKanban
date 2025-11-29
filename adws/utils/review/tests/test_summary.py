@@ -1,7 +1,5 @@
 """Tests for review summary formatting module."""
 
-import pytest
-from unittest.mock import Mock
 import sys
 import os
 

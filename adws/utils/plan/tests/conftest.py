@@ -2,8 +2,7 @@
 
 import pytest
 import logging
-from unittest.mock import Mock, MagicMock
-from dataclasses import dataclass
+from unittest.mock import Mock
 
 import sys
 import os

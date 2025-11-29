@@ -54,6 +54,20 @@ from adw_modules.github import make_issue_comment
 from adw_modules.workflow_ops import format_issue_message
 
 
+# Backward compatibility wrapper for tests
+def run_tests_with_resolution(adw_id, issue_number, logger, worktree_path, max_attempts=3):
+    """Backward compatibility wrapper for old tests.
+
+    This function exists to support legacy tests. New code should use
+    run_unit_tests_with_resolution which returns a UnitTestContext.
+    """
+    test_ctx = run_unit_tests_with_resolution(
+        adw_id, issue_number, logger, worktree_path,
+        resolve_failed_tests, max_attempts
+    )
+    return test_ctx.results, test_ctx.passed_count, test_ctx.failed_count, test_ctx.response
+
+
 def main():
     """Main entry point."""
     # Load environment variables

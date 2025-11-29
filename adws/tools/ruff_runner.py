@@ -114,7 +114,7 @@ class RuffRunner(BaseToolRunner):
         column = location.get("column") or issue.get("column")
 
         # End location
-        end_location = issue.get("end_location", {})
+        issue.get("end_location", {})
 
         # Fix information
         fix = issue.get("fix")

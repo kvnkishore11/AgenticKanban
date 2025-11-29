@@ -5,7 +5,6 @@ Handles loading workflow configurations from YAML files
 and creating dynamic configurations from stage lists.
 """
 
-import os
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from pathlib import Path

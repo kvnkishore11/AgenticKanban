@@ -12,7 +12,7 @@ from adw_modules.github import make_issue_comment_safe
 from adw_modules.workflow_ops import format_issue_message
 from adw_modules.state import ADWState
 
-from .types import MergeResultContext, MergeConflictContext, MergeConfigContext, MergeTestContext
+from .types import MergeResultContext
 from .initialization import get_main_repo_root
 from .conflicts import detect_and_resolve_conflicts
 from .config import restore_config_files

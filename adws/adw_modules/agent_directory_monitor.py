@@ -90,35 +90,50 @@ class AgentDirectoryMonitor:
         self.seen_specs: Set[str] = set()  # Track already-seen specs
         self.previous_state: Optional[Dict[str, Any]] = None  # Track previous ADW state
 
-        # Agent roles to monitor
-        self.agent_roles = ["planner", "implementor", "tester", "reviewer", "documenter"]
+        # Tracked raw_output.jsonl files (discovered dynamically)
+        self.tracked_jsonl_files: Set[str] = set()
 
-        # Create event loop for async operations in thread
+        # Store the main event loop for thread-safe async calls
         self.loop = None
 
     def _run_async(self, coro):
-        """Helper to run async coroutines from sync context."""
+        """Helper to run async coroutines from sync context (thread-safe)."""
+        if self.loop is None:
+            self.logger.error("Event loop not set - cannot broadcast events")
+            return
+
         try:
-            # Try to get running loop
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If loop is running, create a task
-                asyncio.create_task(coro)
-            else:
-                # If no loop, run it
-                loop.run_until_complete(coro)
-        except Exception:
-            # If that fails, create new loop
-            try:
-                asyncio.run(coro)
-            except Exception as e2:
-                self.logger.error(f"Failed to run async operation: {e2}")
+            # Use run_coroutine_threadsafe for thread-safe async execution
+            future = asyncio.run_coroutine_threadsafe(coro, self.loop)
+            # Don't block waiting for result - fire and forget
+            # But add error logging callback
+            def log_error(fut):
+                try:
+                    fut.result(timeout=0.1)
+                except Exception as e:
+                    self.logger.error(f"Async broadcast failed: {e}")
+            future.add_done_callback(log_error)
+        except Exception as e:
+            self.logger.error(f"Failed to schedule async operation: {e}")
 
     def start_monitoring(self):
         """Start monitoring the agent directory."""
         if self.is_monitoring:
             self.logger.warning("Monitor already running")
             return
+
+        # Capture the main event loop for thread-safe async calls
+        try:
+            self.loop = asyncio.get_running_loop()
+            self.logger.info(f"Captured running event loop for thread-safe broadcasts")
+        except RuntimeError:
+            # No running loop - try to get the current event loop
+            try:
+                self.loop = asyncio.get_event_loop()
+                self.logger.info(f"Using current event loop for broadcasts")
+            except RuntimeError:
+                self.logger.warning("No event loop available - broadcasts will fail")
+                self.loop = None
 
         # Check if agent directory exists
         if not os.path.exists(self.agent_dir):
@@ -169,13 +184,11 @@ class AgentDirectoryMonitor:
                 # Monitor adw_state.json
                 self._check_state_changes()
 
-                # Tail raw_output.jsonl files
-                for role in self.agent_roles:
-                    self._tail_raw_output_jsonl(role)
+                # Discover and tail raw_output.jsonl files dynamically
+                self._discover_and_tail_jsonl_files()
 
-                # Tail execution.log files
-                for role in self.agent_roles:
-                    self._tail_execution_log(role)
+                # Discover and tail execution.log files dynamically
+                self._discover_and_tail_execution_logs()
 
                 # Check for new screenshots
                 self._check_screenshots()
@@ -244,14 +257,33 @@ class AgentDirectoryMonitor:
         except Exception as e:
             self.logger.error(f"Error broadcasting state change: {e}")
 
-    def _tail_raw_output_jsonl(self, agent_role: str):
-        """Tail raw_output.jsonl file for an agent role."""
-        jsonl_path = os.path.join(
-            self.agent_dir,
-            f"sdlc_{agent_role}",
-            "raw_output.jsonl"
-        )
+    def _discover_and_tail_jsonl_files(self):
+        """Discover and tail all raw_output.jsonl files in agent subdirectories."""
+        if not os.path.exists(self.agent_dir):
+            return
 
+        try:
+            # Scan for raw_output.jsonl files in all subdirectories
+            for subdir in os.listdir(self.agent_dir):
+                subdir_path = os.path.join(self.agent_dir, subdir)
+                if not os.path.isdir(subdir_path):
+                    continue
+
+                jsonl_path = os.path.join(subdir_path, "raw_output.jsonl")
+                if os.path.exists(jsonl_path):
+                    # Track newly discovered files
+                    if jsonl_path not in self.tracked_jsonl_files:
+                        self.tracked_jsonl_files.add(jsonl_path)
+                        self.logger.info(f"Discovered JSONL file: {jsonl_path}")
+
+                    # Tail the file
+                    self._tail_jsonl_file(jsonl_path)
+
+        except Exception as e:
+            self.logger.error(f"Error discovering JSONL files: {e}")
+
+    def _tail_jsonl_file(self, jsonl_path: str):
+        """Tail a specific raw_output.jsonl file."""
         if not os.path.exists(jsonl_path):
             return
 
@@ -290,11 +322,31 @@ class AgentDirectoryMonitor:
             return None
 
     def _broadcast_jsonl_event(self, event: dict):
-        """Broadcast a parsed JSONL event via WebSocket."""
+        """
+        Broadcast a parsed JSONL event via WebSocket.
+
+        Handles Claude Code's raw_output.jsonl format which uses nested structures:
+        - {"type": "assistant", "message": {"content": [{"type": "text", ...}, {"type": "tool_use", ...}]}}
+        - {"type": "user", "message": {"content": [{"type": "tool_result", ...}]}}
+        - {"type": "system", "subtype": "init|hook_response", ...}
+        """
         try:
+            # Ensure event is a dict, not a string or other type
+            if not isinstance(event, dict):
+                self.logger.warning(f"Skipping non-dict event: {type(event)}")
+                return
+
             event_type = event.get("type")
 
-            if event_type == "thinking_block":
+            # Handle Claude Code's nested message format
+            if event_type == "assistant":
+                self._handle_assistant_message(event)
+            elif event_type == "user":
+                self._handle_user_message(event)
+            elif event_type == "system":
+                self._handle_system_message(event)
+            # Also handle direct event types for backward compatibility
+            elif event_type == "thinking_block":
                 self._run_async(self.ws_manager.broadcast_thinking_block(
                     adw_id=self.adw_id,
                     content=event.get("content", ""),
@@ -341,48 +393,236 @@ class AgentDirectoryMonitor:
         except Exception as e:
             self.logger.error(f"Error broadcasting JSONL event: {e}")
 
-    def _tail_execution_log(self, agent_role: str):
-        """Tail execution.log file for an agent role."""
-        log_path = os.path.join(
-            self.agent_dir,
-            f"sdlc_{agent_role}",
-            "execution.log"
-        )
+    def _handle_assistant_message(self, event: dict):
+        """
+        Handle assistant message events from Claude Code.
 
-        # Also check for workflow-specific log path
-        workflow_log_path = os.path.join(
-            self.agent_dir,
-            f"adw_{agent_role}_iso",
-            "execution.log"
-        )
+        Format:
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {"type": "text", "text": "..."},
+                    {"type": "tool_use", "id": "...", "name": "...", "input": {...}},
+                    {"type": "thinking", "thinking": "..."}
+                ],
+                "model": "...",
+                "usage": {...}
+            },
+            "session_id": "...",
+            "uuid": "..."
+        }
+        """
+        message = event.get("message", {})
+        content_blocks = message.get("content", [])
+        session_id = event.get("session_id")
+        model = message.get("model")
 
-        # Try both paths
-        for path in [log_path, workflow_log_path]:
-            if not os.path.exists(path):
+        for block in content_blocks:
+            if not isinstance(block, dict):
                 continue
 
-            try:
-                # Get current file position
-                current_pos = self.file_positions.get(path, 0)
+            block_type = block.get("type")
 
-                with open(path, 'r') as f:
-                    # Seek to last known position
-                    f.seek(current_pos)
+            if block_type == "text":
+                # Text response from the agent
+                text_content = block.get("text", "")
+                if text_content:
+                    self._run_async(self.ws_manager.broadcast_text_block(
+                        adw_id=self.adw_id,
+                        content=text_content,
+                        sequence=None
+                    ))
 
-                    # Read new lines
-                    for line in f:
-                        line = line.strip()
-                        if not line:
-                            continue
+            elif block_type == "tool_use":
+                # Agent is calling a tool
+                tool_name = block.get("name", "")
+                tool_input = block.get("input", {})
+                tool_use_id = block.get("id", "")
 
-                        # Parse log line and broadcast
-                        self._broadcast_log_line(line, agent_role)
+                self._run_async(self.ws_manager.broadcast_tool_use_pre(
+                    adw_id=self.adw_id,
+                    tool_name=tool_name,
+                    tool_input=tool_input,
+                    tool_use_id=tool_use_id
+                ))
 
-                    # Update file position
-                    self.file_positions[path] = f.tell()
+            elif block_type == "thinking":
+                # Agent's thinking/reasoning block
+                thinking_content = block.get("thinking", "")
+                if thinking_content:
+                    self._run_async(self.ws_manager.broadcast_thinking_block(
+                        adw_id=self.adw_id,
+                        content=thinking_content,
+                        reasoning_type="thinking",
+                        duration_ms=None,
+                        sequence=None
+                    ))
 
-            except Exception as e:
-                self.logger.error(f"Error tailing {path}: {e}")
+    def _handle_user_message(self, event: dict):
+        """
+        Handle user message events from Claude Code (typically tool results).
+
+        Format:
+        {
+            "type": "user",
+            "message": {
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "...", "content": "..."}
+                ]
+            },
+            "session_id": "...",
+            "uuid": "...",
+            "tool_use_result": {...}
+        }
+        """
+        message = event.get("message", {})
+        content_blocks = message.get("content", [])
+        tool_use_result = event.get("tool_use_result", {})
+
+        for block in content_blocks:
+            if not isinstance(block, dict):
+                continue
+
+            block_type = block.get("type")
+
+            if block_type == "tool_result":
+                # Tool has completed execution
+                tool_use_id = block.get("tool_use_id", "")
+                result_content = block.get("content", "")
+
+                # Try to get tool name from tool_use_result if available
+                tool_name = ""
+                if tool_use_result and isinstance(tool_use_result, dict):
+                    tool_name = tool_use_result.get("type", "")
+
+                # Truncate result content if very long (for UI display)
+                # Handle case where content is a list (convert to string)
+                if isinstance(result_content, list):
+                    result_content = json.dumps(result_content)
+                elif not isinstance(result_content, str):
+                    result_content = str(result_content)
+
+                output_preview = result_content
+                if len(result_content) > 2000:
+                    output_preview = result_content[:2000] + "... [truncated]"
+
+                self._run_async(self.ws_manager.broadcast_tool_use_post(
+                    adw_id=self.adw_id,
+                    tool_name=tool_name,
+                    tool_output=output_preview,
+                    status="success",
+                    error=None,
+                    tool_use_id=tool_use_id,
+                    duration_ms=None
+                ))
+
+    def _handle_system_message(self, event: dict):
+        """
+        Handle system message events from Claude Code.
+
+        Format:
+        {
+            "type": "system",
+            "subtype": "init" | "hook_response" | "error",
+            "session_id": "...",
+            ...
+        }
+        """
+        subtype = event.get("subtype", "")
+        session_id = event.get("session_id", "")
+
+        if subtype == "init":
+            # Session initialization - broadcast as agent log
+            model = event.get("model", "unknown")
+            tools = event.get("tools", [])
+            tool_count = len(tools) if isinstance(tools, list) else 0
+
+            self._run_async(self.ws_manager.broadcast_agent_log({
+                "adw_id": self.adw_id,
+                "message": f"Agent session initialized (model: {model}, tools: {tool_count})",
+                "level": "INFO",
+                "source": "raw_output.jsonl",
+                "session_id": session_id
+            }))
+
+        elif subtype == "hook_response":
+            # Hook response - usually startup hooks
+            hook_name = event.get("hook_name", "")
+            exit_code = event.get("exit_code", 0)
+            stderr = event.get("stderr", "")
+
+            level = "ERROR" if exit_code != 0 or stderr else "INFO"
+            message = f"Hook '{hook_name}' executed"
+            if stderr:
+                message += f": {stderr[:200]}"
+
+            self._run_async(self.ws_manager.broadcast_agent_log({
+                "adw_id": self.adw_id,
+                "message": message,
+                "level": level,
+                "source": "raw_output.jsonl",
+                "session_id": session_id
+            }))
+
+        elif subtype == "error":
+            # Error event
+            error_msg = event.get("message", event.get("error", "Unknown error"))
+
+            self._run_async(self.ws_manager.broadcast_agent_log({
+                "adw_id": self.adw_id,
+                "message": f"Agent error: {error_msg}",
+                "level": "ERROR",
+                "source": "raw_output.jsonl",
+                "session_id": session_id
+            }))
+
+    def _discover_and_tail_execution_logs(self):
+        """Discover and tail all execution.log files in agent subdirectories."""
+        if not os.path.exists(self.agent_dir):
+            return
+
+        try:
+            # Scan for execution.log files in all subdirectories
+            for subdir in os.listdir(self.agent_dir):
+                subdir_path = os.path.join(self.agent_dir, subdir)
+                if not os.path.isdir(subdir_path):
+                    continue
+
+                log_path = os.path.join(subdir_path, "execution.log")
+                if os.path.exists(log_path):
+                    self._tail_execution_log_file(log_path, subdir)
+
+        except Exception as e:
+            self.logger.error(f"Error discovering execution logs: {e}")
+
+    def _tail_execution_log_file(self, log_path: str, agent_role: str):
+        """Tail a specific execution.log file."""
+        if not os.path.exists(log_path):
+            return
+
+        try:
+            # Get current file position
+            current_pos = self.file_positions.get(log_path, 0)
+
+            with open(log_path, 'r') as f:
+                # Seek to last known position
+                f.seek(current_pos)
+
+                # Read new lines
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    # Parse log line and broadcast
+                    self._broadcast_log_line(line, agent_role)
+
+                # Update file position
+                self.file_positions[log_path] = f.tell()
+
+        except Exception as e:
+            self.logger.error(f"Error tailing {log_path}: {e}")
 
     def _broadcast_log_line(self, line: str, agent_role: str):
         """Broadcast a log line via WebSocket."""
@@ -408,32 +648,36 @@ class AgentDirectoryMonitor:
             self.logger.error(f"Error broadcasting log line: {e}")
 
     def _check_screenshots(self):
-        """Check for new screenshots in review_img directory."""
-        screenshots_dir = os.path.join(
-            self.agent_dir,
-            "sdlc_reviewer",
-            "review_img"
-        )
-
-        if not os.path.exists(screenshots_dir):
+        """Check for new screenshots in any review_img directories."""
+        if not os.path.exists(self.agent_dir):
             return
 
         try:
-            # Find all image files
-            for ext in [".png", ".jpg", ".jpeg", ".gif"]:
-                for screenshot_path in Path(screenshots_dir).glob(f"*{ext}"):
-                    screenshot_str = str(screenshot_path)
+            # Search for review_img directories in all agent subdirectories
+            for subdir in os.listdir(self.agent_dir):
+                subdir_path = os.path.join(self.agent_dir, subdir)
+                if not os.path.isdir(subdir_path):
+                    continue
 
-                    # Check if we've already seen this screenshot
-                    if screenshot_str in self.seen_screenshots:
-                        continue
+                screenshots_dir = os.path.join(subdir_path, "review_img")
+                if not os.path.exists(screenshots_dir):
+                    continue
 
-                    # New screenshot found
-                    self.seen_screenshots.add(screenshot_str)
-                    self.logger.info(f"New screenshot detected: {screenshot_path.name}")
+                # Find all image files
+                for ext in [".png", ".jpg", ".jpeg", ".gif"]:
+                    for screenshot_path in Path(screenshots_dir).glob(f"*{ext}"):
+                        screenshot_str = str(screenshot_path)
 
-                    # Broadcast screenshot available event
-                    self._broadcast_screenshot(screenshot_str)
+                        # Check if we've already seen this screenshot
+                        if screenshot_str in self.seen_screenshots:
+                            continue
+
+                        # New screenshot found
+                        self.seen_screenshots.add(screenshot_str)
+                        self.logger.info(f"New screenshot detected: {screenshot_path.name}")
+
+                        # Broadcast screenshot available event
+                        self._broadcast_screenshot(screenshot_str)
 
         except Exception as e:
             self.logger.error(f"Error checking screenshots: {e}")

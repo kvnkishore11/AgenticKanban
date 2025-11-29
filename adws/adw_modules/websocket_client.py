@@ -28,6 +28,10 @@ Usage:
 import os
 import requests
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from orchestrator.events import StageEventPayload
 from typing import Optional, Literal
 import logging
 

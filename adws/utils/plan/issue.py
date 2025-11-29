@@ -2,9 +2,20 @@
 
 import sys
 import os
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 import json
 import logging
 from datetime import datetime
+
+from adw_modules.state import ADWState
+from adw_modules.websocket_client import WebSocketNotifier
+from adw_modules.github import fetch_issue_safe, make_issue_comment_safe
+from adw_modules.workflow_ops import classify_issue, format_issue_message
+
+from .types import IssueContext
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -13,15 +24,6 @@ class DateTimeEncoder(json.JSONEncoder):
         if isinstance(obj, datetime):
             return obj.isoformat()
         return super().default(obj)
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
-from adw_modules.state import ADWState
-from adw_modules.websocket_client import WebSocketNotifier
-from adw_modules.github import fetch_issue_safe, make_issue_comment_safe
-from adw_modules.workflow_ops import classify_issue, format_issue_message
-
-from .types import IssueContext
 
 
 def fetch_and_classify(

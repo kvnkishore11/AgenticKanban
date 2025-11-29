@@ -46,6 +46,7 @@ from adw_modules import worktree_ops
 from adw_modules.websocket_client import WebSocketNotifier
 from adw_modules.websocket_manager import get_websocket_manager
 from adw_modules.agent_directory_monitor import AgentDirectoryMonitor
+from adw_modules.agent_log_streamer import get_agent_log_streamer
 from adw_triggers.websocket_models import (
     WorkflowTriggerRequest,
     WorkflowTriggerResponse,
@@ -114,6 +115,10 @@ app.add_middleware(
         "http://localhost:5173",  # Vite dev server default
         f"http://localhost:{os.getenv('FRONTEND_PORT', '9202')}",  # Frontend port from env
         "http://localhost:3000",  # Alternative frontend port
+        "http://localhost:9201",  # Additional frontend port for testing
+        "http://localhost:9203",  # Additional frontend port for testing
+        "http://localhost:9204",  # Additional frontend port for testing
+        "http://localhost:9205",  # Additional frontend port for testing
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -144,6 +149,55 @@ def get_agents_directory() -> Path:
         agents_dir = current_root / "agents"
 
     return agents_dir
+
+
+def find_adw_directory(adw_id: str) -> Optional[Path]:
+    """
+    Find the ADW directory for a given ADW ID.
+    Searches in multiple locations:
+    1. Main project agents directory
+    2. Current worktree's agents directory
+    3. All worktrees' agents directories
+    """
+    current_file = Path(__file__).resolve()
+    current_root = current_file.parent.parent.parent
+    path_parts = current_root.parts
+
+    search_dirs = []
+
+    if 'trees' in path_parts:
+        trees_index = path_parts.index('trees')
+        main_project_root = Path(*path_parts[:trees_index])
+        # Add main project agents
+        search_dirs.append(main_project_root / "agents")
+        # Add current worktree agents
+        search_dirs.append(current_root / "agents")
+        # Add all worktrees' agents directories
+        trees_dir = main_project_root / "trees"
+        if trees_dir.exists():
+            for worktree in trees_dir.iterdir():
+                if worktree.is_dir():
+                    worktree_agents = worktree / "agents"
+                    if worktree_agents not in search_dirs:
+                        search_dirs.append(worktree_agents)
+    else:
+        # Not in a worktree, just use current project
+        search_dirs.append(current_root / "agents")
+        # Also check trees dir if it exists
+        trees_dir = current_root / "trees"
+        if trees_dir.exists():
+            for worktree in trees_dir.iterdir():
+                if worktree.is_dir():
+                    search_dirs.append(worktree / "agents")
+
+    # Search for the ADW directory in all locations
+    for agents_dir in search_dirs:
+        if agents_dir.exists():
+            adw_dir = agents_dir / adw_id
+            if adw_dir.exists():
+                return adw_dir
+
+    return None
 
 
 def get_specs_directory() -> Path:
@@ -807,7 +861,7 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
 
 def start_agent_directory_monitoring(adw_id: str) -> Optional[AgentDirectoryMonitor]:
     """
-    Start monitoring agent directory for real-time changes.
+    Start monitoring agent directory for real-time changes using AgentLogStreamer.
 
     Args:
         adw_id: ADW ID to monitor
@@ -823,18 +877,24 @@ def start_agent_directory_monitoring(adw_id: str) -> Optional[AgentDirectoryMoni
         return active_monitors[adw_id]
 
     try:
-        # Get WebSocket manager
+        # Get WebSocket manager and agent log streamer
         ws_manager = get_websocket_manager()
+        streamer = get_agent_log_streamer()
 
-        # Create and start monitor
-        monitor = AgentDirectoryMonitor(adw_id=adw_id, websocket_manager=ws_manager)
-        monitor.start_monitoring()
+        # Start monitoring via streamer
+        success = streamer.start_monitoring(adw_id=adw_id, websocket_manager=ws_manager)
 
-        # Track monitor
-        active_monitors[adw_id] = monitor
-        print(f"Started directory monitoring for ADW {adw_id}")
-
-        return monitor
+        if success:
+            # Get the monitor instance from streamer's internal registry for backward compatibility
+            # (The monitor is stored in streamer._monitors[adw_id])
+            monitor = streamer._monitors.get(adw_id)
+            if monitor:
+                active_monitors[adw_id] = monitor
+            print(f"Started directory monitoring for ADW {adw_id}")
+            return monitor
+        else:
+            print(f"Failed to start monitoring for {adw_id}")
+            return None
 
     except Exception as e:
         print(f"Failed to start directory monitoring for {adw_id}: {e}")
@@ -843,21 +903,28 @@ def start_agent_directory_monitoring(adw_id: str) -> Optional[AgentDirectoryMoni
 
 def cleanup_monitor(adw_id: str):
     """
-    Stop and cleanup monitor for a specific ADW ID.
+    Stop and cleanup monitor for a specific ADW ID using AgentLogStreamer.
 
     Args:
         adw_id: ADW ID to cleanup
     """
     global active_monitors
 
-    if adw_id in active_monitors:
-        try:
-            monitor = active_monitors[adw_id]
-            monitor.stop_monitoring()
+    try:
+        # Use streamer to stop monitoring
+        streamer = get_agent_log_streamer()
+        success = streamer.stop_monitoring(adw_id)
+
+        # Also clean up local registry for backward compatibility
+        if adw_id in active_monitors:
             del active_monitors[adw_id]
+
+        if success:
             print(f"Cleaned up directory monitor for ADW {adw_id}")
-        except Exception as e:
-            print(f"Error cleaning up monitor for {adw_id}: {e}")
+        else:
+            print(f"Monitor for {adw_id} was not active")
+    except Exception as e:
+        print(f"Error cleaning up monitor for {adw_id}: {e}")
 
 
 async def send_status_update(
@@ -2038,6 +2105,370 @@ async def get_adw_plan(adw_id: str):
             content={"error": f"Failed to retrieve plan: {str(e)}"},
             status_code=500
         )
+
+
+# Stage to ISO folder mapping for execution.log
+STAGE_TO_ISO_FOLDER = {
+    "plan": "adw_plan_iso",
+    "build": "adw_build_iso",
+    "test": "adw_test_iso",
+    "review": "adw_review_iso",
+    "document": "adw_document_iso",
+}
+
+# Stage name to folder name mapping for stage logs
+STAGE_TO_FOLDERS = {
+    "plan": ["sdlc_planner", "adw_plan_iso", "planner"],
+    "build": ["sdlc_implementor", "adw_build_iso", "implementor", "sdlc_implementor_committer"],
+    "test": ["tester", "adw_test_iso"],
+    "review": ["reviewer", "adw_review_iso"],
+    "document": ["documenter", "adw_document_iso", "ops"],
+}
+
+
+def find_stage_folder(adw_dir: Path, stage: str):
+    """Find the folder for a given stage in the ADW directory."""
+    possible_folders = STAGE_TO_FOLDERS.get(stage.lower(), [])
+    for folder_name in possible_folders:
+        folder_path = adw_dir / folder_name
+        if folder_path.exists() and folder_path.is_dir():
+            return folder_path
+
+    # Pattern-based folders for test and review stages
+    if stage.lower() == "test":
+        for item in adw_dir.iterdir():
+            if item.is_dir() and (item.name.startswith("e2e_test_runner_") or item.name.startswith("test_resolver_")):
+                return item
+
+    if stage.lower() == "review":
+        for item in adw_dir.iterdir():
+            if item.is_dir() and item.name.startswith("in_loop_review_"):
+                return item
+
+    return None
+
+
+import re
+
+def parse_execution_log(log_file: Path):
+    """Parse execution.log file and extract log entries."""
+    logs = []
+    log_pattern = re.compile(
+        r'^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+-\s+(\w+)\s+-\s+(.*)$'
+    )
+
+    try:
+        with open(log_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.rstrip('\n')
+                if not line:
+                    continue
+
+                match = log_pattern.match(line)
+                if match:
+                    timestamp, level, message = match.groups()
+                    logs.append({
+                        "timestamp": timestamp,
+                        "level": level.upper(),
+                        "message": message,
+                        "raw_line": line
+                    })
+                else:
+                    logs.append({
+                        "message": line,
+                        "level": "INFO",
+                        "raw_line": line
+                    })
+    except Exception as e:
+        logger.error(f"Error reading execution log file {log_file}: {e}")
+        raise
+
+    return logs
+
+
+def parse_jsonl_logs(jsonl_file: Path):
+    """Parse JSONL file and extract log entries.
+
+    This function parses raw_output.jsonl files from Claude Code agent output.
+    It extracts entry types and derives subtypes from content blocks to enable
+    proper filtering in the frontend (thinking, tool_use, text, etc.).
+    """
+    logs = []
+
+    try:
+        with open(jsonl_file, 'r', encoding='utf-8') as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    data = json.loads(line)
+                    entry_type = data.get('type')
+                    subtype = data.get('subtype')
+                    message = data.get('message', '')
+                    tool_name = None
+                    tool_input = None
+
+                    # For assistant entries, derive subtype from content blocks
+                    # This is crucial for proper filtering (thinking, tool_use, text)
+                    if isinstance(message, dict):
+                        msg_content = message.get('content', [])
+                        if isinstance(msg_content, list):
+                            text_parts = []
+                            derived_subtypes = []
+                            for block in msg_content:
+                                if isinstance(block, dict):
+                                    block_type = block.get('type')
+                                    if block_type == 'text':
+                                        text_parts.append(block.get('text', ''))
+                                        derived_subtypes.append('text')
+                                    elif block_type == 'tool_use':
+                                        tool_name = block.get('name', 'unknown')
+                                        tool_input = block.get('input')
+                                        text_parts.append(f"[Tool: {tool_name}]")
+                                        derived_subtypes.append('tool_use')
+                                    elif block_type == 'thinking':
+                                        text_parts.append(block.get('thinking', ''))
+                                        derived_subtypes.append('thinking')
+                                    elif block_type == 'tool_result':
+                                        text_parts.append(str(block.get('content', '')))
+                                        derived_subtypes.append('tool_result')
+
+                            message = ' '.join(text_parts) if text_parts else ''
+
+                            # Set subtype based on derived content types if not already set
+                            # Priority: thinking > tool_use > tool_result > text
+                            if not subtype and derived_subtypes:
+                                if 'thinking' in derived_subtypes:
+                                    subtype = 'thinking'
+                                elif 'tool_use' in derived_subtypes:
+                                    subtype = 'tool_use'
+                                elif 'tool_result' in derived_subtypes:
+                                    subtype = 'tool_result'
+                                elif 'text' in derived_subtypes:
+                                    subtype = 'text'
+                        else:
+                            message = ''
+
+                    if not message and 'content' in data:
+                        content = data['content']
+                        if isinstance(content, str):
+                            message = content
+
+                    if not message:
+                        if 'result' in data:
+                            message = str(data.get('result'))
+                        elif entry_type:
+                            message = f"[{entry_type}]" + (f" - {subtype}" if subtype else "")
+
+                    level = data.get('level', 'INFO')
+                    if subtype == 'error' or data.get('is_error'):
+                        level = 'ERROR'
+                    elif entry_type == 'result':
+                        level = 'SUCCESS' if subtype == 'success' else 'ERROR'
+
+                    log_entry = {
+                        "timestamp": data.get('timestamp'),
+                        "level": level,
+                        "message": message,
+                        "entry_type": entry_type,
+                        "subtype": subtype,
+                        "raw_data": data
+                    }
+
+                    # Add tool info if available
+                    if tool_name:
+                        log_entry["tool_name"] = tool_name
+                    if tool_input:
+                        log_entry["tool_input"] = tool_input
+
+                    logs.append(log_entry)
+
+                except json.JSONDecodeError as e:
+                    logs.append({
+                        "message": line,
+                        "level": "INFO",
+                        "raw_data": {"parse_error": str(e), "raw_line": line}
+                    })
+
+    except Exception as e:
+        logger.error(f"Error reading JSONL file {jsonl_file}: {e}")
+        raise
+
+    return logs
+
+
+def parse_result_json(json_file: Path):
+    """Parse the final result JSON file."""
+    try:
+        with open(json_file, 'r', encoding='utf-8') as f:
+            result_data = json.load(f)
+        return result_data
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse JSON file {json_file}: {e}")
+        return {"error": f"Failed to parse JSON: {e}"}
+    except Exception as e:
+        logger.error(f"Error reading JSON file {json_file}: {e}")
+        return None
+
+
+@app.get("/api/execution-logs/{adw_id}/{stage}")
+async def get_execution_logs(adw_id: str, stage: str):
+    """Get execution.log content for a specific stage."""
+    # Validate adw_id format (should be 8 characters)
+    if not adw_id or len(adw_id) != 8:
+        return JSONResponse(
+            content={"error": f"Invalid ADW ID format: {adw_id}. Expected 8-character identifier."},
+            status_code=400
+        )
+
+    # Validate stage name
+    valid_stages = list(STAGE_TO_ISO_FOLDER.keys())
+    if stage.lower() not in valid_stages:
+        return JSONResponse(
+            content={"error": f"Invalid stage: {stage}. Must be one of {valid_stages}"},
+            status_code=400
+        )
+
+    # Find ADW directory (searches multiple locations including worktrees)
+    adw_dir = find_adw_directory(adw_id)
+    if not adw_dir:
+        return JSONResponse(
+            content={"error": f"ADW directory not found: {adw_id}"},
+            status_code=404
+        )
+
+    # Get the ISO folder for this stage
+    iso_folder_name = STAGE_TO_ISO_FOLDER.get(stage.lower())
+    if not iso_folder_name:
+        return JSONResponse(content={
+            "adw_id": adw_id,
+            "stage": stage,
+            "logs": [],
+            "stage_folder": None,
+            "has_logs": False,
+            "error": f"No ISO folder mapping for stage: {stage}"
+        })
+
+    iso_folder = adw_dir / iso_folder_name
+    if not iso_folder.exists():
+        return JSONResponse(content={
+            "adw_id": adw_id,
+            "stage": stage,
+            "logs": [],
+            "stage_folder": iso_folder_name,
+            "has_logs": False,
+            "error": f"ISO folder not found: {iso_folder_name}"
+        })
+
+    # Read execution.log
+    log_file = iso_folder / "execution.log"
+    if not log_file.exists():
+        return JSONResponse(content={
+            "adw_id": adw_id,
+            "stage": stage,
+            "logs": [],
+            "stage_folder": iso_folder_name,
+            "has_logs": False,
+            "error": f"Execution log not found in {iso_folder_name}"
+        })
+
+    try:
+        logs = parse_execution_log(log_file)
+        logger.info(f"Parsed {len(logs)} execution log entries from {log_file}")
+        return JSONResponse(content={
+            "adw_id": adw_id,
+            "stage": stage,
+            "logs": logs,
+            "stage_folder": iso_folder_name,
+            "has_logs": True,
+            "error": None
+        })
+    except Exception as e:
+        logger.error(f"Failed to parse execution logs: {e}")
+        return JSONResponse(content={
+            "adw_id": adw_id,
+            "stage": stage,
+            "logs": [],
+            "stage_folder": iso_folder_name,
+            "has_logs": False,
+            "error": f"Failed to parse execution log: {e}"
+        })
+
+
+@app.get("/api/stage-logs/{adw_id}/{stage}")
+async def get_stage_logs(adw_id: str, stage: str):
+    """Get stage-specific logs for an ADW workflow."""
+    # Validate adw_id format (should be 8 characters)
+    if not adw_id or len(adw_id) != 8:
+        return JSONResponse(
+            content={"error": f"Invalid ADW ID format: {adw_id}. Expected 8-character identifier."},
+            status_code=400
+        )
+
+    # Validate stage name
+    valid_stages = list(STAGE_TO_FOLDERS.keys())
+    if stage.lower() not in valid_stages:
+        return JSONResponse(
+            content={"error": f"Invalid stage: {stage}. Must be one of {valid_stages}"},
+            status_code=400
+        )
+
+    # Find ADW directory (searches multiple locations including worktrees)
+    adw_dir = find_adw_directory(adw_id)
+    if not adw_dir:
+        return JSONResponse(
+            content={"error": f"ADW directory not found: {adw_id}"},
+            status_code=404
+        )
+
+    # Find stage folder
+    stage_folder = find_stage_folder(adw_dir, stage)
+    if not stage_folder:
+        return JSONResponse(content={
+            "adw_id": adw_id,
+            "stage": stage,
+            "logs": [],
+            "result": None,
+            "stage_folder": None,
+            "has_streaming_logs": False,
+            "has_result": False,
+            "error": f"Stage '{stage}' not found or not executed yet"
+        })
+
+    # Read streaming logs (raw_output.jsonl)
+    jsonl_file = stage_folder / "raw_output.jsonl"
+    logs = []
+    has_streaming_logs = False
+
+    if jsonl_file.exists():
+        try:
+            logs = parse_jsonl_logs(jsonl_file)
+            has_streaming_logs = True
+            logger.info(f"Parsed {len(logs)} log entries from {jsonl_file}")
+        except Exception as e:
+            logger.error(f"Failed to parse JSONL logs: {e}")
+
+    # Read final result (raw_output.json)
+    json_file = stage_folder / "raw_output.json"
+    result = None
+    has_result = False
+
+    if json_file.exists():
+        result = parse_result_json(json_file)
+        has_result = result is not None
+
+    return JSONResponse(content={
+        "adw_id": adw_id,
+        "stage": stage,
+        "logs": logs,
+        "result": result,
+        "stage_folder": stage_folder.name,
+        "has_streaming_logs": has_streaming_logs,
+        "has_result": has_result,
+        "error": None
+    })
 
 
 def signal_handler(signum, frame):

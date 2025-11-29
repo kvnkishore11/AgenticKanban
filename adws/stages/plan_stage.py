@@ -5,7 +5,7 @@ This is the entry-point stage that sets up the isolated environment.
 """
 
 from stages.base_stage import BaseStage
-from orchestrator.stage_interface import StageContext, StageResult, StageStatus
+from orchestrator.stage_interface import StageContext, StageResult
 
 
 class PlanStage(BaseStage):

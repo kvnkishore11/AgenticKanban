@@ -1,7 +1,6 @@
 """Tests for test discovery module."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import os
 import sys
 
@@ -116,7 +115,7 @@ class TestEnsureAdwTestDirs:
         """Should create all test directories."""
         from utils.test.discovery import ensure_adw_test_dirs
 
-        paths = ensure_adw_test_dirs("test1234", "/base")
+        ensure_adw_test_dirs("test1234", "/base")
 
         assert mock_makedirs.call_count == 3
         mock_makedirs.assert_any_call("/base/agents/test1234/tests/unit_test/backend", exist_ok=True)

@@ -1,7 +1,7 @@
 """Tests for patch implementation module."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import sys
 import os
 

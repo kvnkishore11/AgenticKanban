@@ -2,7 +2,7 @@
 
 import pytest
 import logging
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 import sys
 import os

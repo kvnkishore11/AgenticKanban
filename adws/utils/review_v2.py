@@ -24,7 +24,6 @@ from stages.review_modes import (
     ReviewFinding,
     IssueSeverity,
     resolve_modes,
-    get_modes_for_comprehensive,
 )
 from schemas.review_config import ReviewConfig, ReviewToolConfig
 from tools.bearer_runner import BearerRunner

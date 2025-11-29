@@ -1,6 +1,5 @@
 """Tests for E2E test execution module."""
 
-import pytest
 from unittest.mock import Mock, patch
 
 import sys

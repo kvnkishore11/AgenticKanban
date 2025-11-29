@@ -1,6 +1,5 @@
 """Tests for document workflow change detection."""
 
-import pytest
 import subprocess
 from unittest.mock import Mock, patch
 

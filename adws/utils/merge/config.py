@@ -4,7 +4,7 @@ import json
 import subprocess
 import os
 import logging
-from typing import Tuple, Optional, List
+from typing import List
 
 from .types import MergeConfigContext
 

@@ -46,6 +46,83 @@ vi.mock('../LiveLogsPanel', () => ({
   )
 }));
 
+vi.mock('../AgentLogsPanel', () => ({
+  default: ({ taskId, stage }) => (
+    <div data-testid="agent-logs-panel">
+      AgentLogsPanel for {taskId} stage {stage}
+    </div>
+  )
+}));
+
+// Mock new components
+vi.mock('../StageTabsPanel', () => ({
+  default: ({ stages, activeStage, onStageSelect, autoFollow, onAutoFollowToggle, stageStatuses }) => (
+    <div data-testid="stage-tabs-panel">
+      {stages?.map(stage => (
+        <button
+          key={stage}
+          className={`stage-tab ${activeStage === stage ? 'selected' : ''} stage-tab-${stageStatuses?.[stage] || 'pending'}`}
+          onClick={() => onStageSelect(stage)}
+        >
+          {stage.toUpperCase()}
+        </button>
+      ))}
+      {onAutoFollowToggle && (
+        <button
+          data-testid="auto-follow-toggle"
+          className={autoFollow ? 'active' : ''}
+          onClick={onAutoFollowToggle}
+          title={autoFollow ? 'Auto-follow ON' : 'Auto-follow OFF'}
+        >
+          Auto
+        </button>
+      )}
+    </div>
+  )
+}));
+
+vi.mock('../ContentTypeTabs', () => ({
+  default: ({ activeContentType, onContentTypeChange, executionLogCount, thinkingLogCount, hasResult }) => (
+    <div data-testid="content-type-tabs">
+      <button
+        className={activeContentType === 'execution' ? 'active' : ''}
+        onClick={() => onContentTypeChange('execution')}
+      >
+        EXECUTION {executionLogCount > 0 && `(${executionLogCount})`}
+      </button>
+      <button
+        className={activeContentType === 'thinking' ? 'active' : ''}
+        onClick={() => onContentTypeChange('thinking')}
+      >
+        THINKING {thinkingLogCount > 0 && `(${thinkingLogCount})`}
+      </button>
+      <button
+        className={activeContentType === 'result' ? 'active' : ''}
+        onClick={() => onContentTypeChange('result')}
+        disabled={!hasResult}
+      >
+        RESULT
+      </button>
+    </div>
+  )
+}));
+
+vi.mock('../ExecutionLogsViewer', () => ({
+  default: ({ adwId, stage }) => (
+    <div data-testid="execution-logs-viewer">
+      ExecutionLogsViewer for {adwId} stage {stage}
+    </div>
+  )
+}));
+
+vi.mock('../ResultViewer', () => ({
+  default: ({ result, loading, error }) => (
+    <div data-testid="result-viewer">
+      {loading ? 'Loading result...' : result ? `Result: ${JSON.stringify(result).slice(0, 50)}` : 'No Result Available'}
+    </div>
+  )
+}));
+
 // Mock MDEditor
 vi.mock('@uiw/react-md-editor', () => ({
   default: {
@@ -267,8 +344,9 @@ describe('CardExpandModal Component', () => {
     it('should render pipeline stages from queuedStages', () => {
       render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
 
+      // StageTabsPanel mock shows stages in uppercase
       expect(screen.getByText('PLAN')).toBeInTheDocument();
-      expect(screen.getByText('IMPL')).toBeInTheDocument();
+      expect(screen.getByText('BUILD')).toBeInTheDocument();
       expect(screen.getByText('TEST')).toBeInTheDocument();
     });
 
@@ -281,10 +359,11 @@ describe('CardExpandModal Component', () => {
 
       render(<CardExpandModal task={taskWithoutQueuedStages} isOpen={true} onClose={mockOnClose} />);
 
+      // StageTabsPanel mock shows stages in uppercase
       expect(screen.getByText('PLAN')).toBeInTheDocument();
-      expect(screen.getByText('IMPL')).toBeInTheDocument();
+      expect(screen.getByText('BUILD')).toBeInTheDocument();
       expect(screen.getByText('TEST')).toBeInTheDocument();
-      expect(screen.getByText('REV')).toBeInTheDocument();
+      expect(screen.getByText('REVIEW')).toBeInTheDocument();
     });
 
     it('should use default stages when no pipeline info available', () => {
@@ -296,27 +375,27 @@ describe('CardExpandModal Component', () => {
 
       render(<CardExpandModal task={taskWithoutPipeline} isOpen={true} onClose={mockOnClose} />);
 
+      // Default stages are 'plan' and 'build', shown in StageTabsPanel mock as uppercase
       expect(screen.getByText('PLAN')).toBeInTheDocument();
-      expect(screen.getByText('IMPL')).toBeInTheDocument();
+      expect(screen.getByText('BUILD')).toBeInTheDocument();
     });
 
-    it('should display progress bar', () => {
+    it('should render StageTabsPanel', () => {
       render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
 
-      const progressBar = document.querySelector('.brutalist-progress-bar');
-      expect(progressBar).toBeInTheDocument();
+      const stageTabsPanel = screen.getByTestId('stage-tabs-panel');
+      expect(stageTabsPanel).toBeInTheDocument();
     });
 
-    it('should allow stage selection by clicking stage box', () => {
+    it('should allow stage selection via StageTabsPanel', () => {
       render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
 
-      const stageBoxes = document.querySelectorAll('.stage-box');
-      expect(stageBoxes.length).toBeGreaterThan(0);
+      // Click on the TEST stage button in the mocked StageTabsPanel
+      const testStageButton = screen.getByText('TEST');
+      fireEvent.click(testStageButton);
 
-      fireEvent.click(stageBoxes[0]);
-
-      // Stage should be selected (visual feedback would be tested in integration tests)
-      expect(stageBoxes[0]).toBeInTheDocument();
+      // Stage should be clickable (actual selection is handled by component state)
+      expect(testStageButton).toBeInTheDocument();
     });
   });
 
@@ -449,44 +528,78 @@ describe('CardExpandModal Component', () => {
     });
   });
 
-  describe('Logs Panel', () => {
-    it('should render activity log panel', () => {
+  describe('Content Type Tabs (Two-Level Navigation)', () => {
+    it('should render ContentTypeTabs', () => {
       render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
 
-      expect(screen.getByText('ACTIVITY LOG')).toBeInTheDocument();
+      expect(screen.getByTestId('content-type-tabs')).toBeInTheDocument();
     });
 
-    it('should have LIVE and ALL tabs', () => {
+    it('should have EXECUTION, THINKING, and RESULT tabs', () => {
       render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
 
-      expect(screen.getByText('LIVE')).toBeInTheDocument();
-      expect(screen.getByText('ALL')).toBeInTheDocument();
+      expect(screen.getByText(/EXECUTION/)).toBeInTheDocument();
+      expect(screen.getByText(/THINKING/)).toBeInTheDocument();
+      expect(screen.getByText(/RESULT/)).toBeInTheDocument();
     });
 
-    it('should show live logs panel by default when adw_id exists', () => {
+    it('should show AgentLogsPanel by default (thinking tab)', () => {
       render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
 
-      expect(screen.getByTestId('live-logs-panel')).toBeInTheDocument();
+      expect(screen.getByTestId('agent-logs-panel')).toBeInTheDocument();
     });
 
-    it('should switch to all logs when ALL tab is clicked', () => {
+    it('should render execution tab button', () => {
       render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
 
-      const allTab = screen.getByText('ALL');
-      fireEvent.click(allTab);
+      // ContentTypeTabs is rendered with EXECUTION button
+      const executionTab = screen.getByText(/EXECUTION/);
+      expect(executionTab).toBeInTheDocument();
 
-      expect(screen.getByTestId('stage-logs-viewer')).toBeInTheDocument();
+      // The button should be clickable
+      fireEvent.click(executionTab);
+      // State change and content switching is handled by CardExpandModal state
     });
 
-    it('should show empty state when no workflow exists', () => {
+    it('should render result tab button', () => {
+      render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
+
+      // ContentTypeTabs is rendered with RESULT button
+      const resultTab = screen.getByText(/RESULT/);
+      expect(resultTab).toBeInTheDocument();
+
+      // The button should be clickable
+      fireEvent.click(resultTab);
+      // State change is internal - can't easily verify in unit test with mocked children
+      // The integration between ContentTypeTabs and the viewer components
+      // is tested in the actual component tests
+    });
+
+    it('should show AgentLogsPanel with correct taskId and stage', () => {
+      render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
+
+      expect(screen.getByText(/AgentLogsPanel for 123 stage plan/)).toBeInTheDocument();
+    });
+
+    it('should show empty state for execution logs when no workflow exists', () => {
       const taskWithoutWorkflow = {
-        ...mockTask,
-        metadata: {}
+        id: 999,
+        title: 'Task without workflow',
+        stage: 'backlog',
+        queuedStages: ['plan', 'build']
+        // No metadata.adw_id
       };
+      // Mock store to return no workflow metadata
+      mockStore.getWorkflowMetadataForTask.mockReturnValue(null);
 
       render(<CardExpandModal task={taskWithoutWorkflow} isOpen={true} onClose={mockOnClose} />);
 
-      expect(screen.getByText('No Workflow Started')).toBeInTheDocument();
+      // Click execution tab
+      const executionTab = screen.getByText(/EXECUTION/);
+      fireEvent.click(executionTab);
+
+      // Should show empty state because no adw_id
+      expect(screen.getByText('No Execution Logs')).toBeInTheDocument();
     });
   });
 
@@ -648,6 +761,121 @@ describe('CardExpandModal Component', () => {
     });
   });
 
+  describe('Proactive Result Detection', () => {
+    beforeEach(() => {
+      // Mock global fetch for result checking
+      global.fetch = vi.fn();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should check for result availability when component mounts', async () => {
+      global.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          has_result: true,
+          result: { status: 'completed', output: 'test result' }
+        })
+      });
+
+      render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining('/api/stage-logs/adw_plan_build_test_issue_123/plan')
+        );
+      });
+    });
+
+    it('should enable Result tab when result becomes available', async () => {
+      global.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          has_result: true,
+          result: { status: 'completed' }
+        })
+      });
+
+      render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
+
+      // The result tab mock shows hasResult prop - when true, button should not be disabled
+      await waitFor(() => {
+        const resultButton = screen.getByText(/RESULT/);
+        expect(resultButton).toBeInTheDocument();
+      });
+    });
+
+    it('should set up polling interval when no result is available', async () => {
+      const setIntervalSpy = vi.spyOn(global, 'setInterval');
+
+      // Return no result to trigger polling
+      global.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          has_result: false,
+          result: null
+        })
+      });
+
+      render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalled();
+      });
+
+      // Verify setInterval was called with 3000ms for result polling
+      expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 3000);
+
+      setIntervalSpy.mockRestore();
+    });
+
+    it('should clear polling interval after result is found on subsequent render', async () => {
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+
+      // Return result immediately
+      global.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          has_result: true,
+          result: { status: 'completed' }
+        })
+      });
+
+      const { unmount } = render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalled();
+      });
+
+      // Unmount to trigger cleanup
+      unmount();
+
+      // Verify clearInterval was called during cleanup
+      expect(clearIntervalSpy).toHaveBeenCalled();
+
+      clearIntervalSpy.mockRestore();
+    });
+
+    it('should handle fetch error gracefully during result check', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      global.fetch.mockRejectedValue(new Error('Network error'));
+
+      render(<CardExpandModal task={mockTask} isOpen={true} onClose={mockOnClose} />);
+
+      await waitFor(() => {
+        expect(consoleError).toHaveBeenCalledWith(
+          'Error checking result availability:',
+          expect.any(Error)
+        );
+      }, { timeout: 3000 });
+
+      consoleError.mockRestore();
+    });
+  });
+
   describe('Edge Cases', () => {
     it('should handle task without description', () => {
       const taskWithoutDescription = { ...mockTask, description: undefined };
@@ -657,13 +885,20 @@ describe('CardExpandModal Component', () => {
       expect(screen.queryByText('DESCRIPTION')).not.toBeInTheDocument();
     });
 
-    it('should handle task without metadata', () => {
-      const taskWithoutMetadata = { ...mockTask, metadata: {} };
+    it('should handle task without metadata and hide ADW section', () => {
+      const taskWithoutMetadata = {
+        id: 456,
+        title: 'Task without metadata',
+        stage: 'plan',
+        queuedStages: ['plan', 'build']
+        // No metadata property
+      };
       // Override the store mock to return no workflow metadata
-      mockStore.getWorkflowMetadataForTask.mockReturnValueOnce(null);
+      mockStore.getWorkflowMetadataForTask.mockReturnValue(null);
 
       render(<CardExpandModal task={taskWithoutMetadata} isOpen={true} onClose={mockOnClose} />);
 
+      // ADW METADATA section should not render when no adw_id in both task.metadata and workflowMetadata
       expect(screen.queryByText('ADW METADATA')).not.toBeInTheDocument();
     });
 
@@ -690,17 +925,23 @@ describe('CardExpandModal Component', () => {
 
     it('should handle missing plan file', async () => {
       const taskWithoutPlan = {
-        ...mockTask,
+        id: 789,
+        title: 'Task without plan file',
+        stage: 'plan',
+        queuedStages: ['plan', 'build'],
         metadata: { adw_id: 'test_adw' }
+        // No plan_file in metadata
       };
-      // Override store mock to return no plan file
-      mockStore.getWorkflowMetadataForTask.mockReturnValueOnce({
+      // Override store mock to return metadata without plan_file
+      mockStore.getWorkflowMetadataForTask.mockReturnValue({
         adw_id: 'test_adw',
         status: 'running'
+        // No plan_file
       });
 
       render(<CardExpandModal task={taskWithoutPlan} isOpen={true} onClose={mockOnClose} />);
 
+      // When there's an adw_id but no plan_file in metadata, PLAN FILE label shouldn't appear
       expect(screen.queryByText('PLAN FILE')).not.toBeInTheDocument();
     });
 

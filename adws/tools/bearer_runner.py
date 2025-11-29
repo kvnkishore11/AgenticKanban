@@ -14,7 +14,7 @@ Usage:
 
 import json
 from tools.base_runner import BaseToolRunner
-from stages.review_modes import ReviewMode, ReviewFinding, IssueSeverity
+from stages.review_modes import ReviewMode, ReviewFinding
 from schemas.review_config import ReviewToolConfig
 
 

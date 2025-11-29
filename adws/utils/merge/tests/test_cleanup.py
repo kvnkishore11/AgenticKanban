@@ -1,6 +1,5 @@
 """Tests for merge workflow cleanup module."""
 
-import pytest
 from unittest.mock import patch, MagicMock
 
 import sys

@@ -3,7 +3,6 @@
 import sys
 import os
 import logging
-from typing import Tuple, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -132,7 +131,7 @@ def implement_patch(
                 f"Error implementing patch: {implement_response.output}",
             ),
         )
-        notifier.notify_log(AGENT_PATCH_IMPLEMENTOR, "error", f"Error implementing patch")
+        notifier.notify_log(AGENT_PATCH_IMPLEMENTOR, "error", "Error implementing patch")
         sys.exit(1)
 
     logger.debug(f"Implementation response: {implement_response.output}")

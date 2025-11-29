@@ -1,7 +1,7 @@
 """Data types for review workflow utilities."""
 
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import List
 import logging
 
 import sys

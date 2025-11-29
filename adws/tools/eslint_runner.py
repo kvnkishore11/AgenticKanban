@@ -121,8 +121,8 @@ class ESLintRunner(BaseToolRunner):
         # Location
         line = message.get("line")
         column = message.get("column")
-        end_line = message.get("endLine")
-        end_column = message.get("endColumn")
+        message.get("endLine")
+        message.get("endColumn")
 
         # Code snippet (ESLint doesn't include this directly)
         code_snippet = None

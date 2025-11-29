@@ -2,11 +2,10 @@
 
 import sys
 import os
-from typing import Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from adw_modules.data_types import AgentTemplateRequest, DocumentationResult
+from adw_modules.data_types import AgentTemplateRequest
 from adw_modules.agent import execute_template
 from adw_modules.workflow_ops import format_issue_message
 from adw_modules.github import make_issue_comment
