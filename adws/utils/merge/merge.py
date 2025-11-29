@@ -26,6 +26,27 @@ AGENT_MERGER = "merger"
 MERGE_STASH_NAME = "adw-merge-auto-stash"
 
 
+def _abort_merge_operation(merge_method: str, repo_root: str, logger: logging.Logger) -> None:
+    """Abort the current merge/rebase operation based on merge method.
+
+    Args:
+        merge_method: The merge method being used
+        repo_root: Repository root directory
+        logger: Logger instance
+    """
+    if merge_method == "rebase":
+        logger.info("Aborting rebase operation...")
+        subprocess.run(["git", "rebase", "--abort"], cwd=repo_root, capture_output=True)
+    else:
+        # For squash, squash-rebase, and merge methods
+        logger.info("Aborting merge operation...")
+        # Try merge abort first, then reset if needed
+        result = subprocess.run(["git", "merge", "--abort"], cwd=repo_root, capture_output=True)
+        if result.returncode != 0:
+            # If merge abort fails, try to reset
+            subprocess.run(["git", "reset", "--hard", "HEAD"], cwd=repo_root, capture_output=True)
+
+
 def _check_and_stash_changes(repo_root: str, logger: logging.Logger) -> bool:
     """Check for uncommitted changes and stash them if present.
 
@@ -199,7 +220,7 @@ def execute_merge(
                 )
 
             if not conflict_ctx.resolved:
-                subprocess.run(["git", "merge", "--abort"], cwd=repo_root)
+                _abort_merge_operation(merge_method, repo_root, logger)
                 subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
                 _pop_stashed_changes(repo_root, logger, was_stashed)
                 return MergeResultContext(
@@ -216,8 +237,30 @@ def execute_merge(
                     state
                 )
 
-            # After resolving conflicts, we need to commit for squash/squash-rebase merges
-            if merge_method in ("squash", "squash-rebase"):
+            # After resolving conflicts, we need different actions based on merge method
+            if merge_method == "rebase":
+                # For rebase, we need to continue the rebase
+                logger.info("Continuing rebase after conflict resolution...")
+                result = subprocess.run(
+                    ["git", "rebase", "--continue"],
+                    capture_output=True, text=True, cwd=repo_root,
+                    env={**os.environ, "GIT_EDITOR": "true"}  # Skip editor for commit message
+                )
+                if result.returncode != 0:
+                    # Check if rebase is already complete
+                    if "No rebase in progress" not in result.stderr:
+                        _abort_merge_operation(merge_method, repo_root, logger)
+                        subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
+                        _pop_stashed_changes(repo_root, logger, was_stashed)
+                        return MergeResultContext(
+                            success=False,
+                            original_branch=original_branch,
+                            merge_method=merge_method,
+                            error=f"Failed to continue rebase after conflict resolution: {result.stderr}"
+                        )
+                    logger.info("Rebase already complete")
+            elif merge_method in ("squash", "squash-rebase"):
+                # For squash merges, we need to commit the resolved conflicts
                 logger.info("Committing resolved conflicts for squash merge...")
                 commit_msg = f"Merge branch '{branch_name}' via ADW Merge ISO ({merge_method}) - conflicts resolved"
                 result = subprocess.run(
@@ -261,7 +304,7 @@ def execute_merge(
 
         test_ctx = run_validation_tests(repo_root, logger)
         if not test_ctx.success:
-            subprocess.run(["git", "merge", "--abort"], cwd=repo_root)
+            _abort_merge_operation(merge_method, repo_root, logger)
             subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
             _pop_stashed_changes(repo_root, logger, was_stashed)
             return MergeResultContext(

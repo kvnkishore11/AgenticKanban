@@ -11,8 +11,54 @@ from utils.merge.merge import (
     _perform_merge,
     _check_and_stash_changes,
     _pop_stashed_changes,
+    _abort_merge_operation,
     MERGE_STASH_NAME,
 )
+
+
+class TestAbortMergeOperation:
+    """Tests for _abort_merge_operation helper function."""
+
+    @patch('subprocess.run')
+    def test_abort_rebase_uses_rebase_abort(self, mock_run, mock_logger):
+        """Test that rebase method uses git rebase --abort."""
+        mock_run.return_value = MagicMock(returncode=0)
+
+        _abort_merge_operation("rebase", "/repo", mock_logger)
+
+        # Should call git rebase --abort
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args[0][0]
+        assert "rebase" in call_args
+        assert "--abort" in call_args
+
+    @patch('subprocess.run')
+    def test_abort_squash_uses_merge_abort(self, mock_run, mock_logger):
+        """Test that squash method uses git merge --abort."""
+        mock_run.return_value = MagicMock(returncode=0)
+
+        _abort_merge_operation("squash", "/repo", mock_logger)
+
+        # Should call git merge --abort
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args[0][0]
+        assert "merge" in call_args
+        assert "--abort" in call_args
+
+    @patch('subprocess.run')
+    def test_abort_merge_falls_back_to_reset(self, mock_run, mock_logger):
+        """Test that merge abort falls back to reset on failure."""
+        mock_run.side_effect = [
+            MagicMock(returncode=1),  # merge --abort fails
+            MagicMock(returncode=0),  # reset succeeds
+        ]
+
+        _abort_merge_operation("merge", "/repo", mock_logger)
+
+        assert mock_run.call_count == 2
+        # Second call should be reset
+        second_call = mock_run.call_args_list[1][0][0]
+        assert "reset" in second_call
 
 
 class TestStashFunctionality:
