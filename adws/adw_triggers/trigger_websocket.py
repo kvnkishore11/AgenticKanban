@@ -21,6 +21,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -2147,8 +2148,6 @@ def find_stage_folder(adw_dir: Path, stage: str):
 
     return None
 
-
-import re
 
 def parse_execution_log(log_file: Path):
     """Parse execution.log file and extract log entries."""

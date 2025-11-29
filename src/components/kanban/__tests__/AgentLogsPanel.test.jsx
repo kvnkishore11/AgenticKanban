@@ -23,7 +23,7 @@ global.fetch = vi.fn();
 
 // Mock window.APP_CONFIG
 Object.defineProperty(window, 'APP_CONFIG', {
-  value: { WS_PORT: 8501 },
+  value: { WS_PORT: 8500 },
   writable: true
 });
 
@@ -641,7 +641,7 @@ describe('AgentLogsPanel Component', () => {
 
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith(
-          'http://localhost:8501/api/stage-logs/adw-456/build'
+          'http://localhost:8500/api/stage-logs/adw-456/build'
         );
       });
     });
@@ -722,7 +722,7 @@ describe('AgentLogsPanel Component', () => {
 
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith(
-          'http://localhost:8501/api/stage-logs/adw-123/plan'
+          'http://localhost:8500/api/stage-logs/adw-123/plan'
         );
       });
     });
@@ -966,8 +966,9 @@ describe('AgentLogsPanel Component', () => {
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 
-    it('should use correct API port from APP_CONFIG', async () => {
-      window.APP_CONFIG = { WS_PORT: 9999 };
+    it('should use correct API port (VITE_ADW_PORT env var or default 8500)', async () => {
+      // Component uses import.meta.env.VITE_ADW_PORT || 8500
+      // This is set at build time, so in tests it falls back to 8500
       global.fetch.mockResolvedValue(mockApiResponse([]));
 
       await act(async () => {
@@ -976,12 +977,9 @@ describe('AgentLogsPanel Component', () => {
 
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith(
-          'http://localhost:9999/api/stage-logs/adw-123/plan'
+          'http://localhost:8500/api/stage-logs/adw-123/plan'
         );
       });
-
-      // Reset
-      window.APP_CONFIG = { WS_PORT: 8501 };
     });
 
     it('should refresh logs when refresh button is clicked', async () => {

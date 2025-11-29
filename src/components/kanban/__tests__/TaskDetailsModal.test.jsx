@@ -89,7 +89,8 @@ describe('TaskDetailsModal Component', () => {
       getWorkflowMetadataForTask: vi.fn(() => ({ adw_id: 'adw-123' })),
       clearWorkflowLogsForTask: vi.fn(),
       triggerMergeWorkflow: vi.fn(),
-      deleteWorktree: vi.fn(() => Promise.resolve(true))
+      deleteWorktree: vi.fn(() => Promise.resolve(true)),
+      getDeletionState: vi.fn(() => null)
     };
 
     useKanbanStore.mockReturnValue(mockStore);
@@ -625,8 +626,12 @@ describe('TaskDetailsModal Component', () => {
 
       await waitFor(() => {
         expect(mockStore.deleteWorktree).toHaveBeenCalledWith('adw-123');
-        expect(mockOnClose).toHaveBeenCalled();
       });
+
+      // Modal stays open waiting for WebSocket confirmation
+      // (onClose is NOT called immediately - only when task is removed from store)
+      expect(mockOnClose).not.toHaveBeenCalled();
+      expect(screen.getByText('Test Task')).toBeInTheDocument();
     });
 
     it('should close confirmation dialog when cancel is clicked', () => {

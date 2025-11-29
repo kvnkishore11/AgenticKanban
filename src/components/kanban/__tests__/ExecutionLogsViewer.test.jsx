@@ -12,7 +12,7 @@ global.fetch = mockFetch;
 
 // Mock window.APP_CONFIG
 Object.defineProperty(window, 'APP_CONFIG', {
-  value: { WS_PORT: 8501 },
+  value: { WS_PORT: 8500 },
   writable: true
 });
 
@@ -180,7 +180,7 @@ describe('ExecutionLogsViewer Component', () => {
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith(
-          'http://localhost:8501/api/execution-logs/de44dd9c/plan'
+          'http://localhost:8500/api/execution-logs/de44dd9c/plan'
         );
       });
     });
@@ -196,7 +196,7 @@ describe('ExecutionLogsViewer Component', () => {
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith(
-          'http://localhost:8501/api/execution-logs/de44dd9c/build'
+          'http://localhost:8500/api/execution-logs/de44dd9c/build'
         );
       });
     });
@@ -212,7 +212,7 @@ describe('ExecutionLogsViewer Component', () => {
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith(
-          'http://localhost:8501/api/execution-logs/newadwid/plan'
+          'http://localhost:8500/api/execution-logs/newadwid/plan'
         );
       });
     });

@@ -125,12 +125,12 @@ class AgentDirectoryMonitor:
         # Capture the main event loop for thread-safe async calls
         try:
             self.loop = asyncio.get_running_loop()
-            self.logger.info(f"Captured running event loop for thread-safe broadcasts")
+            self.logger.info("Captured running event loop for thread-safe broadcasts")
         except RuntimeError:
             # No running loop - try to get the current event loop
             try:
                 self.loop = asyncio.get_event_loop()
-                self.logger.info(f"Using current event loop for broadcasts")
+                self.logger.info("Using current event loop for broadcasts")
             except RuntimeError:
                 self.logger.warning("No event loop available - broadcasts will fail")
                 self.loop = None
@@ -415,8 +415,6 @@ class AgentDirectoryMonitor:
         """
         message = event.get("message", {})
         content_blocks = message.get("content", [])
-        session_id = event.get("session_id")
-        model = message.get("model")
 
         for block in content_blocks:
             if not isinstance(block, dict):
