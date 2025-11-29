@@ -6,7 +6,87 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
-from utils.merge.merge import execute_merge, _perform_merge
+from utils.merge.merge import (
+    execute_merge,
+    _perform_merge,
+    _check_and_stash_changes,
+    _pop_stashed_changes,
+    MERGE_STASH_NAME,
+)
+
+
+class TestStashFunctionality:
+    """Tests for stash helper functions."""
+
+    @patch('subprocess.run')
+    def test_check_and_stash_with_changes(self, mock_run, mock_logger):
+        """Test that changes are stashed when present."""
+        # First call: git status --porcelain returns changes
+        # Second call: git stash push succeeds
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="M modified_file.py\n", stderr=""),
+            MagicMock(returncode=0, stdout="", stderr=""),
+        ]
+
+        result = _check_and_stash_changes("/repo", mock_logger)
+
+        assert result is True
+        assert mock_run.call_count == 2
+        # Verify stash push was called with correct args
+        stash_call = mock_run.call_args_list[1]
+        assert "stash" in stash_call[0][0]
+        assert "push" in stash_call[0][0]
+
+    @patch('subprocess.run')
+    def test_check_and_stash_no_changes(self, mock_run, mock_logger):
+        """Test that no stash happens when no changes."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        result = _check_and_stash_changes("/repo", mock_logger)
+
+        assert result is False
+        assert mock_run.call_count == 1  # Only status check
+
+    @patch('subprocess.run')
+    def test_check_and_stash_failure(self, mock_run, mock_logger):
+        """Test handling of stash failure."""
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="M file.py\n", stderr=""),
+            MagicMock(returncode=1, stdout="", stderr="stash failed"),
+        ]
+
+        result = _check_and_stash_changes("/repo", mock_logger)
+
+        assert result is False
+
+    @patch('subprocess.run')
+    def test_pop_stashed_changes_success(self, mock_run, mock_logger):
+        """Test successful stash pop."""
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout=f"stash@{{0}}: {MERGE_STASH_NAME}", stderr=""),
+            MagicMock(returncode=0, stdout="", stderr=""),
+        ]
+
+        _pop_stashed_changes("/repo", mock_logger, was_stashed=True)
+
+        assert mock_run.call_count == 2
+
+    @patch('subprocess.run')
+    def test_pop_stashed_changes_not_stashed(self, mock_run, mock_logger):
+        """Test that pop is skipped when was_stashed is False."""
+        _pop_stashed_changes("/repo", mock_logger, was_stashed=False)
+
+        assert mock_run.call_count == 0
+
+    @patch('subprocess.run')
+    def test_pop_stashed_changes_stash_not_found(self, mock_run, mock_logger):
+        """Test handling when stash is not found."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        _pop_stashed_changes("/repo", mock_logger, was_stashed=True)
+
+        # Should only call stash list, not stash pop
+        assert mock_run.call_count == 1
 
 
 class TestExecuteMerge:
@@ -44,10 +124,11 @@ class TestExecuteMerge:
         """Test when git fetch fails."""
         mock_repo_root.return_value = "/repo"
 
-        # First call returns branch name, second call (fetch) fails
+        # Order: rev-parse, status (stash check), fetch fails
         mock_run.side_effect = [
             MagicMock(returncode=0, stdout="main", stderr=""),  # rev-parse
-            MagicMock(returncode=1, stdout="", stderr="fetch error"),  # fetch
+            MagicMock(returncode=0, stdout="", stderr=""),  # git status --porcelain (no changes)
+            MagicMock(returncode=1, stdout="", stderr="fetch error"),  # fetch fails
         ]
 
         result = execute_merge(

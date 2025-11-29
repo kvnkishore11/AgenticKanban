@@ -22,6 +22,75 @@ from .testing import run_validation_tests
 # Agent name constant
 AGENT_MERGER = "merger"
 
+# Stash name for merge operations
+MERGE_STASH_NAME = "adw-merge-auto-stash"
+
+
+def _check_and_stash_changes(repo_root: str, logger: logging.Logger) -> bool:
+    """Check for uncommitted changes and stash them if present.
+
+    Args:
+        repo_root: Repository root directory
+        logger: Logger instance
+
+    Returns:
+        True if changes were stashed, False if no changes to stash
+    """
+    # Check if there are any uncommitted changes (staged or unstaged)
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        capture_output=True, text=True, cwd=repo_root
+    )
+
+    if result.stdout.strip():
+        # There are uncommitted changes, stash them
+        logger.info("Found uncommitted changes, stashing them...")
+        stash_result = subprocess.run(
+            ["git", "stash", "push", "-m", MERGE_STASH_NAME, "--include-untracked"],
+            capture_output=True, text=True, cwd=repo_root
+        )
+        if stash_result.returncode != 0:
+            logger.warning(f"Failed to stash changes: {stash_result.stderr}")
+            return False
+        logger.info("Successfully stashed local changes")
+        return True
+
+    logger.debug("No uncommitted changes to stash")
+    return False
+
+
+def _pop_stashed_changes(repo_root: str, logger: logging.Logger, was_stashed: bool) -> None:
+    """Pop stashed changes if they were stashed during merge.
+
+    Args:
+        repo_root: Repository root directory
+        logger: Logger instance
+        was_stashed: Whether changes were stashed (from _check_and_stash_changes)
+    """
+    if not was_stashed:
+        return
+
+    logger.info("Restoring stashed changes...")
+
+    # First check if our stash exists
+    result = subprocess.run(
+        ["git", "stash", "list"],
+        capture_output=True, text=True, cwd=repo_root
+    )
+
+    if MERGE_STASH_NAME in result.stdout:
+        pop_result = subprocess.run(
+            ["git", "stash", "pop"],
+            capture_output=True, text=True, cwd=repo_root
+        )
+        if pop_result.returncode != 0:
+            logger.warning(f"Failed to pop stashed changes: {pop_result.stderr}")
+            logger.warning("Your changes are still in the stash. Run 'git stash pop' manually to restore them.")
+        else:
+            logger.info("Successfully restored stashed changes")
+    else:
+        logger.debug("No matching stash found to pop")
+
 
 def execute_merge(
     adw_id: str,
@@ -51,6 +120,7 @@ def execute_merge(
     logger.info(f"Merge method: {merge_method}")
 
     original_branch = ""
+    was_stashed = False
 
     try:
         # Save current branch to restore later
@@ -61,6 +131,9 @@ def execute_merge(
         original_branch = result.stdout.strip()
         logger.debug(f"Original branch: {original_branch}")
 
+        # Step 0: Stash any uncommitted changes to avoid conflicts during checkout
+        was_stashed = _check_and_stash_changes(repo_root, logger)
+
         # Step 1: Fetch latest from origin
         logger.info("Fetching latest from origin...")
         result = subprocess.run(
@@ -68,6 +141,7 @@ def execute_merge(
             capture_output=True, text=True, cwd=repo_root
         )
         if result.returncode != 0:
+            _pop_stashed_changes(repo_root, logger, was_stashed)
             return MergeResultContext(
                 success=False,
                 original_branch=original_branch,
@@ -82,6 +156,7 @@ def execute_merge(
             capture_output=True, text=True, cwd=repo_root
         )
         if result.returncode != 0:
+            _pop_stashed_changes(repo_root, logger, was_stashed)
             return MergeResultContext(
                 success=False,
                 original_branch=original_branch,
@@ -97,6 +172,7 @@ def execute_merge(
         )
         if result.returncode != 0:
             subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
+            _pop_stashed_changes(repo_root, logger, was_stashed)
             return MergeResultContext(
                 success=False,
                 original_branch=original_branch,
@@ -107,6 +183,7 @@ def execute_merge(
         # Step 4: Perform the merge
         merge_result = _perform_merge(branch_name, merge_method, repo_root, original_branch, logger)
         if not merge_result.success:
+            _pop_stashed_changes(repo_root, logger, was_stashed)
             return merge_result
 
         # Step 5: Check for and resolve conflicts
@@ -124,6 +201,7 @@ def execute_merge(
             if not conflict_ctx.resolved:
                 subprocess.run(["git", "merge", "--abort"], cwd=repo_root)
                 subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
+                _pop_stashed_changes(repo_root, logger, was_stashed)
                 return MergeResultContext(
                     success=False,
                     original_branch=original_branch,
@@ -150,6 +228,7 @@ def execute_merge(
                     # Check if already committed or nothing to commit
                     if "nothing to commit" not in result.stdout.lower() and "nothing to commit" not in result.stderr.lower():
                         subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
+                        _pop_stashed_changes(repo_root, logger, was_stashed)
                         return MergeResultContext(
                             success=False,
                             original_branch=original_branch,
@@ -184,6 +263,7 @@ def execute_merge(
         if not test_ctx.success:
             subprocess.run(["git", "merge", "--abort"], cwd=repo_root)
             subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
+            _pop_stashed_changes(repo_root, logger, was_stashed)
             return MergeResultContext(
                 success=False,
                 original_branch=original_branch,
@@ -205,6 +285,7 @@ def execute_merge(
             capture_output=True, text=True, cwd=repo_root
         )
         if result.returncode != 0:
+            _pop_stashed_changes(repo_root, logger, was_stashed)
             return MergeResultContext(
                 success=False,
                 original_branch=original_branch,
@@ -215,6 +296,9 @@ def execute_merge(
         # Step 9: Restore original branch
         logger.info(f"Restoring original branch: {original_branch}")
         subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
+
+        # Step 10: Restore stashed changes
+        _pop_stashed_changes(repo_root, logger, was_stashed)
 
         logger.info("✅ Successfully merged and pushed to main!")
         return MergeResultContext(
@@ -230,6 +314,11 @@ def execute_merge(
             subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
         except Exception:
             pass
+        # Try to restore stashed changes even on exception
+        try:
+            _pop_stashed_changes(repo_root, logger, was_stashed)
+        except Exception:
+            logger.warning("Failed to restore stashed changes after exception")
         return MergeResultContext(
             success=False,
             original_branch=original_branch,
