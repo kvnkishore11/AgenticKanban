@@ -133,3 +133,18 @@ This prompt helps you determine what documentation you should read based on the 
     - When troubleshooting task creation causing multiple re-renders
     - When implementing development-only logging with import.meta.env.DEV
     - When debugging useEffect dependency arrays with Zustand store functions
+
+- app_docs/feature-8250f1e2-adw-delete-worktree-logs.md
+  - Conditions:
+    - When working with ADW deletion functionality or deleteWorktree actions
+    - When implementing or troubleshooting worktree cleanup operations
+    - When working with agent log directory cleanup (agents/{adw_id}/)
+    - When implementing WebSocket-driven deletion confirmation flows
+    - When working with deletion loading states or delete button UI
+    - When implementing toast notification systems
+    - When troubleshooting tasks not being removed after deletion
+    - When implementing backend-first deletion workflows
+    - When working with the NotificationToast component
+    - When handling system_log WebSocket events with worktree_deleted type
+    - When implementing per-resource deletion state tracking
+    - When troubleshooting deletion error handling or retry mechanisms
