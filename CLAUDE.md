@@ -8,3 +8,9 @@
   broken any code with your new code also that your code has no bugs.
 
 - dont commit or push your changes until and unless u are asked to do so.
+- i want u to report to me once u have throrougly verified your fix is working.
+  Dont report to me until an d unless u are 100% confident of what u have
+  implemented. Mostly backed up by your testing especially end to end testing
+  whenever possible
+- while starting frontend use Bash(fesh) and for starting websocket Bash(adwsh)
+  this should start our backend and frontend scripts that we have written.

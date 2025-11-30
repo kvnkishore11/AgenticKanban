@@ -9,21 +9,25 @@
  * @module components/kanban/KanbanCard
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import CardExpandModal from './CardExpandModal';
 import { useStageTransition } from '../../hooks/useStageTransition';
 
-const KanbanCard = ({ task, onEdit }) => {
-  const {
-    deleteWorktree,
-    getDeletionState,
-    getWebSocketStatus,
-    triggerWorkflowForTask,
-    getWorkflowProgressForTask,
-    getWorkflowLogsForTask
-  } = useKanbanStore();
+const KanbanCard = memo(({ task, onEdit }) => {
+  // Use individual selectors instead of subscribing to entire store
+  // Actions are stable and don't cause re-renders
+  const deleteWorktree = useKanbanStore(state => state.deleteWorktree);
+  const triggerWorkflowForTask = useKanbanStore(state => state.triggerWorkflowForTask);
+
+  // Subscribe only to data relevant to this specific task
+  const adwId = task.metadata?.adw_id;
+  const taskWorkflowLogs = useKanbanStore(state => state.taskWorkflowLogs?.[task.id] || []);
+  const taskWorkflowProgress = useKanbanStore(state => state.taskWorkflowProgress?.[task.id] || null);
+  // Use deletingAdws (the actual state key in the store)
+  const deletionState = useKanbanStore(state => adwId ? state.deletingAdws?.[adwId] : null);
+  const websocketConnected = useKanbanStore(state => state.websocketConnected);
 
   const [showMenu, setShowMenu] = useState(false);
   const [showExpandModal, setShowExpandModal] = useState(false);
@@ -50,13 +54,9 @@ const KanbanCard = ({ task, onEdit }) => {
     };
   }, [showMenu]);
 
-  const websocketStatus = getWebSocketStatus();
-  const workflowProgress = getWorkflowProgressForTask(task.id);
-  const workflowLogs = getWorkflowLogsForTask(task.id);
-
-  // Get deletion state for this task's ADW
-  const adwId = task.metadata?.adw_id;
-  const deletionState = adwId ? getDeletionState(adwId) : null;
+  // Use memoized values directly from selectors (no function calls on render)
+  const workflowLogs = taskWorkflowLogs;
+  const workflowProgress = taskWorkflowProgress;
   const isDeleting = deletionState?.loading || false;
 
   // Use stage transition hook for animations
@@ -298,6 +298,9 @@ const KanbanCard = ({ task, onEdit }) => {
       )}
     </div>
   );
-};
+});
+
+// Display name for React DevTools
+KanbanCard.displayName = 'KanbanCard';
 
 export default KanbanCard;

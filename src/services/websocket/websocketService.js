@@ -30,6 +30,30 @@ class WebSocketService {
       connectionStartTime: null
     };
 
+    // Owner-based listener tracking for proper cleanup
+    this.listenerOwners = new Map(); // Maps ownerId -> Set of {event, listener}
+
+    // Pending connection promise to prevent concurrent connection attempts
+    this.pendingConnectPromise = null;
+
+    // Startup phase tracking
+    this.isStartupPhase = true;
+    this.startupReconnectAttempts = 0;
+    this.maxStartupReconnectAttempts = 3;
+    this.lastReconnectAttempt = 0;
+    this.minReconnectInterval = 1000;
+
+    // Circuit breaker for connection failures
+    this.circuitBreaker = {
+      state: 'CLOSED',  // CLOSED (normal), OPEN (blocking), HALF_OPEN (testing)
+      failureCount: 0,
+      failureThreshold: 5,
+      successThreshold: 2,
+      resetTimeout: 60000, // 60 seconds
+      lastFailureTime: null,
+      consecutiveSuccesses: 0
+    };
+
     // Event listeners
     this.eventListeners = {
       connect: [],
@@ -50,12 +74,18 @@ class WebSocketService {
       file_changed: [],
       text_block: [],
       summary_update: [],
+      system_log: [], // System log events
       // Enhanced agent directory streaming events
       heartbeat: [],
       workflow_phase_transition: [],
       agent_output_chunk: [],
       screenshot_available: [],
-      spec_created: []
+      spec_created: [],
+      // Circuit breaker and startup events
+      startup_connection_failed: [],
+      circuit_open: [],
+      circuit_closed: [],
+      connection_blocked: []
     };
 
     // Configuration - extract from environment variables
@@ -165,12 +195,25 @@ class WebSocketService {
    * Connect to WebSocket server
    */
   async connect() {
-    if (this.isConnected || this.isConnecting) {
-      console.log('WebSocket already connected or connecting');
+    // Return existing promise if connection already in progress
+    if (this.pendingConnectPromise) {
+      console.log('[WebSocket] Connection already in progress, returning existing promise');
+      return this.pendingConnectPromise;
+    }
+
+    if (this.isConnected) {
+      console.log('[WebSocket] Already connected');
       return Promise.resolve();
     }
 
-    return new Promise((resolve, reject) => {
+    // Check circuit breaker
+    if (this.isCircuitOpen()) {
+      console.log('[WebSocket] Circuit breaker OPEN, connection blocked');
+      this.emit('connection_blocked', { reason: 'circuit_breaker_open' });
+      return Promise.reject(new Error('Circuit breaker is open - connection blocked'));
+    }
+
+    this.pendingConnectPromise = new Promise((resolve, reject) => {
       try {
         this.isConnecting = true;
         const url = this.getWebSocketUrl();
@@ -185,6 +228,9 @@ class WebSocketService {
           this.reconnectAttempts = 0;
           this.reconnectDelay = 1000;
           this.connectionMetrics.connectionStartTime = Date.now();
+
+          // Record success for circuit breaker
+          this.recordConnectionSuccess();
 
           // Generate new connection ID
           this.connectionId = `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -232,16 +278,25 @@ class WebSocketService {
         this.ws.onerror = (error) => {
           console.error('WebSocket error:', error);
           this.isConnecting = false;
+          // Record failure for circuit breaker
+          this.recordConnectionFailure();
           this.emit('error', { type: 'connection_error', message: 'WebSocket connection failed' });
           reject(error);
         };
 
       } catch (error) {
         this.isConnecting = false;
+        // Record failure for circuit breaker
+        this.recordConnectionFailure();
         console.error('Error creating WebSocket connection:', error);
         reject(error);
       }
+    }).finally(() => {
+      // Clear pending promise when connection completes (success or failure)
+      this.pendingConnectPromise = null;
     });
+
+    return this.pendingConnectPromise;
   }
 
   /**
@@ -268,6 +323,34 @@ class WebSocketService {
    * Schedule reconnection attempt with exponential backoff and jitter
    */
   scheduleReconnect() {
+    const now = Date.now();
+
+    // Throttle reconnection attempts - prevent rapid retries
+    if (now - this.lastReconnectAttempt < this.minReconnectInterval) {
+      console.log('[WebSocket] Throttling reconnection - too soon since last attempt');
+      return;
+    }
+    this.lastReconnectAttempt = now;
+
+    // Check circuit breaker
+    if (this.isCircuitOpen()) {
+      console.log('[WebSocket] Circuit breaker OPEN, skipping reconnection');
+      return;
+    }
+
+    // During startup, limit reconnection attempts
+    if (this.isStartupPhase) {
+      this.startupReconnectAttempts++;
+      if (this.startupReconnectAttempts >= this.maxStartupReconnectAttempts) {
+        console.log('[WebSocket] Startup reconnection limit reached - backend may be unavailable');
+        this.emit('startup_connection_failed', {
+          message: 'Backend unavailable at startup',
+          attempts: this.startupReconnectAttempts
+        });
+        return;
+      }
+    }
+
     if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
       console.error('Max reconnection attempts reached');
       this.emit('error', {
@@ -752,6 +835,73 @@ class WebSocketService {
   }
 
   /**
+   * Trigger a slash command execution.
+   *
+   * This is the simple way to trigger complex operations from the UI.
+   * Instead of scripting every edge case, we let Claude handle the complexity.
+   *
+   * @param {string} command - Command name (e.g., "merge_worktree" or alias "merge")
+   * @param {string[]} args - Command arguments (e.g., ["8250f1e2", "rebase"])
+   * @param {object} context - Additional context (adw_id, task_id, etc.)
+   * @returns {Promise<object>} - Command execution result
+   */
+  async triggerSlashCommand(command, args = [], context = {}) {
+    try {
+      const { protocol, host, port } = this.config;
+      const apiUrl = `http${protocol === 'wss' ? 's' : ''}://${host}:${port}/api/slash-command`;
+
+      console.log(`[WebSocketService] Executing slash command: /${command} ${args.join(' ')}`);
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          command,
+          arguments: args,
+          context
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `Command failed with status ${response.status}`);
+      }
+
+      console.log(`[WebSocketService] Slash command result:`, result);
+      return result;
+    } catch (error) {
+      console.error('[WebSocketService] Failed to execute slash command:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * List all available slash commands
+   * @returns {Promise<object[]>} - Array of available commands
+   */
+  async listSlashCommands() {
+    try {
+      const { protocol, host, port } = this.config;
+      const apiUrl = `http${protocol === 'wss' ? 's' : ''}://${host}:${port}/api/slash-commands`;
+
+      const response = await fetch(apiUrl);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `Failed to list commands`);
+      }
+
+      return result.commands || [];
+    } catch (error) {
+      console.error('[WebSocketService] Failed to list slash commands:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Queue a message for sending when connection is restored
    */
   queueMessage(message) {
@@ -912,6 +1062,195 @@ class WebSocketService {
   listenerCount(event) {
     if (!this.eventListeners[event]) return 0;
     return this.eventListeners[event].length;
+  }
+
+  // ============================================================
+  // Owner-Based Listener Management
+  // ============================================================
+
+  /**
+   * Register event listener with owner tracking for bulk cleanup
+   * @param {string} ownerId - Unique identifier for the owner (e.g., 'kanban-store')
+   * @param {string} event - Event name to listen to
+   * @param {function} listener - Callback function
+   */
+  onWithOwner(ownerId, event, listener) {
+    // Register the listener normally
+    this.on(event, listener);
+
+    // Track the listener by owner
+    if (!this.listenerOwners.has(ownerId)) {
+      this.listenerOwners.set(ownerId, new Set());
+    }
+    this.listenerOwners.get(ownerId).add({ event, listener });
+    console.log(`[WebSocket] Registered listener for '${event}' owned by '${ownerId}'`);
+  }
+
+  /**
+   * Remove all listeners registered by a specific owner
+   * @param {string} ownerId - Owner identifier to remove listeners for
+   */
+  offAllByOwner(ownerId) {
+    const listeners = this.listenerOwners.get(ownerId);
+    if (!listeners || listeners.size === 0) {
+      console.log(`[WebSocket] No listeners found for owner '${ownerId}'`);
+      return;
+    }
+
+    let removedCount = 0;
+    for (const { event, listener } of listeners) {
+      this.off(event, listener);
+      removedCount++;
+    }
+
+    this.listenerOwners.delete(ownerId);
+    console.log(`[WebSocket] Removed ${removedCount} listeners for owner '${ownerId}'`);
+  }
+
+  /**
+   * Check if an owner has registered listeners
+   * @param {string} ownerId - Owner identifier to check
+   * @returns {boolean} True if owner has registered listeners
+   */
+  hasListenersByOwner(ownerId) {
+    const listeners = this.listenerOwners.get(ownerId);
+    return !!(listeners && listeners.size > 0);
+  }
+
+  /**
+   * Get count of listeners registered by an owner
+   * @param {string} ownerId - Owner identifier
+   * @returns {number} Number of listeners registered by owner
+   */
+  getListenerCountByOwner(ownerId) {
+    const listeners = this.listenerOwners.get(ownerId);
+    return listeners ? listeners.size : 0;
+  }
+
+  // ============================================================
+  // Circuit Breaker Methods
+  // ============================================================
+
+  /**
+   * Check if circuit breaker is open (blocking connections)
+   * @returns {boolean} True if circuit is open and connections should be blocked
+   */
+  isCircuitOpen() {
+    if (this.circuitBreaker.state === 'CLOSED') {
+      return false;
+    }
+
+    if (this.circuitBreaker.state === 'OPEN') {
+      // Check if reset timeout has passed
+      const elapsed = Date.now() - this.circuitBreaker.lastFailureTime;
+      if (elapsed >= this.circuitBreaker.resetTimeout) {
+        this.circuitBreaker.state = 'HALF_OPEN';
+        console.log('[CircuitBreaker] Transitioning to HALF_OPEN after reset timeout');
+        return false;
+      }
+      return true;
+    }
+
+    // HALF_OPEN allows connection attempts
+    return false;
+  }
+
+  /**
+   * Record a successful connection for circuit breaker
+   */
+  recordConnectionSuccess() {
+    if (this.circuitBreaker.state === 'HALF_OPEN') {
+      this.circuitBreaker.consecutiveSuccesses++;
+      if (this.circuitBreaker.consecutiveSuccesses >= this.circuitBreaker.successThreshold) {
+        this.circuitBreaker.state = 'CLOSED';
+        this.circuitBreaker.failureCount = 0;
+        this.circuitBreaker.consecutiveSuccesses = 0;
+        console.log('[CircuitBreaker] Circuit CLOSED after successful recovery');
+        this.emit('circuit_closed', { message: 'Connection recovered' });
+      }
+    } else {
+      // Reset failure count on successful connection
+      this.circuitBreaker.failureCount = 0;
+    }
+  }
+
+  /**
+   * Record a failed connection for circuit breaker
+   */
+  recordConnectionFailure() {
+    this.circuitBreaker.failureCount++;
+    this.circuitBreaker.consecutiveSuccesses = 0;
+    this.circuitBreaker.lastFailureTime = Date.now();
+
+    if (this.circuitBreaker.failureCount >= this.circuitBreaker.failureThreshold) {
+      this.circuitBreaker.state = 'OPEN';
+      console.log('[CircuitBreaker] Circuit OPEN after', this.circuitBreaker.failureCount, 'failures');
+      this.emit('circuit_open', {
+        failures: this.circuitBreaker.failureCount,
+        willRetryAt: Date.now() + this.circuitBreaker.resetTimeout
+      });
+    }
+  }
+
+  /**
+   * Get circuit breaker status
+   * @returns {object} Circuit breaker state information
+   */
+  getCircuitBreakerStatus() {
+    return {
+      state: this.circuitBreaker.state,
+      failureCount: this.circuitBreaker.failureCount,
+      isOpen: this.isCircuitOpen()
+    };
+  }
+
+  // ============================================================
+  // Startup Phase Management
+  // ============================================================
+
+  /**
+   * Exit startup phase - called when first successful connection is made
+   * This allows unlimited reconnection attempts after initial connection
+   */
+  exitStartupPhase() {
+    if (this.isStartupPhase) {
+      this.isStartupPhase = false;
+      this.startupReconnectAttempts = 0;
+      console.log('[WebSocket] Exited startup phase - normal reconnection enabled');
+    }
+  }
+
+  /**
+   * Manual reconnect - resets all counters and attempts to connect
+   * Use this when user explicitly requests reconnection
+   */
+  async manualReconnect() {
+    console.log('[WebSocket] Manual reconnection triggered');
+
+    // Reset all reconnection-related state
+    this.isStartupPhase = false;
+    this.startupReconnectAttempts = 0;
+    this.reconnectAttempts = 0;
+    this.reconnectDelay = 1000;
+    this.lastReconnectAttempt = 0;
+
+    // Reset circuit breaker
+    this.circuitBreaker.state = 'CLOSED';
+    this.circuitBreaker.failureCount = 0;
+    this.circuitBreaker.consecutiveSuccesses = 0;
+
+    // Close existing connection if any
+    if (this.ws) {
+      this.config.autoReconnect = false; // Temporarily disable auto-reconnect
+      this.ws.close(1000, 'Manual reconnect');
+      this.ws = null;
+    }
+
+    // Re-enable auto-reconnect
+    this.config.autoReconnect = true;
+
+    // Attempt new connection
+    return this.connect();
   }
 
   /**

@@ -60,16 +60,28 @@ describe('KanbanCard Component', () => {
   };
 
   beforeEach(() => {
+    // Mock store state object (for selector-based access)
     mockStore = {
       deleteWorktree: vi.fn().mockResolvedValue(true),
+      triggerWorkflowForTask: vi.fn(),
+      taskWorkflowLogs: {},
+      taskWorkflowProgress: {},
+      deletingAdws: {},  // Actual store key name
+      websocketConnected: true,
+      // Legacy getters (for backward compatibility)
       getDeletionState: vi.fn(() => null),
       getWebSocketStatus: vi.fn(() => ({ connected: true })),
-      triggerWorkflowForTask: vi.fn(),
       getWorkflowProgressForTask: vi.fn(() => null),
       getWorkflowLogsForTask: vi.fn(() => [])
     };
 
-    useKanbanStore.mockReturnValue(mockStore);
+    // Support both selector-based and direct access patterns
+    useKanbanStore.mockImplementation((selector) => {
+      if (typeof selector === 'function') {
+        return selector(mockStore);
+      }
+      return mockStore;
+    });
   });
 
   afterEach(() => {
@@ -343,10 +355,13 @@ describe('KanbanCard Component', () => {
 
   describe('Workflow Logs', () => {
     it('should show log count when logs exist', () => {
-      mockStore.getWorkflowLogsForTask.mockReturnValue([
-        { level: 'info', message: 'Log 1' },
-        { level: 'warn', message: 'Log 2' }
-      ]);
+      // Use taskWorkflowLogs with task ID as key
+      mockStore.taskWorkflowLogs = {
+        [MOCK_TASK.id]: [
+          { level: 'info', message: 'Log 1' },
+          { level: 'warn', message: 'Log 2' }
+        ]
+      };
 
       render(<KanbanCard task={MOCK_TASK} />);
 
@@ -354,9 +369,9 @@ describe('KanbanCard Component', () => {
     });
 
     it('should show singular "LOG" for single log', () => {
-      mockStore.getWorkflowLogsForTask.mockReturnValue([
-        { level: 'info', message: 'Single log' }
-      ]);
+      mockStore.taskWorkflowLogs = {
+        [MOCK_TASK.id]: [{ level: 'info', message: 'Single log' }]
+      };
 
       render(<KanbanCard task={MOCK_TASK} />);
 
@@ -364,10 +379,12 @@ describe('KanbanCard Component', () => {
     });
 
     it('should display latest log message preview', () => {
-      mockStore.getWorkflowLogsForTask.mockReturnValue([
-        { level: 'info', message: 'Old log' },
-        { level: 'warn', message: 'Latest log message here' }
-      ]);
+      mockStore.taskWorkflowLogs = {
+        [MOCK_TASK.id]: [
+          { level: 'info', message: 'Old log' },
+          { level: 'warn', message: 'Latest log message here' }
+        ]
+      };
 
       render(<KanbanCard task={MOCK_TASK} />);
 
@@ -375,9 +392,9 @@ describe('KanbanCard Component', () => {
     });
 
     it('should truncate long log messages', () => {
-      mockStore.getWorkflowLogsForTask.mockReturnValue([
-        { level: 'info', message: 'A'.repeat(50) }
-      ]);
+      mockStore.taskWorkflowLogs = {
+        [MOCK_TASK.id]: [{ level: 'info', message: 'A'.repeat(50) }]
+      };
 
       render(<KanbanCard task={MOCK_TASK} />);
 
@@ -385,9 +402,9 @@ describe('KanbanCard Component', () => {
     });
 
     it('should show log level in preview', () => {
-      mockStore.getWorkflowLogsForTask.mockReturnValue([
-        { level: 'error', message: 'Error occurred' }
-      ]);
+      mockStore.taskWorkflowLogs = {
+        [MOCK_TASK.id]: [{ level: 'error', message: 'Error occurred' }]
+      };
 
       render(<KanbanCard task={MOCK_TASK} />);
 
@@ -395,7 +412,7 @@ describe('KanbanCard Component', () => {
     });
 
     it('should show default message when no logs exist', () => {
-      mockStore.getWorkflowLogsForTask.mockReturnValue([]);
+      mockStore.taskWorkflowLogs = {};
 
       render(<KanbanCard task={MOCK_TASK} />);
 
@@ -414,7 +431,10 @@ describe('KanbanCard Component', () => {
     });
 
     it('should use workflow progress if available', () => {
-      mockStore.getWorkflowProgressForTask.mockReturnValue({ percentage: 75 });
+      // Use taskWorkflowProgress with task ID as key
+      mockStore.taskWorkflowProgress = {
+        [MOCK_TASK.id]: { percentage: 75 }
+      };
 
       const { container } = render(<KanbanCard task={MOCK_TASK} />);
 
@@ -514,7 +534,8 @@ describe('KanbanCard Component', () => {
     });
 
     it('should show deleting state when deletion is in progress', () => {
-      mockStore.getDeletionState.mockReturnValue({ loading: true, error: null });
+      // Set deletion state for the task's adw_id (using actual store key)
+      mockStore.deletingAdws = { 'abc12345': { loading: true, error: null } };
 
       render(<KanbanCard task={MOCK_TASK} />);
 
@@ -523,7 +544,8 @@ describe('KanbanCard Component', () => {
     });
 
     it('should disable delete button when deletion is in progress', () => {
-      mockStore.getDeletionState.mockReturnValue({ loading: true, error: null });
+      // Set deletion state for the task's adw_id (using actual store key)
+      mockStore.deletingAdws = { 'abc12345': { loading: true, error: null } };
 
       render(<KanbanCard task={MOCK_TASK} />);
 
@@ -627,7 +649,8 @@ describe('KanbanCard Component', () => {
     });
 
     it('should handle null workflow logs', () => {
-      mockStore.getWorkflowLogsForTask.mockReturnValue(null);
+      // When taskWorkflowLogs doesn't have the task ID, selector returns empty array
+      mockStore.taskWorkflowLogs = {};
 
       render(<KanbanCard task={MOCK_TASK} />);
 

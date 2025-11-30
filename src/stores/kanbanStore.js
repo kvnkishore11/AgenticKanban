@@ -21,6 +21,9 @@ import { WORK_ITEM_TYPES, QUEUEABLE_STAGES } from '../constants/workItems';
 // Re-export for backward compatibility
 export { WORK_ITEM_TYPES, QUEUEABLE_STAGES };
 
+// Owner ID for kanban store listeners - used for bulk cleanup
+const KANBAN_STORE_OWNER_ID = 'kanban-store';
+
 /**
  * Utility function to parse workflow names and extract stage sequences
  * Handles both single-stage workflows (e.g., 'adw_plan_iso' -> ['plan'])
@@ -1126,11 +1129,11 @@ export const useKanbanStore = create()(
         // WebSocket management
         initializeWebSocket: async () => {
           try {
-            // Guard: Prevent duplicate listener registration
-            if (websocketService._storeListenersRegistered) {
-              console.log('[WebSocket] Listeners already registered, skipping re-initialization');
+            // Guard: Prevent duplicate listener registration using owner-based check
+            if (websocketService.hasListenersByOwner(KANBAN_STORE_OWNER_ID)) {
+              console.log('[WebSocket] Listeners already registered for kanban-store, skipping re-initialization');
               // Still attempt to connect if not connected
-              if (!websocketService.socket?.connected) {
+              if (!websocketService.isConnected && !websocketService.isConnecting) {
                 await websocketService.connect();
               }
               return;
@@ -1138,161 +1141,171 @@ export const useKanbanStore = create()(
 
             set({ websocketConnecting: true, websocketError: null }, false, 'initializeWebSocket');
 
-            // Store listener references for cleanup
-            if (!websocketService._storeListeners) {
-              websocketService._storeListeners = {};
-            }
-
-            // Set up event listeners
-            websocketService._storeListeners.onConnect = () => {
+            // Create listener functions locally
+            const onConnect = () => {
               // Clear the deduplication cache on reconnection to prevent stale fingerprints
-              // from blocking new messages that may have been sent during disconnection
               const freshMap = new Map();
-              console.log('[KanbanStore] WebSocket reconnected: Clearing processedMessages cache');
+              console.log('[KanbanStore] WebSocket connected: Clearing processedMessages cache');
               set({
                 websocketConnected: true,
                 websocketConnecting: false,
                 websocketError: null,
                 processedMessages: freshMap
               }, false, 'websocketConnected');
+              // Exit startup phase on successful connection
+              websocketService.exitStartupPhase();
             };
-            websocketService.on('connect', websocketService._storeListeners.onConnect);
 
-            websocketService._storeListeners.onDisconnect = () => {
+            const onDisconnect = () => {
               set({
                 websocketConnected: false,
                 websocketConnecting: false
               }, false, 'websocketDisconnected');
             };
-            websocketService.on('disconnect', websocketService._storeListeners.onDisconnect);
 
-            websocketService._storeListeners.onError = (error) => {
+            const onError = (error) => {
               set({
                 websocketError: error.message || 'WebSocket error',
                 websocketConnecting: false
               }, false, 'websocketError');
             };
-            websocketService.on('error', websocketService._storeListeners.onError);
 
-            websocketService._storeListeners.onStatusUpdate = (statusUpdate) => {
+            const onStatusUpdate = (statusUpdate) => {
               try {
                 get().handleWorkflowStatusUpdate(statusUpdate);
               } catch (error) {
                 console.error('[WORKFLOW ERROR] Error handling status update:', error);
-                // Don't propagate to prevent ErrorBoundary from triggering
               }
             };
-            websocketService.on('status_update', websocketService._storeListeners.onStatusUpdate);
 
-            websocketService._storeListeners.onWorkflowLog = (logEntry) => {
+            const onWorkflowLog = (logEntry) => {
               try {
                 get().handleWorkflowLog(logEntry);
               } catch (error) {
                 console.error('[WORKFLOW ERROR] Error handling workflow log:', error);
-                // Don't propagate to prevent ErrorBoundary from triggering
               }
             };
-            websocketService.on('workflow_log', websocketService._storeListeners.onWorkflowLog);
 
-            websocketService._storeListeners.onTriggerResponse = (response) => {
+            const onTriggerResponse = (response) => {
               try {
                 get().handleTriggerResponse(response);
               } catch (error) {
                 console.error('[WORKFLOW ERROR] Error handling trigger response:', error);
-                // Don't propagate to prevent ErrorBoundary from triggering
               }
             };
-            websocketService.on('trigger_response', websocketService._storeListeners.onTriggerResponse);
 
-            websocketService._storeListeners.onStageTransition = (transitionData) => {
+            const onStageTransition = (transitionData) => {
               try {
                 get().handleStageTransition(transitionData);
               } catch (error) {
                 console.error('[WORKFLOW ERROR] Error handling stage transition:', error);
-                // Don't propagate to prevent ErrorBoundary from triggering
               }
             };
-            websocketService.on('stage_transition', websocketService._storeListeners.onStageTransition);
 
-            // Rich log event handlers
-            websocketService._storeListeners.onAgentLog = (data) => {
+            const onAgentLog = (data) => {
               try {
                 get().handleAgentLog(data);
               } catch (error) {
                 console.error('[KanbanStore] Error handling agent log:', error);
               }
             };
-            websocketService.on('agent_log', websocketService._storeListeners.onAgentLog);
 
-            websocketService._storeListeners.onThinkingBlock = (data) => {
+            const onThinkingBlock = (data) => {
               try {
                 get().handleThinkingBlock(data);
               } catch (error) {
                 console.error('[KanbanStore] Error handling thinking block:', error);
               }
             };
-            websocketService.on('thinking_block', websocketService._storeListeners.onThinkingBlock);
 
-            websocketService._storeListeners.onToolUsePre = (data) => {
+            const onToolUsePre = (data) => {
               try {
                 get().handleToolUsePre(data);
               } catch (error) {
                 console.error('[KanbanStore] Error handling tool use pre:', error);
               }
             };
-            websocketService.on('tool_use_pre', websocketService._storeListeners.onToolUsePre);
 
-            websocketService._storeListeners.onToolUsePost = (data) => {
+            const onToolUsePost = (data) => {
               try {
                 get().handleToolUsePost(data);
               } catch (error) {
                 console.error('[KanbanStore] Error handling tool use post:', error);
               }
             };
-            websocketService.on('tool_use_post', websocketService._storeListeners.onToolUsePost);
 
-            websocketService._storeListeners.onTextBlock = (data) => {
+            const onTextBlock = (data) => {
               try {
                 get().handleTextBlock(data);
               } catch (error) {
                 console.error('[KanbanStore] Error handling text block:', error);
               }
             };
-            websocketService.on('text_block', websocketService._storeListeners.onTextBlock);
 
-            websocketService._storeListeners.onFileChanged = (data) => {
+            const onFileChanged = (data) => {
               try {
                 get().handleFileChanged(data);
               } catch (error) {
                 console.error('[KanbanStore] Error handling file changed:', error);
               }
             };
-            websocketService.on('file_changed', websocketService._storeListeners.onFileChanged);
 
-            websocketService._storeListeners.onAgentSummaryUpdate = (data) => {
+            const onAgentSummaryUpdate = (data) => {
               try {
                 get().handleAgentSummaryUpdate(data);
               } catch (error) {
                 console.error('[KanbanStore] Error handling agent summary update:', error);
               }
             };
-            websocketService.on('agent_summary_update', websocketService._storeListeners.onAgentSummaryUpdate);
 
-            // System log handler for worktree deletion notifications
-            websocketService._storeListeners.onSystemLog = (data) => {
+            const onSystemLog = (data) => {
               try {
                 get().handleSystemLog(data);
               } catch (error) {
                 console.error('[KanbanStore] Error handling system log:', error);
               }
             };
-            websocketService.on('system_log', websocketService._storeListeners.onSystemLog);
 
-            // Mark listeners as registered
-            websocketService._storeListenersRegistered = true;
+            const onStartupConnectionFailed = (data) => {
+              console.warn('[KanbanStore] Startup connection failed:', data.message);
+              set({
+                websocketError: 'Backend unavailable - running in offline mode',
+                websocketConnecting: false
+              }, false, 'websocketOfflineMode');
+            };
 
-            // Connect to WebSocket server
-            await websocketService.connect();
+            // Register all listeners with owner tracking for proper cleanup
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'connect', onConnect);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'disconnect', onDisconnect);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'error', onError);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'status_update', onStatusUpdate);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'workflow_log', onWorkflowLog);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'trigger_response', onTriggerResponse);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'stage_transition', onStageTransition);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'agent_log', onAgentLog);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'thinking_block', onThinkingBlock);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'tool_use_pre', onToolUsePre);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'tool_use_post', onToolUsePost);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'text_block', onTextBlock);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'file_changed', onFileChanged);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'agent_summary_update', onAgentSummaryUpdate);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'system_log', onSystemLog);
+            websocketService.onWithOwner(KANBAN_STORE_OWNER_ID, 'startup_connection_failed', onStartupConnectionFailed);
+
+            // Attempt connection - may fail if backend unavailable, but listeners are registered
+            try {
+              await websocketService.connect();
+            } catch (error) {
+              // Connection failed but listeners are registered
+              // App can still function and will reconnect when backend becomes available
+              console.warn('[KanbanStore] Initial connection failed, running in offline mode:', error.message);
+              set({
+                websocketConnected: false,
+                websocketConnecting: false,
+                websocketError: 'Backend unavailable - will reconnect automatically'
+              }, false, 'websocketOfflineMode');
+              // Don't throw - allow app to continue in offline mode
+            }
 
           } catch (error) {
             set({
@@ -1306,34 +1319,12 @@ export const useKanbanStore = create()(
         disconnectWebSocket: () => {
           console.log('[WebSocket] Disconnecting and cleaning up listeners');
 
-          // Remove all registered event listeners
-          if (websocketService._storeListeners) {
-            websocketService.off('connect', websocketService._storeListeners.onConnect);
-            websocketService.off('disconnect', websocketService._storeListeners.onDisconnect);
-            websocketService.off('error', websocketService._storeListeners.onError);
-            websocketService.off('status_update', websocketService._storeListeners.onStatusUpdate);
-            websocketService.off('workflow_log', websocketService._storeListeners.onWorkflowLog);
-            websocketService.off('trigger_response', websocketService._storeListeners.onTriggerResponse);
-            websocketService.off('stage_transition', websocketService._storeListeners.onStageTransition);
+          // Remove all listeners registered by kanban store using owner-based cleanup
+          websocketService.offAllByOwner(KANBAN_STORE_OWNER_ID);
 
-            // Rich log event listeners
-            websocketService.off('agent_log', websocketService._storeListeners.onAgentLog);
-            websocketService.off('thinking_block', websocketService._storeListeners.onThinkingBlock);
-            websocketService.off('tool_use_pre', websocketService._storeListeners.onToolUsePre);
-            websocketService.off('tool_use_post', websocketService._storeListeners.onToolUsePost);
-            websocketService.off('text_block', websocketService._storeListeners.onTextBlock);
-            websocketService.off('file_changed', websocketService._storeListeners.onFileChanged);
-            websocketService.off('agent_summary_update', websocketService._storeListeners.onAgentSummaryUpdate);
-            websocketService.off('system_log', websocketService._storeListeners.onSystemLog);
-
-            // Clear listener references
-            websocketService._storeListeners = null;
-          }
-
-          // Reset the initialization flag
-          websocketService._storeListenersRegistered = false;
-
+          // Disconnect the WebSocket
           websocketService.disconnect();
+
           set({
             websocketConnected: false,
             websocketConnecting: false,
@@ -2020,45 +2011,28 @@ export const useKanbanStore = create()(
           }), false, 'updateWorkflowMetadata');
         },
 
-        // Get workflow logs for task
+        // Get workflow logs for task (pure getter - NO state mutations!)
         getWorkflowLogsForTask: (taskId) => {
           const { taskWorkflowLogs, tasks } = get();
 
-          console.log('[KanbanStore] getWorkflowLogsForTask called for taskId:', taskId);
-
           // First try direct lookup by task ID
           if (taskWorkflowLogs[taskId] && taskWorkflowLogs[taskId].length > 0) {
-            console.log('[KanbanStore] Found logs by taskId:', taskId, 'count:', taskWorkflowLogs[taskId].length);
             return taskWorkflowLogs[taskId];
           }
 
           // Fallback: Find task by ID to get its ADW ID, then search for logs by ADW ID
           const task = tasks.find(t => t.id === taskId);
           if (task?.metadata?.adw_id) {
-            console.log('[KanbanStore] Task found with adw_id:', task.metadata.adw_id, 'searching for logs by ADW ID');
-
             // Search through all logs to find any with matching ADW ID
-            for (const [storedTaskId, logs] of Object.entries(taskWorkflowLogs)) {
+            for (const [, logs] of Object.entries(taskWorkflowLogs)) {
               if (logs.length > 0 && logs[0].adw_id === task.metadata.adw_id) {
-                console.log('[KanbanStore] Found logs stored under different taskId:', storedTaskId, 'count:', logs.length, 'moving to current taskId');
-
-                // Move logs to current task ID for future lookups
-                set((state) => {
-                  const updatedLogs = { ...state.taskWorkflowLogs };
-                  updatedLogs[taskId] = logs;
-                  // Optionally remove from old taskId to prevent duplicates
-                  if (storedTaskId !== taskId) {
-                    delete updatedLogs[storedTaskId];
-                  }
-                  return { taskWorkflowLogs: updatedLogs };
-                }, false, 'migrateWorkflowLogs');
-
+                // Return logs directly - do NOT call set() here!
+                // State mutations in getters cause infinite re-render loops
                 return logs;
               }
             }
           }
 
-          console.log('[KanbanStore] No logs found for taskId:', taskId);
           return [];
         },
 
@@ -2296,6 +2270,8 @@ export const useKanbanStore = create()(
         },
 
         // Trigger merge workflow for a task in ready-to-merge stage
+        // This now uses the slash command approach - simple and powerful
+        // Let Claude handle the complexity instead of scripting every edge case
         triggerMergeWorkflow: async (taskId) => {
           const task = get().tasks.find(t => t.id === taskId);
           if (!task) {
@@ -2307,16 +2283,12 @@ export const useKanbanStore = create()(
             throw new Error('Task must be in "Ready to Merge" stage to trigger merge');
           }
 
-          // Get ADW ID and issue number from task metadata
+          // Get ADW ID from task metadata
           const adw_id = task.metadata?.adw_id;
-          const issue_number = task.metadata?.execution_context?.issue?.number;
 
           if (!adw_id) {
             throw new Error('Task is missing ADW ID');
           }
-
-          // Note: issue_number is optional for merge workflow
-          // The workflow can work with or without it
 
           try {
             // Set merge state to in_progress BEFORE triggering
@@ -2326,51 +2298,52 @@ export const useKanbanStore = create()(
                 ...state.mergingTasks,
                 [taskId]: {
                   status: 'in_progress',
-                  message: 'Triggering merge workflow...',
+                  message: 'Starting merge via /merge_worktree...',
                   timestamp: new Date().toISOString()
                 }
               }
             }), false, 'triggerMergeWorkflow');
 
-            // Trigger merge workflow via WebSocket
-            const response = await websocketService.triggerWorkflowForTask(
-              task,
-              'adw_merge_iso',
+            // Use slash command instead of complex workflow triggering
+            // This is the simple, powerful approach: let Claude handle the complexity
+            const response = await websocketService.triggerSlashCommand(
+              'merge_worktree',  // The slash command to execute
+              [adw_id, 'squash'],  // Arguments: adw_id and merge method (squash is worktree-safe)
               {
                 adw_id,
-                issue_number,
-                model_set: 'base'
+                task_id: taskId
               }
             );
 
-            // Check for successful trigger - response has status: 'accepted' from WebSocket
-            if (response.status === 'accepted' || response.success) {
-              // Update task metadata to indicate merge is in progress
+            // Check for successful execution
+            if (response.success) {
+              // Update task metadata to indicate merge completed
               get().updateTask(taskId, {
                 metadata: {
                   ...task.metadata,
                   merge_triggered: true,
                   merge_triggered_at: new Date().toISOString(),
-                  merge_in_progress: true,
+                  merge_completed: true,
+                  merge_completed_at: new Date().toISOString(),
                 }
               });
 
-              // Update merge state to indicate workflow was accepted
+              // Update merge state to success
               set((state) => ({
                 isLoading: false,
                 mergingTasks: {
                   ...state.mergingTasks,
                   [taskId]: {
-                    status: 'in_progress',
-                    message: 'Merge workflow started. Waiting for completion...',
+                    status: 'success',
+                    message: 'Merge completed successfully!',
                     timestamp: new Date().toISOString()
                   }
                 }
               }), false, 'triggerMergeWorkflowSuccess');
 
-              return { success: true, message: 'Merge workflow triggered successfully' };
+              return { success: true, message: 'Merge completed successfully' };
             } else {
-              throw new Error(response.error || response.message || 'Merge failed');
+              throw new Error(response.error || 'Merge failed');
             }
 
           } catch (error) {
@@ -2387,12 +2360,12 @@ export const useKanbanStore = create()(
             // Update merge state to error
             set((state) => ({
               isLoading: false,
-              error: `Failed to trigger merge: ${error.message}`,
+              error: `Failed to merge: ${error.message}`,
               mergingTasks: {
                 ...state.mergingTasks,
                 [taskId]: {
                   status: 'error',
-                  message: error.message || 'Failed to trigger merge workflow',
+                  message: error.message || 'Failed to merge',
                   timestamp: new Date().toISOString()
                 }
               }
@@ -2487,6 +2460,48 @@ export const useKanbanStore = create()(
             delete newMergingTasks[taskId];
             return { mergingTasks: newMergingTasks };
           }, false, 'clearMergeState');
+        },
+
+        /**
+         * Execute any slash command from the UI.
+         * This is the generic, extensible way to trigger slash commands.
+         *
+         * The key insight: let Claude handle complexity, don't script everything.
+         *
+         * @param {string} command - Command name (e.g., "merge_worktree", "cleanup_worktrees")
+         * @param {string[]} args - Command arguments
+         * @param {object} context - Additional context (adw_id, task_id, etc.)
+         * @returns {Promise<object>} - Command execution result
+         */
+        executeSlashCommand: async (command, args = [], context = {}) => {
+          try {
+            console.log(`[KanbanStore] Executing slash command: /${command} ${args.join(' ')}`);
+
+            const response = await websocketService.triggerSlashCommand(command, args, context);
+
+            if (response.success) {
+              console.log(`[KanbanStore] Slash command completed successfully:`, response);
+              return response;
+            } else {
+              throw new Error(response.error || 'Command failed');
+            }
+          } catch (error) {
+            console.error(`[KanbanStore] Slash command failed:`, error);
+            throw error;
+          }
+        },
+
+        /**
+         * Get list of available slash commands
+         * @returns {Promise<object[]>} - Array of available commands
+         */
+        getAvailableSlashCommands: async () => {
+          try {
+            return await websocketService.listSlashCommands();
+          } catch (error) {
+            console.error('[KanbanStore] Failed to get slash commands:', error);
+            return [];
+          }
         },
 
         /**

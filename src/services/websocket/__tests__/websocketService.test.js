@@ -962,4 +962,306 @@ describe('WebSocketService', () => {
       expect(service.pendingPromises.size).toBe(0);
     });
   });
+
+  // ==========================================================
+  // NEW TESTS FOR OWNER-BASED LISTENER MANAGEMENT
+  // ==========================================================
+
+  describe('Owner-Based Listener Management', () => {
+    it('should register listener with owner tracking', () => {
+      const listener = vi.fn();
+      service.onWithOwner('test-owner', 'connect', listener);
+
+      expect(service.eventListeners.connect).toContain(listener);
+      expect(service.hasListenersByOwner('test-owner')).toBe(true);
+    });
+
+    it('should track multiple listeners for same owner', () => {
+      const listener1 = vi.fn();
+      const listener2 = vi.fn();
+      service.onWithOwner('test-owner', 'connect', listener1);
+      service.onWithOwner('test-owner', 'error', listener2);
+
+      expect(service.getListenerCountByOwner('test-owner')).toBe(2);
+    });
+
+    it('should remove all listeners by owner', () => {
+      const listener1 = vi.fn();
+      const listener2 = vi.fn();
+      service.onWithOwner('test-owner', 'connect', listener1);
+      service.onWithOwner('test-owner', 'error', listener2);
+
+      service.offAllByOwner('test-owner');
+
+      expect(service.eventListeners.connect).not.toContain(listener1);
+      expect(service.eventListeners.error).not.toContain(listener2);
+      expect(service.hasListenersByOwner('test-owner')).toBe(false);
+    });
+
+    it('should handle offAllByOwner for non-existent owner', () => {
+      // Should not throw
+      expect(() => service.offAllByOwner('non-existent')).not.toThrow();
+    });
+
+    it('should return false for hasListenersByOwner with no listeners', () => {
+      expect(service.hasListenersByOwner('non-existent')).toBe(false);
+    });
+
+    it('should track listeners from multiple owners separately', () => {
+      const listener1 = vi.fn();
+      const listener2 = vi.fn();
+      service.onWithOwner('owner1', 'connect', listener1);
+      service.onWithOwner('owner2', 'connect', listener2);
+
+      service.offAllByOwner('owner1');
+
+      expect(service.eventListeners.connect).not.toContain(listener1);
+      expect(service.eventListeners.connect).toContain(listener2);
+      expect(service.hasListenersByOwner('owner1')).toBe(false);
+      expect(service.hasListenersByOwner('owner2')).toBe(true);
+    });
+  });
+
+  // ==========================================================
+  // NEW TESTS FOR CIRCUIT BREAKER
+  // ==========================================================
+
+  describe('Circuit Breaker', () => {
+    it('should initialize with CLOSED state', () => {
+      expect(service.circuitBreaker.state).toBe('CLOSED');
+      expect(service.isCircuitOpen()).toBe(false);
+    });
+
+    it('should open circuit after threshold failures', () => {
+      // Record failures up to threshold
+      for (let i = 0; i < service.circuitBreaker.failureThreshold; i++) {
+        service.recordConnectionFailure();
+      }
+
+      expect(service.circuitBreaker.state).toBe('OPEN');
+      expect(service.isCircuitOpen()).toBe(true);
+    });
+
+    it('should emit circuit_open event when circuit opens', () => {
+      const listener = vi.fn();
+      service.on('circuit_open', listener);
+
+      // Record failures up to threshold
+      for (let i = 0; i < service.circuitBreaker.failureThreshold; i++) {
+        service.recordConnectionFailure();
+      }
+
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+        failures: service.circuitBreaker.failureThreshold
+      }));
+    });
+
+    it('should transition to HALF_OPEN after reset timeout', () => {
+      vi.useFakeTimers();
+
+      // Open the circuit
+      for (let i = 0; i < service.circuitBreaker.failureThreshold; i++) {
+        service.recordConnectionFailure();
+      }
+      expect(service.circuitBreaker.state).toBe('OPEN');
+
+      // Advance time past reset timeout
+      vi.advanceTimersByTime(service.circuitBreaker.resetTimeout + 1000);
+
+      // Now isCircuitOpen should return false and state should transition to HALF_OPEN
+      expect(service.isCircuitOpen()).toBe(false);
+      expect(service.circuitBreaker.state).toBe('HALF_OPEN');
+
+      vi.useRealTimers();
+    });
+
+    it('should close circuit after successful connections in HALF_OPEN', () => {
+      // Manually set to HALF_OPEN for testing
+      service.circuitBreaker.state = 'HALF_OPEN';
+      service.circuitBreaker.consecutiveSuccesses = 0;
+
+      // Record successes up to threshold
+      for (let i = 0; i < service.circuitBreaker.successThreshold; i++) {
+        service.recordConnectionSuccess();
+      }
+
+      expect(service.circuitBreaker.state).toBe('CLOSED');
+    });
+
+    it('should reset failure count on successful connection', () => {
+      service.circuitBreaker.failureCount = 3;
+
+      service.recordConnectionSuccess();
+
+      expect(service.circuitBreaker.failureCount).toBe(0);
+    });
+
+    it('should return circuit breaker status', () => {
+      const status = service.getCircuitBreakerStatus();
+
+      expect(status).toEqual({
+        state: 'CLOSED',
+        failureCount: 0,
+        isOpen: false
+      });
+    });
+
+    it('should block connection when circuit is open', async () => {
+      // Open the circuit
+      for (let i = 0; i < service.circuitBreaker.failureThreshold; i++) {
+        service.recordConnectionFailure();
+      }
+
+      // Attempt connection
+      await expect(service.connect()).rejects.toThrow('Circuit breaker is open');
+    });
+  });
+
+  // ==========================================================
+  // NEW TESTS FOR STARTUP PHASE MANAGEMENT
+  // ==========================================================
+
+  describe('Startup Phase Management', () => {
+    it('should initialize in startup phase', () => {
+      expect(service.isStartupPhase).toBe(true);
+    });
+
+    it('should exit startup phase', () => {
+      service.exitStartupPhase();
+
+      expect(service.isStartupPhase).toBe(false);
+      expect(service.startupReconnectAttempts).toBe(0);
+    });
+
+    it('should limit reconnect attempts during startup', () => {
+      vi.useFakeTimers();
+
+      const listener = vi.fn();
+      service.on('startup_connection_failed', listener);
+
+      // Simulate startup reconnection attempts
+      for (let i = 0; i <= service.maxStartupReconnectAttempts; i++) {
+        service.scheduleReconnect();
+        // Need to advance time between calls to avoid throttling
+        vi.advanceTimersByTime(service.minReconnectInterval + 100);
+      }
+
+      expect(listener).toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('should allow unlimited reconnects after startup phase', async () => {
+      vi.useFakeTimers();
+
+      // Exit startup phase
+      service.exitStartupPhase();
+
+      // Should allow more than maxStartupReconnectAttempts
+      const maxStartupAttempts = service.maxStartupReconnectAttempts;
+      for (let i = 0; i <= maxStartupAttempts + 2; i++) {
+        service.scheduleReconnect();
+        vi.advanceTimersByTime(service.minReconnectInterval + 100);
+      }
+
+      // Should not emit startup_connection_failed after exiting startup
+      expect(service.startupReconnectAttempts).toBe(0);
+
+      vi.useRealTimers();
+    });
+
+    it('should throttle reconnection attempts', () => {
+      vi.useFakeTimers();
+
+      service.scheduleReconnect();
+      const firstAttempt = service.reconnectAttempts;
+
+      // Try immediately again (should be throttled)
+      service.scheduleReconnect();
+
+      expect(service.reconnectAttempts).toBe(firstAttempt);
+
+      vi.useRealTimers();
+    });
+
+    it('should allow reconnect after throttle interval', () => {
+      vi.useFakeTimers();
+
+      service.exitStartupPhase(); // Exit startup to avoid startup limits
+      service.scheduleReconnect();
+      const firstAttempt = service.reconnectAttempts;
+
+      // Advance past throttle interval
+      vi.advanceTimersByTime(service.minReconnectInterval + 100);
+      service.scheduleReconnect();
+
+      expect(service.reconnectAttempts).toBeGreaterThan(firstAttempt);
+
+      vi.useRealTimers();
+    });
+
+    it('should reset all state on manual reconnect', async () => {
+      // Set up some state
+      service.reconnectAttempts = 10;
+      service.circuitBreaker.state = 'OPEN';
+      service.circuitBreaker.failureCount = 5;
+
+      // Start manual reconnect (will fail since no real WebSocket, but will reset state)
+      const reconnectPromise = service.manualReconnect();
+
+      // Get mock and simulate open
+      mockWs = currentMockWs;
+      mockWs.simulateOpen();
+
+      await reconnectPromise;
+
+      expect(service.isStartupPhase).toBe(false);
+      expect(service.reconnectAttempts).toBe(0);
+      expect(service.circuitBreaker.state).toBe('CLOSED');
+      expect(service.circuitBreaker.failureCount).toBe(0);
+    });
+  });
+
+  // ==========================================================
+  // NEW TESTS FOR CONNECTION DEDUPLICATION
+  // ==========================================================
+
+  describe('Connection Deduplication', () => {
+    it('should only create one WebSocket for concurrent connect calls', async () => {
+      const connectPromise1 = service.connect();
+      const connectPromise2 = service.connect();
+
+      // Complete the connection
+      mockWs = currentMockWs;
+      mockWs.simulateOpen();
+
+      await Promise.all([connectPromise1, connectPromise2]);
+
+      // Only one WebSocket should be created
+      expect(mockWsInstances.length).toBe(1);
+    });
+
+    it('should clear pending promise after connection completes', async () => {
+      const connectPromise = service.connect();
+      mockWs = currentMockWs;
+      mockWs.simulateOpen();
+      await connectPromise;
+
+      expect(service.pendingConnectPromise).toBeNull();
+    });
+
+    it('should clear pending promise after connection fails', async () => {
+      const connectPromise = service.connect();
+      mockWs = currentMockWs;
+      mockWs.simulateError(new Error('Connection failed'));
+
+      try {
+        await connectPromise;
+      } catch {
+        // Expected to fail
+      }
+
+      expect(service.pendingConnectPromise).toBeNull();
+    });
+  });
 });

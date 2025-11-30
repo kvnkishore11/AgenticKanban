@@ -49,22 +49,36 @@ function App() {
   const totalTasks = tasks.length;
 
   useEffect(() => {
-    // Initialize the application
-    // Initialize WebSocket connection only once
-    if (!wsInitialized.current) {
-      console.log('[App] AgenticKanban initialized');
-      wsInitialized.current = true;
-      initializeWebSocket().catch(error => {
-        console.error('[App] Failed to initialize WebSocket:', error);
-      });
-    }
+    // Track if this is the current mount (for StrictMode double-mount handling)
+    let isCurrentMount = true;
 
-    // NOTE: We intentionally do NOT cleanup websocketService here because:
-    // 1. websocketService is a singleton that should persist for the app's lifetime
-    // 2. Cleaning up on every re-render would clear event listeners
-    // 3. This was causing the bug where workflow_log listeners were cleared
-    // The websocketService will be cleaned up when the browser tab/window closes
-  }, []); // Empty dependency array: only run once on mount. wsInitialized.current ref prevents duplicate initialization.
+    // Use setTimeout(0) to defer initialization until after StrictMode cleanup
+    // This ensures that if StrictMode unmounts and remounts, we only initialize once
+    const initTimer = setTimeout(() => {
+      if (isCurrentMount && !wsInitialized.current) {
+        console.log('[App] AgenticKanban initializing WebSocket connection');
+        wsInitialized.current = true;
+        initializeWebSocket().catch(error => {
+          console.error('[App] Failed to initialize WebSocket:', error);
+          // Reset flag on error to allow retry on next mount
+          if (isCurrentMount) {
+            wsInitialized.current = false;
+          }
+        });
+      }
+    }, 0);
+
+    // Cleanup function for StrictMode double-mount
+    return () => {
+      console.log('[App] Effect cleanup running');
+      isCurrentMount = false;
+      clearTimeout(initTimer);
+      // NOTE: We do NOT call disconnectWebSocket here because:
+      // 1. websocketService is a singleton that should persist for the app's lifetime
+      // 2. The owner-based listener tracking handles cleanup properly
+      // 3. The websocketService will be cleaned up when the browser tab/window closes
+    };
+  }, [initializeWebSocket]); // Include initializeWebSocket in deps for proper hook rules
 
   // Handle keyboard shortcut for search
   useEffect(() => {

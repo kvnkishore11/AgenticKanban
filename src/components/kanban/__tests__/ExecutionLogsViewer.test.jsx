@@ -10,9 +10,6 @@ import ExecutionLogsViewer from '../ExecutionLogsViewer';
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Note: Component uses import.meta.env.VITE_ADW_PORT || 8500
-// Default port in test environment is 8500
-
 describe('ExecutionLogsViewer Component', () => {
   const defaultProps = {
     adwId: 'de44dd9c',
