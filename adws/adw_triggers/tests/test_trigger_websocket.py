@@ -1,6 +1,98 @@
-"""Tests for trigger_websocket.py command building logic."""
+"""Tests for trigger_websocket.py command building logic and validation."""
 
 import pytest
+import sys
+import os
+
+# Add parent directories to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+
+class TestPatchWorkflowValidation:
+    """Tests for patch workflow compatibility validation."""
+
+    def test_patch_issue_type_rejects_plan_based_workflows(self):
+        """Test that patch issue_type is rejected for plan-based workflows."""
+        from adw_triggers.trigger_websocket import validate_workflow_request
+
+        # Plan-based workflows that should reject patch issue_type
+        plan_based_workflows = [
+            "adw_plan_iso",
+            "adw_plan_build_iso",
+            "adw_plan_build_test_iso",
+            "adw_plan_build_test_review_iso",
+            "adw_plan_build_document_iso",
+            "adw_plan_build_review_iso",
+            "adw_sdlc_iso",
+            "adw_sdlc_zte_iso",
+        ]
+
+        for workflow in plan_based_workflows:
+            request_data = {
+                "workflow_type": workflow,
+                "issue_type": "patch",
+                "issue_number": "123",
+            }
+
+            result, error = validate_workflow_request(request_data)
+
+            assert result is None, f"Expected {workflow} to be rejected for patch issue_type"
+            assert error is not None
+            assert "patch" in error.lower()
+            assert "adw_patch_iso" in error
+
+    def test_patch_issue_type_accepts_patch_workflow(self):
+        """Test that patch issue_type is accepted for adw_patch_iso workflow."""
+        from adw_triggers.trigger_websocket import validate_workflow_request
+
+        request_data = {
+            "workflow_type": "adw_patch_iso",
+            "issue_type": "patch",
+            "issue_number": "123",
+        }
+
+        result, error = validate_workflow_request(request_data)
+
+        assert error is None, f"Expected adw_patch_iso to accept patch issue_type, got error: {error}"
+        assert result is not None
+        assert result.workflow_type == "adw_patch_iso"
+
+    def test_patch_workItemType_from_issue_json_rejects_plan_workflows(self):
+        """Test that patch workItemType in issue_json is rejected for plan-based workflows."""
+        from adw_triggers.trigger_websocket import validate_workflow_request
+
+        request_data = {
+            "workflow_type": "adw_plan_build_test_iso",
+            "issue_json": {
+                "number": 30,
+                "title": "Test task",
+                "body": "Test body",
+                "workItemType": "patch",
+            },
+            "issue_number": "30",
+        }
+
+        result, error = validate_workflow_request(request_data)
+
+        assert result is None, "Expected plan workflow to be rejected for patch workItemType"
+        assert error is not None
+        assert "patch" in error.lower()
+
+    def test_non_patch_issue_types_accepted_for_plan_workflows(self):
+        """Test that non-patch issue types are accepted for plan workflows."""
+        from adw_triggers.trigger_websocket import validate_workflow_request
+
+        for issue_type in ["feature", "bug", "chore"]:
+            request_data = {
+                "workflow_type": "adw_plan_build_test_iso",
+                "issue_type": issue_type,
+                "issue_number": "123",
+            }
+
+            result, error = validate_workflow_request(request_data)
+
+            assert error is None, f"Expected {issue_type} to be accepted, got error: {error}"
+            assert result is not None
 
 
 class TestMergeWorkflowCommandBuilding:

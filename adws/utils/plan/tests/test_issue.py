@@ -128,3 +128,56 @@ class TestFetchAndClassify:
 
         assert exc_info.value.code == 1
         mock_logger.error.assert_called()
+
+    @patch('utils.plan.issue.fetch_issue_safe')
+    @patch('utils.plan.issue.make_issue_comment_safe')
+    def test_exits_when_issue_class_is_patch(self, mock_comment, mock_fetch):
+        """Should exit when issue_class is /patch (incompatible with plan workflow)."""
+        from utils.plan.issue import fetch_and_classify
+
+        # Setup mocks
+        mock_issue = Mock()
+        mock_issue.model_dump_json = Mock(return_value='{}')
+        mock_fetch.return_value = mock_issue
+
+        mock_state = Mock()
+        mock_state.data = {"issue_class": "/patch"}  # Patch issue class
+        mock_state.get = Mock(side_effect=lambda key, default=None: mock_state.data.get(key, default))
+
+        mock_notifier = Mock()
+        mock_logger = Mock()
+
+        # Execute and expect exit
+        with pytest.raises(SystemExit) as exc_info:
+            fetch_and_classify("999", "test1234", mock_state, mock_notifier, mock_logger)
+
+        assert exc_info.value.code == 1
+        mock_logger.error.assert_called()
+        mock_notifier.notify_error.assert_called()
+
+        # Verify the error message mentions the incompatibility
+        error_call_args = mock_notifier.notify_error.call_args
+        assert "patch" in error_call_args[0][1].lower() or "patch" in str(error_call_args)
+
+    @patch('utils.plan.issue.fetch_issue_safe')
+    @patch('utils.plan.issue.make_issue_comment_safe')
+    def test_accepts_valid_issue_classes(self, mock_comment, mock_fetch):
+        """Should accept valid issue classes: /feature, /bug, /chore."""
+        from utils.plan.issue import fetch_and_classify
+
+        # Setup mocks
+        mock_issue = Mock()
+        mock_issue.model_dump_json = Mock(return_value='{}')
+        mock_fetch.return_value = mock_issue
+
+        mock_notifier = Mock()
+        mock_logger = Mock()
+
+        for issue_class in ["/feature", "/bug", "/chore"]:
+            mock_state = Mock()
+            mock_state.data = {"issue_class": issue_class}
+            mock_state.get = Mock(side_effect=lambda key, default=None, d=mock_state.data: d.get(key, default))
+
+            # Should not raise SystemExit
+            ctx = fetch_and_classify("999", "test1234", mock_state, mock_notifier, mock_logger)
+            assert ctx.issue_command == issue_class

@@ -555,6 +555,86 @@ describe('WorkflowTriggerModal Component', () => {
     });
   });
 
+  describe('Patch Task Workflow Filtering', () => {
+    const MOCK_PATCH_TASK = {
+      id: 123,
+      title: 'Patch Task',
+      stage: 'backlog',
+      workItemType: 'patch',
+      metadata: {}
+    };
+
+    it('should auto-select patch workflow for patch tasks', () => {
+      render(<WorkflowTriggerModal task={MOCK_PATCH_TASK} onClose={mockOnClose} />);
+
+      const patchRadio = screen.getByRole('radio', { name: /patch \(isolated\)/i });
+      expect(patchRadio).toBeChecked();
+    });
+
+    it('should show patch task info banner for patch tasks', () => {
+      render(<WorkflowTriggerModal task={MOCK_PATCH_TASK} onClose={mockOnClose} />);
+
+      expect(screen.getByText('Patch Task')).toBeInTheDocument();
+      expect(screen.getByText(/handles planning, implementation, testing/i)).toBeInTheDocument();
+    });
+
+    it('should NOT show patch task info banner for non-patch tasks', () => {
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      expect(screen.queryByText(/handles planning, implementation, testing/i)).not.toBeInTheDocument();
+    });
+
+    it('should NOT show plan-based workflows for patch tasks', () => {
+      render(<WorkflowTriggerModal task={MOCK_PATCH_TASK} onClose={mockOnClose} />);
+
+      // Plan-based workflows should be hidden
+      expect(screen.queryByRole('radio', { name: /plan \(isolated\)/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('radio', { name: /plan \+ build$/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('radio', { name: /plan \+ build \+ test/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('radio', { name: /full sdlc/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('radio', { name: /zero touch execution/i })).not.toBeInTheDocument();
+    });
+
+    it('should show patch and dependent workflows for patch tasks', () => {
+      render(<WorkflowTriggerModal task={MOCK_PATCH_TASK} onClose={mockOnClose} />);
+
+      // Patch workflow should be visible
+      expect(screen.getByRole('radio', { name: /patch \(isolated\)/i })).toBeInTheDocument();
+
+      // Dependent workflows should be visible (for re-running individual stages)
+      expect(screen.getByRole('radio', { name: /build \(isolated\)/i })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: /test \(isolated\)/i })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: /review \(isolated\)/i })).toBeInTheDocument();
+    });
+
+    it('should show ALL workflows for non-patch tasks', () => {
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      // All workflows should be visible for non-patch tasks
+      expect(screen.getByRole('radio', { name: /plan \(isolated\)/i })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: /patch \(isolated\)/i })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: /build \(isolated\)/i })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: /full sdlc/i })).toBeInTheDocument();
+    });
+
+    it('should detect patch task from metadata.workItemType', () => {
+      const taskWithPatchMetadata = {
+        id: 123,
+        title: 'Task with patch metadata',
+        stage: 'backlog',
+        metadata: { workItemType: 'patch' }
+      };
+      render(<WorkflowTriggerModal task={taskWithPatchMetadata} onClose={mockOnClose} />);
+
+      // Should auto-select patch workflow
+      const patchRadio = screen.getByRole('radio', { name: /patch \(isolated\)/i });
+      expect(patchRadio).toBeChecked();
+
+      // Should show patch info banner
+      expect(screen.getByText('Patch Task')).toBeInTheDocument();
+    });
+  });
+
   describe('Edge Cases', () => {
     it('should handle task without stage', () => {
       const taskWithoutStage = { ...MOCK_TASK, stage: undefined };

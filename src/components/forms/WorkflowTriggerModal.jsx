@@ -31,8 +31,23 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
 
   const websocketStatus = getWebSocketStatus();
 
-  // Available workflow types
-  const workflowTypes = [
+  // Detect if this is a patch task
+  const isPatchTask = task.workItemType === 'patch' || task.metadata?.workItemType === 'patch';
+
+  // Workflows that are NOT compatible with patch tasks
+  const PATCH_INCOMPATIBLE_WORKFLOWS = [
+    'adw_plan_iso',
+    'adw_plan_build_iso',
+    'adw_plan_build_test_iso',
+    'adw_plan_build_test_review_iso',
+    'adw_plan_build_document_iso',
+    'adw_plan_build_review_iso',
+    'adw_sdlc_iso',
+    'adw_sdlc_zte_iso',
+  ];
+
+  // All available workflow types
+  const allWorkflowTypes = [
     // Entry point workflows
     {
       id: 'adw_plan_iso',
@@ -43,7 +58,7 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
     {
       id: 'adw_patch_iso',
       name: 'Patch (Isolated)',
-      description: 'Apply patch using existing plan or comments',
+      description: 'All-in-one: plan, implement, test, and create PR',
       category: 'entry_point'
     },
 
@@ -106,6 +121,11 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
     }
   ];
 
+  // Filter workflows based on task type - patch tasks only see patch-compatible workflows
+  const workflowTypes = isPatchTask
+    ? allWorkflowTypes.filter(w => !PATCH_INCOMPATIBLE_WORKFLOWS.includes(w.id))
+    : allWorkflowTypes;
+
   // Model set options
   const modelSetOptions = [
     { value: 'base', label: 'Base Models', description: 'Standard model configuration' },
@@ -113,24 +133,33 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
     { value: 'experimental', label: 'Experimental', description: 'Latest experimental models' }
   ];
 
-  // Auto-select workflow based on task's current stage
+  // Auto-select workflow based on task's work item type and current stage
   useEffect(() => {
-    if (task.stage && !workflowType) {
-      const stageToWorkflow = {
-        'backlog': 'adw_plan_iso',
-        'plan': 'adw_build_iso',
-        'build': 'adw_test_iso',
-        'test': 'adw_review_iso',
-        'review': 'adw_document_iso',
-        'document': 'adw_ship_iso'
-      };
+    if (!workflowType) {
+      // For patch tasks, always select adw_patch_iso
+      if (isPatchTask) {
+        setWorkflowType('adw_patch_iso');
+        return;
+      }
 
-      const suggestedWorkflow = stageToWorkflow[task.stage];
-      if (suggestedWorkflow) {
-        setWorkflowType(suggestedWorkflow);
+      // For other tasks, suggest based on stage
+      if (task.stage) {
+        const stageToWorkflow = {
+          'backlog': 'adw_plan_iso',
+          'plan': 'adw_build_iso',
+          'build': 'adw_test_iso',
+          'test': 'adw_review_iso',
+          'review': 'adw_document_iso',
+          'document': 'adw_ship_iso'
+        };
+
+        const suggestedWorkflow = stageToWorkflow[task.stage];
+        if (suggestedWorkflow) {
+          setWorkflowType(suggestedWorkflow);
+        }
       }
     }
-  }, [task.stage, workflowType]);
+  }, [task.stage, workflowType, isPatchTask]);
 
   // Use existing ADW ID from task metadata if available
   useEffect(() => {
@@ -268,6 +297,21 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
               </div>
               <p className="text-sm text-yellow-700 mt-1">
                 Workflow triggering requires an active WebSocket connection. Please check the connection status.
+              </p>
+            </div>
+          )}
+
+          {/* Patch Task Info */}
+          {isPatchTask && (
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+              <div className="flex items-center space-x-2">
+                <Info className="h-5 w-5 text-blue-500" />
+                <span className="text-sm font-medium text-blue-800">
+                  Patch Task
+                </span>
+              </div>
+              <p className="text-sm text-blue-700 mt-1">
+                Patch tasks use the <strong>Patch (Isolated)</strong> workflow which handles planning, implementation, testing, and PR creation in one step.
               </p>
             </div>
           )}

@@ -539,6 +539,31 @@ def validate_workflow_request(request_data: dict) -> tuple[Optional[WorkflowTrig
                 f"Please provide either a valid issue_number, issue_type, issue_json, or adw_id (for dependent workflows) in your request."
             )
 
+        # Validate that patch issue_type is only used with patch-compatible workflows
+        # Patch tasks require adw_patch_iso, not plan-based workflows
+        issue_type = request.issue_type
+        if not issue_type and request.issue_json:
+            issue_type = request.issue_json.get("workItemType")
+
+        if issue_type == "patch":
+            # List of workflows that are NOT compatible with patch issue_type
+            plan_based_workflows = [
+                "adw_plan_iso",
+                "adw_plan_build_iso",
+                "adw_plan_build_test_iso",
+                "adw_plan_build_test_review_iso",
+                "adw_plan_build_document_iso",
+                "adw_plan_build_review_iso",
+                "adw_sdlc_iso",
+                "adw_sdlc_zte_iso",
+            ]
+            if request.workflow_type in plan_based_workflows:
+                return None, (
+                    f"Workflow '{request.workflow_type}' is not compatible with 'patch' work item type. "
+                    f"Patch tasks require the 'adw_patch_iso' workflow instead. "
+                    f"Please select 'Patch (Isolated)' workflow or change the work item type to feature/bug/chore."
+                )
+
         return request, None
 
     except Exception as e:

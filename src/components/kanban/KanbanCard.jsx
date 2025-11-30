@@ -9,11 +9,16 @@
  * @module components/kanban/KanbanCard
  */
 
-import { useState, useEffect, useRef, memo, useMemo } from 'react';
+import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import CardExpandModal from './CardExpandModal';
 import { useStageTransition } from '../../hooks/useStageTransition';
+
+// Stable empty array reference to prevent infinite re-renders
+// When a selector returns `|| []`, it creates a new array each time,
+// causing React to think the value changed and triggering re-renders
+const EMPTY_LOGS = [];
 
 const KanbanCard = memo(({ task, onEdit }) => {
   // Use individual selectors instead of subscribing to entire store
@@ -23,7 +28,8 @@ const KanbanCard = memo(({ task, onEdit }) => {
 
   // Subscribe only to data relevant to this specific task
   const adwId = task.metadata?.adw_id;
-  const taskWorkflowLogs = useKanbanStore(state => state.taskWorkflowLogs?.[task.id] || []);
+  // Use stable EMPTY_LOGS reference to prevent infinite re-renders when logs don't exist
+  const taskWorkflowLogs = useKanbanStore(state => state.taskWorkflowLogs?.[task.id] || EMPTY_LOGS);
   const taskWorkflowProgress = useKanbanStore(state => state.taskWorkflowProgress?.[task.id] || null);
   // Use deletingAdws (the actual state key in the store)
   const deletionState = useKanbanStore(state => adwId ? state.deletingAdws?.[adwId] : null);

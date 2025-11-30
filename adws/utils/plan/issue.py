@@ -75,7 +75,26 @@ def fetch_and_classify(
     notifier.notify_progress("adw_plan_iso", 20, "Classifying issue", "Determining issue type (feature/bug/chore)")
     existing_issue_class = state.get("issue_class")
 
+    # Valid issue classes for the plan workflow
+    VALID_PLAN_ISSUE_CLASSES = ["/feature", "/bug", "/chore"]
+
     if existing_issue_class:
+        # Validate that the issue class is compatible with the plan workflow
+        if existing_issue_class == "/patch":
+            error_msg = (
+                f"Issue class '/patch' is not compatible with the plan workflow (adw_plan_iso). "
+                f"Patch tasks require the adw_patch_iso workflow instead. "
+                f"Please use 'Patch (Isolated)' workflow or change the work item type to feature/bug/chore."
+            )
+            logger.error(error_msg)
+            notifier.notify_error("adw_plan_iso", error_msg, "Invalid issue class")
+            make_issue_comment_safe(
+                issue_number,
+                format_issue_message(adw_id, "ops", f"Error: {error_msg}"),
+                state,
+            )
+            sys.exit(1)
+
         # Issue type was provided by kanban via WebSocket trigger
         issue_command = existing_issue_class
         logger.info(f"Using kanban-provided issue type: {issue_command}")
