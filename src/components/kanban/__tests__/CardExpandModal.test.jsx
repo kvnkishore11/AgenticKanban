@@ -180,7 +180,8 @@ describe('CardExpandModal Component', () => {
         plan_file: 'path/to/plan.md'
       })),
       clearWorkflowLogsForTask: vi.fn(),
-      triggerMergeWorkflow: vi.fn(() => Promise.resolve())
+      triggerMergeWorkflow: vi.fn(() => Promise.resolve()),
+      getMergeState: vi.fn(() => null)
     };
 
     useKanbanStore.mockReturnValue(mockStore);

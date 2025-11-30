@@ -10,11 +10,8 @@ import ExecutionLogsViewer from '../ExecutionLogsViewer';
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Mock window.APP_CONFIG
-Object.defineProperty(window, 'APP_CONFIG', {
-  value: { WS_PORT: 8500 },
-  writable: true
-});
+// Note: Component uses import.meta.env.VITE_ADW_PORT || 8500
+// Default port in test environment is 8500
 
 describe('ExecutionLogsViewer Component', () => {
   const defaultProps = {

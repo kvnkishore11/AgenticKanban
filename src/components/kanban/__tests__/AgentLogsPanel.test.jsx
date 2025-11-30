@@ -21,11 +21,8 @@ Element.prototype.scrollIntoView = vi.fn();
 // Mock fetch for API calls
 global.fetch = vi.fn();
 
-// Mock window.APP_CONFIG
-Object.defineProperty(window, 'APP_CONFIG', {
-  value: { WS_PORT: 8500 },
-  writable: true
-});
+// Note: Component uses import.meta.env.VITE_ADW_PORT || 8500
+// Default port in test environment is 8500
 
 describe('AgentLogsPanel Component', () => {
   let mockStore;
@@ -966,9 +963,9 @@ describe('AgentLogsPanel Component', () => {
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 
-    it('should use correct API port (VITE_ADW_PORT env var or default 8500)', async () => {
+    it('should use default API port 8500', async () => {
       // Component uses import.meta.env.VITE_ADW_PORT || 8500
-      // This is set at build time, so in tests it falls back to 8500
+      // Default port in test environment is 8500
       global.fetch.mockResolvedValue(mockApiResponse([]));
 
       await act(async () => {
