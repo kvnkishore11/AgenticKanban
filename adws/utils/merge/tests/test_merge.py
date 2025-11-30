@@ -20,16 +20,16 @@ class TestAbortMergeOperation:
     """Tests for _abort_merge_operation helper function."""
 
     @patch('subprocess.run')
-    def test_abort_rebase_uses_rebase_abort(self, mock_run, mock_logger):
-        """Test that rebase method uses git rebase --abort."""
+    def test_abort_uses_merge_abort(self, mock_run, mock_logger):
+        """Test that all methods use git merge --abort (since all use merge internally)."""
         mock_run.return_value = MagicMock(returncode=0)
 
         _abort_merge_operation("rebase", "/repo", mock_logger)
 
-        # Should call git rebase --abort
+        # Should call git merge --abort (rebase now uses merge internally)
         mock_run.assert_called_once()
         call_args = mock_run.call_args[0][0]
-        assert "rebase" in call_args
+        assert "merge" in call_args
         assert "--abort" in call_args
 
     @patch('subprocess.run')
@@ -46,7 +46,7 @@ class TestAbortMergeOperation:
         assert "--abort" in call_args
 
     @patch('subprocess.run')
-    def test_abort_merge_falls_back_to_reset(self, mock_run, mock_logger):
+    def test_abort_falls_back_to_reset(self, mock_run, mock_logger):
         """Test that merge abort falls back to reset on failure."""
         mock_run.side_effect = [
             MagicMock(returncode=1),  # merge --abort fails
@@ -249,14 +249,32 @@ class TestPerformMerge:
         assert result.merge_method == "merge"
 
     @patch('subprocess.run')
-    def test_rebase_merge_success(self, mock_run, mock_logger):
-        """Test successful rebase merge."""
+    def test_rebase_merge_success_fast_forward(self, mock_run, mock_logger):
+        """Test successful rebase merge via fast-forward."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         result = _perform_merge("feature/test", "rebase", "/repo", "main", mock_logger)
 
         assert result.success is True
         assert result.merge_method == "rebase"
+        # Should use git merge --ff-only
+        assert mock_run.call_count == 1
+        call_args = mock_run.call_args[0][0]
+        assert "--ff-only" in call_args
+
+    @patch('subprocess.run')
+    def test_rebase_merge_success_fallback_to_merge(self, mock_run, mock_logger):
+        """Test successful rebase merge falling back to regular merge when ff not possible."""
+        mock_run.side_effect = [
+            MagicMock(returncode=1, stdout="", stderr="Not possible to fast-forward"),  # ff-only fails
+            MagicMock(returncode=0, stdout="", stderr=""),  # merge --no-ff succeeds
+        ]
+
+        result = _perform_merge("feature/test", "rebase", "/repo", "main", mock_logger)
+
+        assert result.success is True
+        assert result.merge_method == "rebase"
+        assert mock_run.call_count == 2
 
     @patch('utils.merge.merge.check_merge_conflicts')
     @patch('subprocess.run')
@@ -308,20 +326,30 @@ class TestPerformMerge:
     @patch('subprocess.run')
     def test_rebase_failure_no_conflicts(self, mock_run, mock_check_conflicts, mock_logger):
         """Test that rebase failure without conflicts triggers abort."""
-        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="rebase error")
+        # Both ff-only and fallback merge fail, plus abort and checkout
+        mock_run.side_effect = [
+            MagicMock(returncode=1, stdout="", stderr="Not possible to fast-forward"),  # ff-only fails
+            MagicMock(returncode=1, stdout="", stderr="merge error"),  # fallback merge fails
+            MagicMock(returncode=0),  # git merge --abort
+            MagicMock(returncode=0),  # git checkout original_branch
+        ]
         # No conflicts detected - this is a real failure
         mock_check_conflicts.return_value = (False, [])
 
         result = _perform_merge("feature/test", "rebase", "/repo", "main", mock_logger)
 
         assert result.success is False
-        assert "Failed to rebase" in result.error
+        assert "Failed to merge" in result.error
 
     @patch('utils.merge.merge.check_merge_conflicts')
     @patch('subprocess.run')
     def test_rebase_with_conflicts_proceeds_to_resolution(self, mock_run, mock_check_conflicts, mock_logger):
         """Test that rebase with conflicts returns success to allow resolution."""
-        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="CONFLICT")
+        # ff-only fails, fallback merge fails with conflicts
+        mock_run.side_effect = [
+            MagicMock(returncode=1, stdout="", stderr="Not possible to fast-forward"),  # ff-only fails
+            MagicMock(returncode=1, stdout="", stderr="CONFLICT"),  # fallback merge fails with conflict
+        ]
         # Conflicts detected - should proceed to resolution step
         mock_check_conflicts.return_value = (True, ["file.txt"])
 

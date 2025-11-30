@@ -27,24 +27,21 @@ MERGE_STASH_NAME = "adw-merge-auto-stash"
 
 
 def _abort_merge_operation(merge_method: str, repo_root: str, logger: logging.Logger) -> None:
-    """Abort the current merge/rebase operation based on merge method.
+    """Abort the current merge operation.
 
     Args:
-        merge_method: The merge method being used
+        merge_method: The merge method being used (all methods use merge internally now)
         repo_root: Repository root directory
         logger: Logger instance
     """
-    if merge_method == "rebase":
-        logger.info("Aborting rebase operation...")
-        subprocess.run(["git", "rebase", "--abort"], cwd=repo_root, capture_output=True)
-    else:
-        # For squash, squash-rebase, and merge methods
-        logger.info("Aborting merge operation...")
-        # Try merge abort first, then reset if needed
-        result = subprocess.run(["git", "merge", "--abort"], cwd=repo_root, capture_output=True)
-        if result.returncode != 0:
-            # If merge abort fails, try to reset
-            subprocess.run(["git", "reset", "--hard", "HEAD"], cwd=repo_root, capture_output=True)
+    # All merge methods (including "rebase") now use git merge internally
+    # So we always try merge abort first, then reset if needed
+    logger.info("Aborting merge operation...")
+    result = subprocess.run(["git", "merge", "--abort"], cwd=repo_root, capture_output=True)
+    if result.returncode != 0:
+        # If merge abort fails, try to reset
+        logger.info("Merge abort failed, trying reset...")
+        subprocess.run(["git", "reset", "--hard", "HEAD"], cwd=repo_root, capture_output=True)
 
 
 def _check_and_stash_changes(repo_root: str, logger: logging.Logger) -> bool:
@@ -238,28 +235,8 @@ def execute_merge(
                 )
 
             # After resolving conflicts, we need different actions based on merge method
-            if merge_method == "rebase":
-                # For rebase, we need to continue the rebase
-                logger.info("Continuing rebase after conflict resolution...")
-                result = subprocess.run(
-                    ["git", "rebase", "--continue"],
-                    capture_output=True, text=True, cwd=repo_root,
-                    env={**os.environ, "GIT_EDITOR": "true"}  # Skip editor for commit message
-                )
-                if result.returncode != 0:
-                    # Check if rebase is already complete
-                    if "No rebase in progress" not in result.stderr:
-                        _abort_merge_operation(merge_method, repo_root, logger)
-                        subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
-                        _pop_stashed_changes(repo_root, logger, was_stashed)
-                        return MergeResultContext(
-                            success=False,
-                            original_branch=original_branch,
-                            merge_method=merge_method,
-                            error=f"Failed to continue rebase after conflict resolution: {result.stderr}"
-                        )
-                    logger.info("Rebase already complete")
-            elif merge_method in ("squash", "squash-rebase"):
+            # Note: "rebase" method now uses merge internally, so it follows the same path as regular merge
+            if merge_method in ("squash", "squash-rebase"):
                 # For squash merges, we need to commit the resolved conflicts
                 logger.info("Committing resolved conflicts for squash merge...")
                 commit_msg = f"Merge branch '{branch_name}' via ADW Merge ISO ({merge_method}) - conflicts resolved"
@@ -520,31 +497,50 @@ def _perform_merge(
             )
 
     elif merge_method == "rebase":
+        # For worktree-safe rebase, we do a fast-forward merge of the feature branch
+        # This is equivalent to rebasing the feature onto main and then merging
+        # Since the feature branch may be checked out in a worktree, we can't do a traditional rebase
+
+        # First, try to fast-forward merge (works if feature is ahead of main)
+        logger.info(f"Attempting fast-forward merge of {branch_name}...")
         result = subprocess.run(
-            ["git", "rebase", branch_name],
+            ["git", "merge", branch_name, "--ff-only"],
             capture_output=True, text=True, cwd=repo_root
         )
+
         if result.returncode != 0:
-            # Check if failure is due to merge conflicts (which can be resolved)
-            has_conflicts, conflict_files = check_merge_conflicts(repo_root, logger)
-            if has_conflicts:
-                # Conflicts detected - return success to allow conflict resolution step
-                logger.info(f"Rebase has conflicts in {len(conflict_files)} file(s), proceeding to resolution")
+            # Fast-forward not possible, fall back to regular merge
+            # This happens when main has diverged from the feature branch
+            logger.info("Fast-forward not possible, falling back to merge...")
+            result = subprocess.run(
+                ["git", "merge", branch_name, "--no-ff", "-m",
+                 f"Merge branch '{branch_name}' via ADW Merge ISO (rebase-fallback)"],
+                capture_output=True, text=True, cwd=repo_root
+            )
+
+            if result.returncode != 0:
+                # Check if failure is due to merge conflicts (which can be resolved)
+                has_conflicts, conflict_files = check_merge_conflicts(repo_root, logger)
+                if has_conflicts:
+                    # Conflicts detected - return success to allow conflict resolution step
+                    logger.info(f"Merge has conflicts in {len(conflict_files)} file(s), proceeding to resolution")
+                    return MergeResultContext(
+                        success=True,  # Allow execute_merge to proceed to conflict resolution
+                        original_branch=original_branch,
+                        merge_method=merge_method,
+                        error=None
+                    )
+                # Real failure - not conflicts
+                subprocess.run(["git", "merge", "--abort"], cwd=repo_root, capture_output=True)
+                subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
                 return MergeResultContext(
-                    success=True,  # Allow execute_merge to proceed to conflict resolution
+                    success=False,
                     original_branch=original_branch,
                     merge_method=merge_method,
-                    error=None
+                    error=f"Failed to merge {branch_name}: {result.stderr}"
                 )
-            # Real failure - not conflicts
-            subprocess.run(["git", "rebase", "--abort"], cwd=repo_root)
-            subprocess.run(["git", "checkout", original_branch], cwd=repo_root)
-            return MergeResultContext(
-                success=False,
-                original_branch=original_branch,
-                merge_method=merge_method,
-                error=f"Failed to rebase {branch_name}: {result.stderr}"
-            )
+        else:
+            logger.info("✅ Fast-forward merge successful")
 
     else:
         # Regular merge (no-ff to preserve commits)
