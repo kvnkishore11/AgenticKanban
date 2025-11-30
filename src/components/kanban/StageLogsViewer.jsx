@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import WorkflowLogViewer from './WorkflowLogViewer';
 import AgentStateViewer from './AgentStateViewer';
+import BeautifiedResultViewer from './BeautifiedResultViewer';
 
 /**
  * Stage icon mapping for visual identification
@@ -332,18 +333,13 @@ const StageLogsViewer = ({
 
         {/* Stage Result (if available) */}
         {activeTab !== 'all' && stageData?.hasResult && stageData?.result && (
-          <div className="border-t border-gray-200 bg-gray-50 p-3">
-            <details className="group">
-              <summary className="cursor-pointer text-xs font-medium text-gray-700 hover:text-gray-900 select-none">
-                Stage Result Data
-                <span className="ml-2 text-gray-400 group-open:hidden">(click to expand)</span>
-              </summary>
-              <div className="mt-2 p-2 bg-white border border-gray-200 rounded text-xs font-mono overflow-auto max-h-48">
-                <pre className="text-gray-800 whitespace-pre-wrap break-words">
-                  {JSON.stringify(stageData.result, null, 2)}
-                </pre>
-              </div>
-            </details>
+          <div className="border-t border-gray-200 bg-white">
+            <BeautifiedResultViewer
+              result={stageData.result}
+              loading={false}
+              error={null}
+              maxHeight="600px"
+            />
           </div>
         )}
 

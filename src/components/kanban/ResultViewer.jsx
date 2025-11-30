@@ -3,12 +3,14 @@
  *
  * Displays the final raw_output.json result from agent stages.
  * Shows a collapsible JSON tree view with syntax highlighting.
+ * Also provides a beautified view for better readability.
  *
  * @module components/kanban/ResultViewer
  */
 
 import { useState } from 'react';
 import PropTypes from 'prop-types';
+import BeautifiedResultViewer from './BeautifiedResultViewer';
 
 /**
  * Recursive component to render JSON tree nodes
@@ -149,7 +151,7 @@ const ResultViewer = ({
   error = null,
   maxHeight = '100%'
 }) => {
-  const [viewMode, setViewMode] = useState('tree'); // 'tree' or 'raw'
+  const [viewMode, setViewMode] = useState('beautified'); // 'beautified', 'tree', or 'raw'
 
   if (loading) {
     return (
@@ -187,6 +189,13 @@ const ResultViewer = ({
         <div className="result-viewer-mode-toggle">
           <button
             type="button"
+            className={`result-mode-btn ${viewMode === 'beautified' ? 'active' : ''}`}
+            onClick={() => setViewMode('beautified')}
+          >
+            Beautified
+          </button>
+          <button
+            type="button"
             className={`result-mode-btn ${viewMode === 'tree' ? 'active' : ''}`}
             onClick={() => setViewMode('tree')}
           >
@@ -203,7 +212,14 @@ const ResultViewer = ({
       </div>
 
       <div className="result-viewer-content">
-        {viewMode === 'tree' ? (
+        {viewMode === 'beautified' ? (
+          <BeautifiedResultViewer
+            result={result}
+            loading={loading}
+            error={error}
+            maxHeight="100%"
+          />
+        ) : viewMode === 'tree' ? (
           <div className="json-tree-container">
             <JsonTreeNode data={result} defaultExpanded={true} />
           </div>

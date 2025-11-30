@@ -148,3 +148,15 @@ This prompt helps you determine what documentation you should read based on the 
     - When handling system_log WebSocket events with worktree_deleted type
     - When implementing per-resource deletion state tracking
     - When troubleshooting deletion error handling or retry mechanisms
+
+- app_docs/feature-5dc9d6af-beautified-agent-results.md
+  - Conditions:
+    - When working with agent result display components (ResultViewer, StageLogsViewer)
+    - When implementing beautified or formatted views for agent outputs
+    - When working with the BeautifiedResultViewer component
+    - When troubleshooting result parsing or categorization logic
+    - When adding new view modes or toggles to result viewers
+    - When implementing collapsible sections for metadata or raw data
+    - When styling agent result displays with prose or formatted content
+    - When working with agent workflow result data structures from raw_output.json
+    - When implementing intelligent content extraction from agent messages

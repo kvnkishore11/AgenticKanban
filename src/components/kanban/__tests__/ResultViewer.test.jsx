@@ -53,8 +53,11 @@ describe('ResultViewer Component', () => {
   });
 
   describe('Tree View', () => {
-    it('should render result in tree view by default', () => {
+    it('should render result in tree view when tree button is clicked', () => {
       render(<ResultViewer result={mockResult} />);
+
+      // Click tree button to switch to tree view
+      fireEvent.click(screen.getByRole('button', { name: 'Tree' }));
 
       expect(screen.getByText('status:')).toBeInTheDocument();
     });
@@ -62,11 +65,17 @@ describe('ResultViewer Component', () => {
     it('should display string values with quotes', () => {
       render(<ResultViewer result={mockResult} />);
 
+      // Switch to tree view
+      fireEvent.click(screen.getByRole('button', { name: 'Tree' }));
+
       expect(screen.getByText(/"success"/)).toBeInTheDocument();
     });
 
     it('should display number values', () => {
       render(<ResultViewer result={mockResult} />);
+
+      // Switch to tree view
+      fireEvent.click(screen.getByRole('button', { name: 'Tree' }));
 
       expect(screen.getByText('42')).toBeInTheDocument();
     });
@@ -74,11 +83,17 @@ describe('ResultViewer Component', () => {
     it('should display boolean values', () => {
       render(<ResultViewer result={mockResult} />);
 
+      // Switch to tree view
+      fireEvent.click(screen.getByRole('button', { name: 'Tree' }));
+
       expect(screen.getByText('true')).toBeInTheDocument();
     });
 
     it('should display null values', () => {
       render(<ResultViewer result={mockResult} />);
+
+      // Switch to tree view
+      fireEvent.click(screen.getByRole('button', { name: 'Tree' }));
 
       expect(screen.getByText('null')).toBeInTheDocument();
     });
@@ -86,11 +101,17 @@ describe('ResultViewer Component', () => {
     it('should display array with item count', () => {
       render(<ResultViewer result={mockResult} />);
 
+      // Switch to tree view
+      fireEvent.click(screen.getByRole('button', { name: 'Tree' }));
+
       expect(screen.getByText(/3 items/)).toBeInTheDocument();
     });
 
     it('should display object with key count', () => {
       render(<ResultViewer result={mockResult} />);
+
+      // Switch to tree view
+      fireEvent.click(screen.getByRole('button', { name: 'Tree' }));
 
       // The root object has 8 keys
       expect(screen.getByText(/8 keys/)).toBeInTheDocument();
@@ -98,48 +119,63 @@ describe('ResultViewer Component', () => {
   });
 
   describe('View Mode Toggle', () => {
-    it('should have Tree and Raw mode buttons', () => {
+    it('should have Beautified, Tree and Raw mode buttons', () => {
       render(<ResultViewer result={mockResult} />);
 
-      expect(screen.getByRole('button', { name: /Tree/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Raw/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Beautified' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Tree' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Raw' })).toBeInTheDocument();
+    });
+
+    it('should default to beautified view', () => {
+      render(<ResultViewer result={mockResult} />);
+
+      const beautifiedBtn = screen.getByRole('button', { name: 'Beautified' });
+      expect(beautifiedBtn).toHaveClass('active');
+    });
+
+    it('should switch to tree view when Tree button is clicked', () => {
+      render(<ResultViewer result={mockResult} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Tree' }));
+
+      // Tree view should show status key
+      expect(screen.getByText('status:')).toBeInTheDocument();
     });
 
     it('should switch to raw view when Raw button is clicked', () => {
       render(<ResultViewer result={mockResult} />);
 
-      fireEvent.click(screen.getByRole('button', { name: /Raw/i }));
+      fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
 
       // Raw view should show JSON string
       expect(screen.getByText(/"status": "success"/)).toBeInTheDocument();
     });
 
-    it('should switch back to tree view', () => {
+    it('should switch between all view modes', () => {
       render(<ResultViewer result={mockResult} />);
+
+      // Start with beautified (default)
+      const beautifiedBtn = screen.getByRole('button', { name: 'Beautified' });
+      const treeBtn = screen.getByRole('button', { name: 'Tree' });
+      const rawBtn = screen.getByRole('button', { name: 'Raw' });
+
+      expect(beautifiedBtn).toHaveClass('active');
+
+      // Switch to tree
+      fireEvent.click(treeBtn);
+      expect(treeBtn).toHaveClass('active');
+      expect(beautifiedBtn).not.toHaveClass('active');
 
       // Switch to raw
-      fireEvent.click(screen.getByRole('button', { name: /Raw/i }));
-
-      // Switch back to tree
-      fireEvent.click(screen.getByRole('button', { name: /Tree/i }));
-
-      // Tree view should be back
-      expect(screen.getByText('status:')).toBeInTheDocument();
-    });
-
-    it('should highlight active mode button', () => {
-      render(<ResultViewer result={mockResult} />);
-
-      const treeBtn = screen.getByRole('button', { name: /Tree/i });
-      const rawBtn = screen.getByRole('button', { name: /Raw/i });
-
-      expect(treeBtn).toHaveClass('active');
-      expect(rawBtn).not.toHaveClass('active');
-
       fireEvent.click(rawBtn);
-
       expect(rawBtn).toHaveClass('active');
       expect(treeBtn).not.toHaveClass('active');
+
+      // Switch back to beautified
+      fireEvent.click(beautifiedBtn);
+      expect(beautifiedBtn).toHaveClass('active');
+      expect(rawBtn).not.toHaveClass('active');
     });
   });
 
@@ -147,7 +183,7 @@ describe('ResultViewer Component', () => {
     it('should display formatted JSON in raw view', () => {
       render(<ResultViewer result={mockResult} />);
 
-      fireEvent.click(screen.getByRole('button', { name: /Raw/i }));
+      fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
 
       // Should be indented JSON
       expect(screen.getByText(/"summary": "Task completed successfully"/)).toBeInTheDocument();
@@ -157,6 +193,9 @@ describe('ResultViewer Component', () => {
   describe('Nested Objects', () => {
     it('should be collapsible', () => {
       render(<ResultViewer result={mockResult} />);
+
+      // Switch to tree view
+      fireEvent.click(screen.getByRole('button', { name: 'Tree' }));
 
       // Find and click a collapse toggle
       const toggles = document.querySelectorAll('.json-tree-toggle');
@@ -172,12 +211,15 @@ describe('ResultViewer Component', () => {
   });
 
   describe('Long Strings', () => {
-    it('should truncate very long strings', () => {
+    it('should truncate very long strings in tree view', () => {
       const longResult = {
         longString: 'x'.repeat(300)
       };
 
       render(<ResultViewer result={longResult} />);
+
+      // Switch to tree view
+      fireEvent.click(screen.getByRole('button', { name: 'Tree' }));
 
       // Should show truncated string with ...
       expect(screen.getByText(/x{50,}\.\.\."/)).toBeInTheDocument();

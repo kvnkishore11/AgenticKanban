@@ -349,7 +349,8 @@ describe('StageLogsViewer Component', () => {
       fireEvent.click(screen.getByText('Plan'));
 
       await waitFor(() => {
-        expect(screen.getByText('Stage Result Data')).toBeInTheDocument();
+        // The BeautifiedResultViewer component displays "Results" heading
+        expect(screen.getByText('Results')).toBeInTheDocument();
       });
     });
 
