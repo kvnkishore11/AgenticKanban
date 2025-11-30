@@ -1666,6 +1666,115 @@
   opacity: 0.7;
 }
 
+/* Collapsible JSON Block */
+.execution-log-json-block {
+  margin: 4px 0;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: #252525;
+  overflow: hidden;
+}
+
+.execution-log-json-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: #2d2d2d;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #e0e0e0;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.execution-log-json-header:hover {
+  background: #363636;
+}
+
+.execution-log-json-toggle {
+  color: #888;
+  display: flex;
+  align-items: center;
+}
+
+.execution-log-json-icon {
+  font-size: 12px;
+}
+
+.execution-log-json-label {
+  font-weight: 600;
+  color: #60a5fa;
+}
+
+.execution-log-json-count {
+  color: #888;
+  font-size: 10px;
+}
+
+.execution-log-json-summary {
+  margin-left: auto;
+  color: #a78bfa;
+  font-size: 10px;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.execution-log-json-content {
+  padding: 8px 12px;
+  border-top: 1px solid #444;
+  max-height: 300px;
+  overflow-y: auto;
+  background: #1e1e1e;
+}
+
+.execution-log-entry-nested {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 10px;
+  color: #999;
+}
+
+.execution-log-entry-nested .execution-log-level {
+  min-width: 50px;
+  font-size: 9px;
+}
+
+.execution-log-entry-nested .execution-log-message {
+  color: #888;
+}
+
+/* Markdown in log messages */
+.execution-log-message-markdown {
+  display: inline;
+}
+
+.execution-log-message-markdown p {
+  margin: 0;
+  display: inline;
+}
+
+.execution-log-message-markdown code {
+  background: #333;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-size: 10px;
+}
+
+.execution-log-message-markdown strong {
+  color: #fff;
+}
+
+.execution-log-message-markdown em {
+  color: #a78bfa;
+}
+
 /* ========================================
    RESULT VIEWER
    Display raw_output.json content
