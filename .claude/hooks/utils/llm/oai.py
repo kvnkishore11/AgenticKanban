@@ -34,7 +34,7 @@ def prompt_llm(prompt_text):
         client = OpenAI(api_key=api_key)
 
         response = client.chat.completions.create(
-            model="gpt-4.1-nano",  # Fastest OpenAI model
+            model="gpt-4o-mini",  # Fastest OpenAI model
             messages=[{"role": "user", "content": prompt_text}],
             max_tokens=100,
             temperature=0.7,
@@ -173,7 +173,8 @@ def main():
             if message:
                 print(message)
             else:
-                print("Error generating completion message")
+                # Return empty to avoid TTS speaking error message
+                sys.exit(1)
         elif sys.argv[1] == "--agent-name":
             # Generate agent name (no input needed)
             name = generate_agent_name()
