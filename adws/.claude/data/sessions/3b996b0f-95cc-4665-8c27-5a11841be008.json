@@ -1,0 +1,8 @@
+{
+  "session_id": "3b996b0f-95cc-4665-8c27-5a11841be008",
+  "prompts": [
+    "[Image #1] I just tried to merge work tree into main. So these are the logs. I think it still failed. I want you to figure things out.",
+    "see th logs it still failed when i tried to merge teh worktree.. Hey, I don't want you to do this 2-1-4, so I want you to confirm all the changes. See if it is working perfectly fine. Do all the unit test cases, integration tests and end-to-end tests using mcp server playwright. So you have to be thorough in your testing. Be confident and come up with the final solution to me.",
+    "Still my merge workflow is failing. I am not sure what testing you are doing. So you are not up to the mark."
+  ]
+}
