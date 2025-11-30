@@ -341,7 +341,10 @@ describe('StageLogsViewer Component', () => {
         loading: false,
         error: null,
         hasResult: true,
-        result: { status: 'success', output: 'test output' }
+        result: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Task completed successfully' }]
+        }
       });
 
       render(<StageLogsViewer taskId="task-1" adwId="adw-123" />);
@@ -349,8 +352,8 @@ describe('StageLogsViewer Component', () => {
       fireEvent.click(screen.getByText('Plan'));
 
       await waitFor(() => {
-        // The BeautifiedResultViewer component displays "Results" heading
-        expect(screen.getByText('Results')).toBeInTheDocument();
+        // The BeautifiedResultViewer component displays success banner
+        expect(screen.getByText('Stage completed successfully')).toBeInTheDocument();
       });
     });
 
