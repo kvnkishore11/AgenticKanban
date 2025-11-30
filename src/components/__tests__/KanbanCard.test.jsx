@@ -61,7 +61,8 @@ describe('KanbanCard Component', () => {
 
   beforeEach(() => {
     mockStore = {
-      deleteTask: vi.fn(),
+      deleteWorktree: vi.fn().mockResolvedValue(true),
+      getDeletionState: vi.fn(() => null),
       getWebSocketStatus: vi.fn(() => ({ connected: true })),
       triggerWorkflowForTask: vi.fn(),
       getWorkflowProgressForTask: vi.fn(() => null),
@@ -475,7 +476,7 @@ describe('KanbanCard Component', () => {
       });
     });
 
-    it('should call deleteTask when delete is clicked', () => {
+    it('should call deleteWorktree with adw_id when delete is clicked', async () => {
       render(<KanbanCard task={MOCK_TASK} />);
 
       const menuButton = screen.getByText('⋮');
@@ -484,7 +485,72 @@ describe('KanbanCard Component', () => {
       const deleteButton = screen.getByText('🗑 DELETE');
       fireEvent.click(deleteButton);
 
-      expect(mockStore.deleteTask).toHaveBeenCalledWith(1);
+      await waitFor(() => {
+        expect(mockStore.deleteWorktree).toHaveBeenCalledWith('abc12345');
+      });
+    });
+
+    it('should not call deleteWorktree when task has no adw_id', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const taskWithoutAdwId = {
+        ...MOCK_TASK,
+        metadata: { summary: 'Test' }
+      };
+
+      render(<KanbanCard task={taskWithoutAdwId} />);
+
+      const menuButton = screen.getByText('⋮');
+      fireEvent.click(menuButton);
+
+      const deleteButton = screen.getByText('🗑 DELETE');
+      fireEvent.click(deleteButton);
+
+      await waitFor(() => {
+        expect(mockStore.deleteWorktree).not.toHaveBeenCalled();
+        expect(consoleErrorSpy).toHaveBeenCalledWith('Cannot delete task: No ADW ID found');
+      });
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should show deleting state when deletion is in progress', () => {
+      mockStore.getDeletionState.mockReturnValue({ loading: true, error: null });
+
+      render(<KanbanCard task={MOCK_TASK} />);
+
+      // Card should show deletion overlay
+      expect(screen.getByText('DELETING...')).toBeInTheDocument();
+    });
+
+    it('should disable delete button when deletion is in progress', () => {
+      mockStore.getDeletionState.mockReturnValue({ loading: true, error: null });
+
+      render(<KanbanCard task={MOCK_TASK} />);
+
+      const menuButton = screen.getByText('⋮');
+      fireEvent.click(menuButton);
+
+      const deleteButton = screen.getByText('⏳ DELETING...');
+      expect(deleteButton).toHaveClass('disabled');
+    });
+
+    it('should handle deleteWorktree error gracefully', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockStore.deleteWorktree.mockRejectedValue(new Error('Delete failed'));
+
+      render(<KanbanCard task={MOCK_TASK} />);
+
+      const menuButton = screen.getByText('⋮');
+      fireEvent.click(menuButton);
+
+      const deleteButton = screen.getByText('🗑 DELETE');
+      fireEvent.click(deleteButton);
+
+      await waitFor(() => {
+        expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to delete worktree:', expect.any(Error));
+      });
+
+      consoleErrorSpy.mockRestore();
     });
 
     it.skip('should stop propagation on menu button click', () => {

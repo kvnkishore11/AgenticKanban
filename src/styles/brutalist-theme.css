@@ -1287,6 +1287,49 @@ h1, h2, h3, h4, h5, h6,
   background: #ef4444;
 }
 
+.brutalist-card-dropdown-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Deletion overlay for cards */
+.brutalist-deletion-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  gap: 8px;
+}
+
+.brutalist-deletion-spinner {
+  font-size: 24px;
+  animation: spin 1s linear infinite;
+}
+
+.brutalist-deletion-text {
+  color: var(--color-brutalist-white);
+  font-weight: bold;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.brutalist-task-card.deleting {
+  border-color: #ef4444;
+}
+
 .brutalist-menu-backdrop {
   position: fixed;
   inset: 0;

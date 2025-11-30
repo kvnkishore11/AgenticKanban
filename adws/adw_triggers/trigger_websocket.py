@@ -41,6 +41,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from adw_modules.utils import make_adw_id, setup_logger, get_safe_subprocess_env
 from adw_modules.workflow_ops import AVAILABLE_ADW_WORKFLOWS
+from adw_modules.slash_command_executor import SlashCommandExecutor, SlashCommandRequest
 from adw_modules.state import ADWState
 from adw_modules.discovery import discover_all_adws, get_adw_metadata
 from adw_modules import worktree_ops
@@ -1972,6 +1973,154 @@ async def get_adw(adw_id: str):
         )
 
 
+@app.delete("/api/adws/{adw_id}")
+async def delete_adw(adw_id: str):
+    """Delete an ADW and all its associated resources.
+
+    This endpoint performs a complete cleanup:
+    1. Removes the agents directory for this ADW
+    2. Removes the git worktree
+    3. Broadcasts a worktree_deleted event via WebSocket
+
+    Args:
+        adw_id: The ADW ID to delete
+
+    Returns:
+        JSON object with success status and message
+    """
+    import shutil
+    import signal
+    import subprocess
+
+    deletion_results = {
+        "adw_id": adw_id,
+        "agents_deleted": False,
+        "worktree_deleted": False,
+        "processes_killed": False,
+        "errors": []
+    }
+
+    try:
+        logger.info(f"Starting deletion of ADW {adw_id}")
+
+        # Step 1: Find and delete agents directory
+        adw_directory = find_adw_directory(adw_id)
+        if adw_directory and adw_directory.exists():
+            try:
+                shutil.rmtree(adw_directory)
+                deletion_results["agents_deleted"] = True
+                logger.info(f"Deleted agents directory: {adw_directory}")
+            except Exception as e:
+                error_msg = f"Failed to delete agents directory: {e}"
+                deletion_results["errors"].append(error_msg)
+                logger.error(error_msg)
+        else:
+            logger.info(f"No agents directory found for ADW {adw_id}")
+            deletion_results["agents_deleted"] = True  # Nothing to delete is success
+
+        # Step 2: Kill any running processes for this ADW
+        try:
+            # Get ports for this ADW
+            ws_port, frontend_port = worktree_ops.get_ports_for_adw(adw_id)
+
+            # Kill processes on WebSocket port
+            kill_result = subprocess.run(
+                ["lsof", "-ti", f":{ws_port}"],
+                capture_output=True, text=True
+            )
+            if kill_result.stdout.strip():
+                pids = kill_result.stdout.strip().split('\n')
+                for pid in pids:
+                    try:
+                        os.kill(int(pid), signal.SIGTERM)
+                        logger.info(f"Killed process {pid} on port {ws_port}")
+                    except (ProcessLookupError, ValueError):
+                        pass
+
+            # Kill processes on frontend port
+            kill_result = subprocess.run(
+                ["lsof", "-ti", f":{frontend_port}"],
+                capture_output=True, text=True
+            )
+            if kill_result.stdout.strip():
+                pids = kill_result.stdout.strip().split('\n')
+                for pid in pids:
+                    try:
+                        os.kill(int(pid), signal.SIGTERM)
+                        logger.info(f"Killed process {pid} on port {frontend_port}")
+                    except (ProcessLookupError, ValueError):
+                        pass
+
+            deletion_results["processes_killed"] = True
+        except Exception as e:
+            error_msg = f"Error killing processes: {e}"
+            deletion_results["errors"].append(error_msg)
+            logger.warning(error_msg)
+
+        # Step 3: Remove the git worktree
+        worktree_path = worktree_ops.get_worktree_path(adw_id)
+        if os.path.exists(worktree_path):
+            success, error = worktree_ops.remove_worktree(adw_id, logger)
+            if success:
+                deletion_results["worktree_deleted"] = True
+                logger.info(f"Removed worktree: {worktree_path}")
+            else:
+                deletion_results["errors"].append(f"Worktree removal error: {error}")
+                logger.error(f"Failed to remove worktree: {error}")
+        else:
+            logger.info(f"No worktree found for ADW {adw_id}")
+            deletion_results["worktree_deleted"] = True  # Nothing to delete is success
+
+        # Step 4: Broadcast worktree_deleted event via WebSocket
+        success = deletion_results["agents_deleted"] and deletion_results["worktree_deleted"]
+
+        if success:
+            try:
+                await manager.broadcast({
+                    "type": "system_log",
+                    "data": {
+                        "level": "info",
+                        "message": f"ADW {adw_id} deleted successfully",
+                        "context": {
+                            "event_type": "worktree_deleted",
+                            "adw_id": adw_id
+                        }
+                    }
+                })
+                logger.info(f"Broadcasted worktree_deleted event for {adw_id}")
+            except Exception as e:
+                logger.warning(f"Failed to broadcast deletion event: {e}")
+
+            return JSONResponse(
+                content={
+                    "success": True,
+                    "message": f"ADW {adw_id} deleted successfully",
+                    **deletion_results
+                }
+            )
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": f"Partial deletion of ADW {adw_id}",
+                    **deletion_results
+                }
+            )
+
+    except Exception as e:
+        error_msg = f"Failed to delete ADW {adw_id}: {str(e)}"
+        logger.error(error_msg)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "message": error_msg,
+                **deletion_results
+            }
+        )
+
+
 @app.get("/api/adws/{adw_id}/plan")
 async def get_adw_plan(adw_id: str):
     """Get plan file content for a specific ADW ID.
@@ -2477,6 +2626,144 @@ async def get_stage_logs(adw_id: str, stage: str):
         "has_result": has_result,
         "error": None
     })
+
+
+# Initialize slash command executor
+slash_command_executor = SlashCommandExecutor()
+
+
+@app.post("/api/slash-command")
+async def execute_slash_command(request_data: dict):
+    """
+    Execute a Claude Code slash command.
+
+    This is the simple, powerful way to trigger complex operations from the UI.
+    Instead of scripting every edge case, we let Claude handle the complexity.
+
+    Request format:
+    {
+        "command": "merge_worktree",  // or alias like "merge"
+        "arguments": ["8250f1e2", "rebase"],  // optional
+        "context": {  // optional metadata
+            "adw_id": "8250f1e2",
+            "task_id": "task-123"
+        }
+    }
+
+    Response format:
+    {
+        "success": true,
+        "command": "merge_worktree",
+        "message": "Command execution started",
+        "execution_id": "...",
+        // When complete:
+        "output": "...",
+        "exit_code": 0
+    }
+    """
+    try:
+        command = request_data.get("command")
+        arguments = request_data.get("arguments", [])
+        context = request_data.get("context", {})
+
+        if not command:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Missing 'command' in request"}
+            )
+
+        # Log the request
+        logger.info(f"Slash command request: /{command} {' '.join(arguments)}")
+
+        # Build the request
+        request = SlashCommandRequest(
+            command=command,
+            arguments=arguments,
+            context=context
+        )
+
+        # Broadcast that we're starting the command
+        adw_id = context.get("adw_id")
+        if adw_id:
+            await manager.broadcast(json.dumps({
+                "type": "slash_command_status",
+                "data": {
+                    "adw_id": adw_id,
+                    "command": command,
+                    "status": "started",
+                    "message": f"Executing /{command} {' '.join(arguments)}",
+                    "timestamp": datetime.now().isoformat()
+                }
+            }))
+
+        # Execute the command asynchronously
+        async def on_output(line: str):
+            """Stream output lines to WebSocket clients."""
+            if adw_id:
+                await manager.broadcast(json.dumps({
+                    "type": "slash_command_output",
+                    "data": {
+                        "adw_id": adw_id,
+                        "command": command,
+                        "line": line,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                }))
+
+        response = await slash_command_executor.execute_async(
+            request,
+            on_output=on_output,
+            timeout=600  # 10 minutes
+        )
+
+        # Broadcast completion
+        if adw_id:
+            await manager.broadcast(json.dumps({
+                "type": "slash_command_status",
+                "data": {
+                    "adw_id": adw_id,
+                    "command": command,
+                    "status": "completed" if response.success else "failed",
+                    "message": response.error or "Command completed successfully",
+                    "exit_code": response.exit_code,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }))
+
+        return JSONResponse(content={
+            "success": response.success,
+            "command": response.command,
+            "exit_code": response.exit_code,
+            "output": response.output,
+            "error": response.error,
+            "duration_seconds": (response.completed_at - response.started_at).total_seconds()
+                if response.started_at and response.completed_at else None
+        })
+
+    except Exception as e:
+        logger.exception(f"Error executing slash command: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
+@app.get("/api/slash-commands")
+async def list_slash_commands():
+    """List all available slash commands."""
+    try:
+        commands = slash_command_executor.list_available_commands()
+        return JSONResponse(content={
+            "success": True,
+            "commands": commands,
+            "count": len(commands)
+        })
+    except Exception as e:
+        logger.exception(f"Error listing slash commands: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
 
 
 def signal_handler(signum, frame):

@@ -17,7 +17,8 @@ import { useStageTransition } from '../../hooks/useStageTransition';
 
 const KanbanCard = ({ task, onEdit }) => {
   const {
-    deleteTask,
+    deleteWorktree,
+    getDeletionState,
     getWebSocketStatus,
     triggerWorkflowForTask,
     getWorkflowProgressForTask,
@@ -52,6 +53,11 @@ const KanbanCard = ({ task, onEdit }) => {
   const websocketStatus = getWebSocketStatus();
   const workflowProgress = getWorkflowProgressForTask(task.id);
   const workflowLogs = getWorkflowLogsForTask(task.id);
+
+  // Get deletion state for this task's ADW
+  const adwId = task.metadata?.adw_id;
+  const deletionState = adwId ? getDeletionState(adwId) : null;
+  const isDeleting = deletionState?.loading || false;
 
   // Use stage transition hook for animations
   const { getTransitionClass, getGlowClass, shouldPulse } = useStageTransition(task, workflowProgress);
@@ -128,6 +134,23 @@ const KanbanCard = ({ task, onEdit }) => {
     setShowMenu(false);
   };
 
+  const handleDeleteClick = async () => {
+    setShowMenu(false);
+
+    if (!adwId) {
+      console.error('Cannot delete task: No ADW ID found');
+      return;
+    }
+
+    try {
+      console.log(`Initiating deletion for ADW ${adwId}`);
+      await deleteWorktree(adwId);
+      // Task will be removed automatically when WebSocket confirms deletion
+    } catch (error) {
+      console.error('Failed to delete worktree:', error);
+    }
+  };
+
   // Check if this is a completed task
   const isCompleted = task.stage === 'completed';
 
@@ -150,9 +173,17 @@ const KanbanCard = ({ task, onEdit }) => {
 
   return (
     <div
-      className={`brutalist-task-card ${transitionClass} ${glowClass} ${pulseClass}`}
-      onClick={handleCardClick}
+      className={`brutalist-task-card ${transitionClass} ${glowClass} ${pulseClass} ${isDeleting ? 'deleting' : ''}`}
+      onClick={isDeleting ? undefined : handleCardClick}
+      style={isDeleting ? { opacity: 0.6, pointerEvents: 'none' } : {}}
     >
+      {/* Deletion overlay */}
+      {isDeleting && (
+        <div className="brutalist-deletion-overlay">
+          <span className="brutalist-deletion-spinner">⏳</span>
+          <span className="brutalist-deletion-text">DELETING...</span>
+        </div>
+      )}
       {/* Card Header with Issue Number and Task ID */}
       <div className="brutalist-task-card-header">
         <div className="brutalist-task-number">
@@ -180,8 +211,11 @@ const KanbanCard = ({ task, onEdit }) => {
               <div className="brutalist-card-dropdown-item" onClick={(e) => { e.stopPropagation(); handleTriggerWorkflow(); setShowMenu(false); }}>
                 ▶ TRIGGER
               </div>
-              <div className="brutalist-card-dropdown-item danger" onClick={(e) => { e.stopPropagation(); deleteTask(task.id); setShowMenu(false); }}>
-                🗑 DELETE
+              <div
+                className={`brutalist-card-dropdown-item danger ${isDeleting ? 'disabled' : ''}`}
+                onClick={(e) => { e.stopPropagation(); if (!isDeleting) handleDeleteClick(); }}
+              >
+                {isDeleting ? '⏳ DELETING...' : '🗑 DELETE'}
               </div>
             </div>
           )}
