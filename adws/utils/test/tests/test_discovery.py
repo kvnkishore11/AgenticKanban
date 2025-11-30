@@ -151,3 +151,109 @@ class TestHasAdwTests:
         )
 
         assert has_adw_tests("test1234") is False
+
+
+class TestDiscoverIssueE2ETests:
+    """Tests for discover_issue_e2e_tests function."""
+
+    @patch('utils.test.discovery.os.path.exists')
+    @patch('utils.test.discovery.glob.glob')
+    def test_discovers_issue_specific_e2e_tests(self, mock_glob, mock_exists):
+        """Should discover E2E tests matching issue-{issue_number}-adw-{adw_id} pattern."""
+        from utils.test.discovery import discover_issue_e2e_tests
+
+        mock_exists.return_value = True
+        mock_glob.return_value = [
+            "/path/src/test/e2e/issue-123-adw-abc123-e2e-feature-name.md"
+        ]
+
+        result = discover_issue_e2e_tests("123", "abc123", "/path")
+
+        assert len(result) == 1
+        assert "issue-123-adw-abc123-e2e-feature-name.md" in result[0]
+        mock_glob.assert_called_once()
+        call_pattern = mock_glob.call_args[0][0]
+        assert "issue-123-adw-abc123-e2e-*.md" in call_pattern
+
+    @patch('utils.test.discovery.os.path.exists')
+    def test_returns_empty_when_e2e_dir_missing(self, mock_exists):
+        """Should return empty list when src/test/e2e/ directory doesn't exist."""
+        from utils.test.discovery import discover_issue_e2e_tests
+
+        mock_exists.return_value = False
+
+        result = discover_issue_e2e_tests("123", "abc123", "/path")
+
+        assert result == []
+
+    @patch('utils.test.discovery.os.path.exists')
+    @patch('utils.test.discovery.glob.glob')
+    def test_returns_empty_when_no_matching_tests(self, mock_glob, mock_exists):
+        """Should return empty list when no tests match the pattern."""
+        from utils.test.discovery import discover_issue_e2e_tests
+
+        mock_exists.return_value = True
+        mock_glob.return_value = []
+
+        result = discover_issue_e2e_tests("123", "abc123", "/path")
+
+        assert result == []
+
+
+class TestDiscoverAllE2ETests:
+    """Tests for discover_all_e2e_tests function."""
+
+    @patch('utils.test.discovery.discover_adw_tests')
+    @patch('utils.test.discovery.discover_issue_e2e_tests')
+    def test_combines_adw_and_issue_tests(self, mock_issue_discover, mock_adw_discover):
+        """Should combine E2E tests from ADW and issue-specific locations."""
+        from utils.test.discovery import discover_all_e2e_tests, DiscoveredTests
+
+        mock_adw_discover.return_value = DiscoveredTests(
+            backend_tests=[],
+            frontend_tests=[],
+            e2e_tests=["/path/agents/abc123/tests/e2e/test_feature.md"]
+        )
+        mock_issue_discover.return_value = [
+            "/path/src/test/e2e/issue-123-adw-abc123-e2e-feature-name.md"
+        ]
+
+        result = discover_all_e2e_tests("abc123", "123", "/path")
+
+        assert len(result) == 2
+        assert any("test_feature.md" in t for t in result)
+        assert any("issue-123-adw-abc123" in t for t in result)
+
+    @patch('utils.test.discovery.discover_adw_tests')
+    @patch('utils.test.discovery.discover_issue_e2e_tests')
+    def test_works_without_issue_number(self, mock_issue_discover, mock_adw_discover):
+        """Should work when issue_number is not provided."""
+        from utils.test.discovery import discover_all_e2e_tests, DiscoveredTests
+
+        mock_adw_discover.return_value = DiscoveredTests(
+            backend_tests=[],
+            frontend_tests=[],
+            e2e_tests=["/path/agents/abc123/tests/e2e/test_feature.md"]
+        )
+
+        result = discover_all_e2e_tests("abc123", worktree_path="/path")
+
+        assert len(result) == 1
+        mock_issue_discover.assert_not_called()
+
+    @patch('utils.test.discovery.discover_adw_tests')
+    @patch('utils.test.discovery.discover_issue_e2e_tests')
+    def test_returns_empty_when_no_tests_found(self, mock_issue_discover, mock_adw_discover):
+        """Should return empty list when no tests found anywhere."""
+        from utils.test.discovery import discover_all_e2e_tests, DiscoveredTests
+
+        mock_adw_discover.return_value = DiscoveredTests(
+            backend_tests=[],
+            frontend_tests=[],
+            e2e_tests=[]
+        )
+        mock_issue_discover.return_value = []
+
+        result = discover_all_e2e_tests("abc123", "123", "/path")
+
+        assert result == []

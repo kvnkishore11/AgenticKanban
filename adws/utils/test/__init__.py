@@ -64,6 +64,8 @@ from .discovery import (
     get_adw_test_paths,
     ensure_adw_test_dirs,
     has_adw_tests,
+    discover_issue_e2e_tests,
+    discover_all_e2e_tests,
 )
 
 __all__ = [
@@ -113,4 +115,6 @@ __all__ = [
     "get_adw_test_paths",
     "ensure_adw_test_dirs",
     "has_adw_tests",
+    "discover_issue_e2e_tests",
+    "discover_all_e2e_tests",
 ]

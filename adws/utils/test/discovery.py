@@ -134,3 +134,81 @@ def has_adw_tests(adw_id: str, worktree_path: Optional[str] = None) -> bool:
     """
     tests = discover_adw_tests(adw_id, worktree_path)
     return bool(tests.backend_tests or tests.frontend_tests or tests.e2e_tests)
+
+
+def discover_issue_e2e_tests(
+    issue_number: str,
+    adw_id: str,
+    worktree_path: Optional[str] = None,
+    logger: Optional[logging.Logger] = None
+) -> list[str]:
+    """Discover E2E test files for a specific issue and ADW.
+
+    Searches in src/test/e2e/ for files matching the pattern:
+    issue-{issue_number}-adw-{adw_id}-e2e-*.md
+
+    Args:
+        issue_number: The GitHub issue number
+        adw_id: The ADW identifier
+        worktree_path: Optional path to worktree (uses cwd if not provided)
+        logger: Optional logger for debug output
+
+    Returns:
+        List of discovered E2E test file paths
+    """
+    base_path = worktree_path or os.getcwd()
+    e2e_dir = os.path.join(base_path, "src", "test", "e2e")
+
+    if not os.path.exists(e2e_dir):
+        if logger:
+            logger.debug(f"No E2E test directory found at {e2e_dir}")
+        return []
+
+    # Pattern: issue-{issue_number}-adw-{adw_id}-e2e-*.md
+    pattern = os.path.join(e2e_dir, f"issue-{issue_number}-adw-{adw_id}-e2e-*.md")
+    tests = glob.glob(pattern)
+
+    if logger:
+        logger.debug(f"Found {len(tests)} issue-specific E2E tests matching pattern")
+
+    return tests
+
+
+def discover_all_e2e_tests(
+    adw_id: str,
+    issue_number: Optional[str] = None,
+    worktree_path: Optional[str] = None,
+    logger: Optional[logging.Logger] = None
+) -> list[str]:
+    """Discover all E2E tests from multiple locations.
+
+    Searches in:
+    1. agents/{adw_id}/tests/e2e/ - ADW-specific tests
+    2. src/test/e2e/ - Issue-specific tests (if issue_number provided)
+
+    Args:
+        adw_id: The ADW identifier
+        issue_number: Optional GitHub issue number for issue-specific tests
+        worktree_path: Optional path to worktree (uses cwd if not provided)
+        logger: Optional logger for debug output
+
+    Returns:
+        List of all discovered E2E test file paths
+    """
+    all_tests = []
+
+    # Discover ADW-specific tests
+    adw_tests = discover_adw_tests(adw_id, worktree_path, logger)
+    all_tests.extend(adw_tests.e2e_tests)
+
+    # Discover issue-specific tests if issue_number provided
+    if issue_number:
+        issue_tests = discover_issue_e2e_tests(
+            issue_number, adw_id, worktree_path, logger
+        )
+        all_tests.extend(issue_tests)
+
+    if logger:
+        logger.debug(f"Total E2E tests discovered: {len(all_tests)}")
+
+    return all_tests

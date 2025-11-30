@@ -13,6 +13,7 @@ from adw_modules.github import make_issue_comment
 from adw_modules.workflow_ops import format_issue_message
 
 from .types import E2ETestContext
+from .discovery import discover_all_e2e_tests
 
 # Agent name constant
 AGENT_E2E_TESTER = "e2e_test_runner"
@@ -24,7 +25,8 @@ MAX_E2E_TEST_RETRY_ATTEMPTS = 2
 def run_e2e_tests(
     adw_id: str,
     logger: logging.Logger,
-    working_dir: Optional[str] = None
+    working_dir: Optional[str] = None,
+    e2e_test_file: Optional[str] = None
 ) -> AgentPromptResponse:
     """Run the E2E test suite using the /test_e2e command.
 
@@ -35,14 +37,19 @@ def run_e2e_tests(
         adw_id: ADW identifier
         logger: Logger instance
         working_dir: Working directory for tests
+        e2e_test_file: Path to the E2E test file to run. If not provided, the
+            /test_e2e command will need to discover the test file.
 
     Returns:
         AgentPromptResponse with E2E test results
     """
+    # Build args list - include e2e_test_file if provided
+    args = [e2e_test_file] if e2e_test_file else []
+
     test_template_request = AgentTemplateRequest(
         agent_name=AGENT_E2E_TESTER,
         slash_command="/test_e2e",
-        args=[],
+        args=args,
         adw_id=adw_id,
         working_dir=working_dir,
     )
@@ -93,6 +100,10 @@ def run_e2e_tests_with_resolution(
 ) -> E2ETestContext:
     """Run E2E tests with automatic resolution and retry logic.
 
+    Discovers E2E test files from:
+    1. agents/{adw_id}/tests/e2e/ - ADW-specific tests
+    2. src/test/e2e/ - Issue-specific tests (pattern: issue-{issue_number}-adw-{adw_id}-e2e-*.md)
+
     Args:
         adw_id: ADW identifier
         issue_number: Issue number for comments
@@ -104,6 +115,17 @@ def run_e2e_tests_with_resolution(
     Returns:
         E2ETestContext with test results
     """
+    # Discover E2E test files
+    e2e_test_files = discover_all_e2e_tests(
+        adw_id, issue_number, worktree_path, logger
+    )
+
+    if not e2e_test_files:
+        logger.warning("No E2E test files discovered - skipping E2E tests")
+        return E2ETestContext(results=[], passed_count=0, failed_count=0)
+
+    logger.info(f"Discovered {len(e2e_test_files)} E2E test files: {e2e_test_files}")
+
     attempt = 0
     results = []
     passed_count = 0
@@ -113,22 +135,33 @@ def run_e2e_tests_with_resolution(
         attempt += 1
         logger.info(f"\n=== E2E Test Run Attempt {attempt}/{max_attempts} ===")
 
-        e2e_response = run_e2e_tests(adw_id, logger, worktree_path)
-
-        if not e2e_response.success:
-            logger.error(f"Error running E2E tests: {e2e_response.output}")
-            make_issue_comment(
-                issue_number,
-                format_issue_message(
-                    adw_id, AGENT_E2E_TESTER,
-                    f"❌ Error running E2E tests: {e2e_response.output}"
-                ),
+        # Run each discovered E2E test file
+        all_results = []
+        for test_file in e2e_test_files:
+            logger.info(f"Running E2E test: {test_file}")
+            e2e_response = run_e2e_tests(
+                adw_id, logger, worktree_path, e2e_test_file=test_file
             )
-            break
 
-        results, passed_count, failed_count = parse_e2e_test_results(
-            e2e_response.output, logger
-        )
+            if not e2e_response.success:
+                logger.error(f"Error running E2E test {test_file}: {e2e_response.output}")
+                make_issue_comment(
+                    issue_number,
+                    format_issue_message(
+                        adw_id, AGENT_E2E_TESTER,
+                        f"❌ Error running E2E test {test_file}: {e2e_response.output}"
+                    ),
+                )
+                continue
+
+            file_results, _, _ = parse_e2e_test_results(
+                e2e_response.output, logger
+            )
+            all_results.extend(file_results)
+
+        results = all_results
+        passed_count = sum(1 for test in results if test.passed)
+        failed_count = len(results) - passed_count
 
         if not results:
             logger.warning("No E2E test results to process")
