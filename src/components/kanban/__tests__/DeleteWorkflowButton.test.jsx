@@ -71,49 +71,54 @@ describe('Delete Workflow Button Enhanced Tests', () => {
     vi.clearAllMocks();
   });
 
-  it('shows loading state when delete button is clicked', async () => {
-    // Create a controlled promise to test loading state
-    let resolveDelete;
-    mockStore.deleteWorktree.mockImplementation(() => new Promise(resolve => {
-      resolveDelete = resolve;
-    }));
+  it('shows loading state when getDeletionState returns loading', async () => {
+    // Simulate loading state from store
+    mockStore.getDeletionState.mockReturnValue({ loading: true, error: null });
 
     render(<TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />);
 
-    // Open delete confirmation
+    // Delete button should show loading state
+    const deleteTexts = screen.getAllByText('Deleting...');
+    expect(deleteTexts.length).toBeGreaterThan(0);
+
+    // Main delete button should be disabled
+    const mainDeleteButton = deleteTexts[0].closest('button');
+    expect(mainDeleteButton).toBeDisabled();
+  });
+
+  it('calls deleteWorktree when confirm is clicked', async () => {
+    mockStore.getDeletionState.mockReturnValue(null);
+
+    render(<TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />);
+
+    // Click the delete button to open confirmation
     const deleteButton = screen.getByText('Delete');
     fireEvent.click(deleteButton);
 
+    // Confirmation modal should appear
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Delete Worktree' })).toBeInTheDocument();
     });
 
-    // Click confirm to start deletion
+    // Click confirm button
     const confirmButton = screen.getByRole('button', { name: /Delete Worktree/i });
     await act(async () => {
       fireEvent.click(confirmButton);
     });
 
-    // Verify loading state is shown - both main and confirmation modal buttons show Deleting...
+    // Verify deleteWorktree was called with correct ADW ID
     await waitFor(() => {
-      const deleteTexts = screen.getAllByText('Deleting...');
-      expect(deleteTexts.length).toBeGreaterThan(0);
-    });
-
-    // Cleanup: resolve the promise
-    await act(async () => {
-      resolveDelete(true);
+      expect(mockStore.deleteWorktree).toHaveBeenCalledWith('test1234');
     });
   });
 
-  it('task remains in board while deletion is in progress', async () => {
-    // Create a controlled promise to test loading state
-    let resolveDelete;
-    mockStore.deleteWorktree.mockImplementation(() => new Promise(resolve => {
-      resolveDelete = resolve;
-    }));
+  it('task modal remains visible while deletion is in progress', async () => {
+    // Start with no loading state
+    mockStore.getDeletionState.mockReturnValue(null);
 
-    render(<TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />);
+    const { rerender } = render(
+      <TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />
+    );
 
     // Click the delete button
     const deleteButton = screen.getByText('Delete');
@@ -134,23 +139,21 @@ describe('Delete Workflow Button Enhanced Tests', () => {
       expect(mockStore.deleteWorktree).toHaveBeenCalledWith('test1234');
     });
 
+    // Simulate loading state from store (as would happen in real implementation)
+    mockStore.getDeletionState.mockReturnValue({ loading: true, error: null });
+    rerender(<TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />);
+
     // Verify the task modal is still visible while deletion is in progress
     expect(screen.getByText('Test Task')).toBeInTheDocument();
 
     // Verify loading state is shown
-    await waitFor(() => {
-      expect(screen.getAllByText('Deleting...').length).toBeGreaterThan(0);
-    });
-
-    // Cleanup: resolve the promise
-    await act(async () => {
-      resolveDelete(true);
-    });
+    expect(screen.getAllByText('Deleting...').length).toBeGreaterThan(0);
   });
 
-  it('closes confirmation modal after deletion completes (success or fail)', async () => {
+  it('closes confirmation modal after deletion completes (failure case)', async () => {
     // Deletion returns false (failure case)
     mockStore.deleteWorktree.mockResolvedValue(false);
+    mockStore.getDeletionState.mockReturnValue(null);
 
     render(<TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />);
 
@@ -173,20 +176,17 @@ describe('Delete Workflow Button Enhanced Tests', () => {
       expect(mockStore.deleteWorktree).toHaveBeenCalled();
     });
 
-    // Modal should close after deletion completes
+    // Modal should close after deletion fails
     await waitFor(() => {
       expect(screen.queryByRole('heading', { name: 'Delete Worktree' })).not.toBeInTheDocument();
     });
   });
 
   it('shows loading spinner in confirmation modal during deletion', async () => {
-    // Create a controlled promise to test loading state
-    let resolveDelete;
-    mockStore.deleteWorktree.mockImplementation(() => new Promise(resolve => {
-      resolveDelete = resolve;
-    }));
+    // First start with no loading state to open the modal
+    mockStore.getDeletionState.mockReturnValue(null);
 
-    render(<TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />);
+    const { rerender } = render(<TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />);
 
     // Open delete confirmation
     const deleteButton = screen.getByText('Delete');
@@ -196,39 +196,27 @@ describe('Delete Workflow Button Enhanced Tests', () => {
       expect(screen.getByRole('heading', { name: 'Delete Worktree' })).toBeInTheDocument();
     });
 
-    // Click confirm button to trigger deletion
-    const confirmButton = screen.getByRole('button', { name: /Delete Worktree/i });
-    await act(async () => {
-      fireEvent.click(confirmButton);
-    });
+    // Now simulate loading state (as if deletion was triggered)
+    mockStore.getDeletionState.mockReturnValue({ loading: true, error: null });
+    rerender(<TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />);
 
     // Verify loading spinner is visible (component should show Deleting... with spinner)
-    await waitFor(() => {
-      const loadingTexts = screen.getAllByText('Deleting...');
-      // Find the one in the confirmation modal button
-      const confirmModalLoadingText = loadingTexts.find(el => {
-        const button = el.closest('button');
-        return button && button.classList.contains('bg-red-600');
-      });
-      expect(confirmModalLoadingText).toBeDefined();
-      const loadingSpinner = confirmModalLoadingText.previousSibling;
-      expect(loadingSpinner).toHaveClass('animate-spin');
+    const loadingTexts = screen.getAllByText('Deleting...');
+    // Find the one in the confirmation modal button
+    const confirmModalLoadingText = loadingTexts.find(el => {
+      const button = el.closest('button');
+      return button && button.classList.contains('bg-red-600');
     });
-
-    // Cleanup: resolve the promise
-    await act(async () => {
-      resolveDelete(true);
-    });
+    expect(confirmModalLoadingText).toBeDefined();
+    const loadingSpinner = confirmModalLoadingText.previousSibling;
+    expect(loadingSpinner).toHaveClass('animate-spin');
   });
 
   it('cancel button is disabled during deletion', async () => {
-    // Create a controlled promise to test loading state
-    let resolveDelete;
-    mockStore.deleteWorktree.mockImplementation(() => new Promise(resolve => {
-      resolveDelete = resolve;
-    }));
+    // First start with no loading state to open the modal
+    mockStore.getDeletionState.mockReturnValue(null);
 
-    render(<TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />);
+    const { rerender } = render(<TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />);
 
     // Open delete confirmation
     const deleteButton = screen.getByText('Delete');
@@ -238,22 +226,13 @@ describe('Delete Workflow Button Enhanced Tests', () => {
       expect(screen.getByRole('heading', { name: 'Delete Worktree' })).toBeInTheDocument();
     });
 
-    // Click confirm button to trigger deletion
-    const confirmButton = screen.getByRole('button', { name: /Delete Worktree/i });
-    await act(async () => {
-      fireEvent.click(confirmButton);
-    });
+    // Now simulate loading state (as if deletion was triggered)
+    mockStore.getDeletionState.mockReturnValue({ loading: true, error: null });
+    rerender(<TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />);
 
     // Verify cancel button is disabled during deletion
-    await waitFor(() => {
-      const cancelButton = screen.getByText('Cancel');
-      expect(cancelButton).toBeDisabled();
-    });
-
-    // Cleanup: resolve the promise
-    await act(async () => {
-      resolveDelete(true);
-    });
+    const cancelButton = screen.getByText('Cancel');
+    expect(cancelButton).toBeDisabled();
   });
 
   it('calls deleteWorktree with correct adw_id', async () => {
@@ -303,6 +282,7 @@ describe('Delete Workflow Button Enhanced Tests', () => {
 
   it('closes confirmation modal if deletion fails immediately', async () => {
     mockStore.deleteWorktree.mockResolvedValue(false);
+    mockStore.getDeletionState.mockReturnValue(null);
 
     render(<TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />);
 
@@ -332,11 +312,22 @@ describe('Delete Workflow Button Enhanced Tests', () => {
   });
 
   it('shows main delete button disabled while deletion is in progress', async () => {
-    // Create a controlled promise to test loading state
-    let resolveDelete;
-    mockStore.deleteWorktree.mockImplementation(() => new Promise(resolve => {
-      resolveDelete = resolve;
-    }));
+    // Simulate loading state
+    mockStore.getDeletionState.mockReturnValue({ loading: true, error: null });
+
+    render(<TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />);
+
+    // Check that the main delete button shows "Deleting..." and is disabled
+    const deletingButtons = screen.getAllByText('Deleting...');
+    expect(deletingButtons.length).toBeGreaterThan(0);
+
+    const mainDeleteButton = deletingButtons[0].closest('button');
+    expect(mainDeleteButton).toBeDisabled();
+  });
+
+  it('shows error message in confirmation modal when deletion has error', async () => {
+    const errorMessage = 'Failed to delete worktree: Network error';
+    mockStore.getDeletionState.mockReturnValue({ loading: false, error: errorMessage });
 
     render(<TaskDetailsModal task={mockTask} onClose={mockOnClose} onEdit={mockOnEdit} />);
 
@@ -348,22 +339,8 @@ describe('Delete Workflow Button Enhanced Tests', () => {
       expect(screen.getByRole('heading', { name: 'Delete Worktree' })).toBeInTheDocument();
     });
 
-    // Click confirm button to trigger deletion
-    const confirmButton = screen.getByRole('button', { name: /Delete Worktree/i });
-    await act(async () => {
-      fireEvent.click(confirmButton);
-    });
-
-    // The confirm button should be disabled during deletion
-    await waitFor(() => {
-      // Check that the button in the modal shows "Deleting..." and is disabled
-      const deletingButtons = screen.getAllByText('Deleting...');
-      expect(deletingButtons.length).toBeGreaterThan(0);
-    });
-
-    // Cleanup: resolve the promise
-    await act(async () => {
-      resolveDelete(true);
-    });
+    // Verify error message is displayed
+    expect(screen.getByText(errorMessage)).toBeInTheDocument();
+    expect(screen.getByText('Error:')).toBeInTheDocument();
   });
 });
