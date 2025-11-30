@@ -86,8 +86,7 @@ def initialize_test_workflow(
     logger.info(f"ADW Test Iso starting - ID: {adw_id}, Issue: {issue_number}, Skip E2E: {skip_e2e}")
 
     # Initialize WebSocket notifier
-    websocket_port = state.get("websocket_port", "9100")
-    notifier = WebSocketNotifier(int(websocket_port))
+    notifier = WebSocketNotifier(adw_id)
 
     return TestInitContext(
         adw_id=adw_id,
