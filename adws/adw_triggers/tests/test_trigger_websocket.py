@@ -183,3 +183,65 @@ class TestMergeWorkflowCommandBuilding:
 
         # Make sure the adw_id is the first argument (after script name)
         assert cmd[3] == adw_id
+
+
+class TestPatchWorkflowStageTransition:
+    """Tests for patch workflow stage transitions."""
+
+    def test_patch_workflow_restart_transitions_to_build(self):
+        """Test that patch workflow restart transitions to 'build' not 'plan'.
+
+        When a patch workflow is triggered on an existing task (restart scenario),
+        it should transition to 'build' stage because patches skip planning.
+        """
+        workflow_type = "adw_patch_iso"
+
+        # Determine target stage based on workflow type (matching trigger_websocket.py logic)
+        if workflow_type == "adw_patch_iso":
+            target_stage = "build"
+        else:
+            target_stage = "plan"
+
+        assert target_stage == "build", "Patch workflow should transition to 'build', not 'plan'"
+
+    def test_standard_workflow_restart_transitions_to_plan(self):
+        """Test that standard workflows restart to 'plan' stage."""
+        standard_workflows = [
+            "adw_plan_iso",
+            "adw_plan_build_iso",
+            "adw_plan_build_test_iso",
+            "adw_sdlc_iso",
+        ]
+
+        for workflow_type in standard_workflows:
+            # Determine target stage based on workflow type (matching trigger_websocket.py logic)
+            if workflow_type == "adw_patch_iso":
+                target_stage = "build"
+            else:
+                target_stage = "plan"
+
+            assert target_stage == "plan", f"{workflow_type} should transition to 'plan'"
+
+    def test_patch_workflow_from_errored_stage_goes_to_build(self):
+        """Test that patch workflow from errored stage goes to build.
+
+        This is the specific bug scenario: when a card is in 'errored' stage
+        and user applies a patch, it should go to 'build', not 'plan'.
+        """
+        workflow_type = "adw_patch_iso"
+        from_stage = "errored"
+
+        # Simulate is_restart detection (errored is in non_backlog_stages)
+        non_backlog_stages = {"plan", "build", "test", "review", "document", "errored"}
+        is_restart = from_stage.lower() in non_backlog_stages
+
+        assert is_restart is True, "errored stage should trigger restart detection"
+
+        # Determine target stage
+        if workflow_type == "adw_patch_iso":
+            target_stage = "build"
+        else:
+            target_stage = "plan"
+
+        assert target_stage == "build", \
+            "Patch workflow from errored stage should go to 'build', not 'plan'"

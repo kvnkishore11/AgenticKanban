@@ -22,15 +22,15 @@ from adw_modules.kanban_mode import is_kanban_mode, get_kanban_output_path
 
 
 # Branch name pattern: <type>-issue-<number>-adw-<id>-<concise-name>
-# Valid types: feat, bug, chore, test, fix, refactor, docs, style, perf, ci
+# Valid types: feat, feature, bug, chore, test, fix, refactor, docs, style, perf, ci
 # ADW ID is alphanumeric (hex or any alphanumeric), concise name is lowercase with hyphens
 BRANCH_NAME_PATTERN = re.compile(
-    r'^(feat|bug|chore|test|fix|refactor|docs|style|perf|ci)-issue-\d+-adw-[a-z0-9]+-[a-z0-9-]+$'
+    r'^(feat|feature|bug|chore|test|fix|refactor|docs|style|perf|ci)-issue-\d+-adw-[a-z0-9]+-[a-z0-9-]+$'
 )
 
 # Fallback pattern to extract branch name from LLM output that may contain reasoning
 BRANCH_NAME_EXTRACTION_PATTERN = re.compile(
-    r'((?:feat|bug|chore|test|fix|refactor|docs|style|perf|ci)-issue-\d+-adw-[a-z0-9]+-[a-z0-9-]+)'
+    r'((?:feat|feature|bug|chore|test|fix|refactor|docs|style|perf|ci)-issue-\d+-adw-[a-z0-9]+-[a-z0-9-]+)'
 )
 
 
@@ -99,6 +99,48 @@ def extract_branch_name_from_output(output: str, logger: logging.Logger) -> Opti
         f"Output preview: {output[:200]}..."
     )
     return None
+
+
+def generate_fallback_branch_name(
+    issue_number: int,
+    adw_id: str,
+    issue_type: str,
+    logger: logging.Logger
+) -> str:
+    """Generate a deterministic fallback branch name when LLM fails.
+
+    This ensures the workflow can continue even if LLM branch name generation fails.
+
+    Args:
+        issue_number: The issue number
+        adw_id: ADW identifier
+        issue_type: Issue type (feature, bug, chore, etc.)
+        logger: Logger instance
+
+    Returns:
+        A valid branch name in format: <type>-issue-<number>-adw-<id>-auto
+    """
+    # Normalize type to valid prefix
+    type_map = {
+        "feature": "feat",
+        "/feature": "feat",
+        "/bug": "bug",
+        "/chore": "chore",
+        "/fix": "fix",
+        "/test": "test",
+        "/refactor": "refactor",
+        "/docs": "docs",
+    }
+    branch_type = type_map.get(issue_type.lower(), issue_type.lower().replace("/", ""))
+
+    # Ensure type is valid, default to 'feat' if not
+    valid_types = {"feat", "feature", "bug", "chore", "test", "fix", "refactor", "docs", "style", "perf", "ci"}
+    if branch_type not in valid_types:
+        branch_type = "feat"
+
+    fallback_name = f"{branch_type}-issue-{issue_number}-adw-{adw_id}-auto"
+    logger.warning(f"Using fallback branch name: {fallback_name}")
+    return fallback_name
 
 
 def save_workflow_output_for_kanban(
@@ -450,7 +492,10 @@ def generate_branch_name(
     logger: logging.Logger,
 ) -> Tuple[Optional[str], Optional[str]]:
     """Generate a git branch name for the issue.
-    Returns (branch_name, error_message) tuple."""
+
+    Returns (branch_name, error_message) tuple.
+    Uses fallback branch name if LLM generation fails to ensure workflow continues.
+    """
     # Remove the leading slash from issue_class for the branch name
     issue_type = issue_class.replace("/", "")
 
@@ -466,25 +511,36 @@ def generate_branch_name(
         adw_id=adw_id,
     )
 
-    response = execute_template(request)
+    try:
+        response = execute_template(request)
 
-    if not response.success:
-        return None, response.output
+        if not response.success:
+            logger.warning(f"LLM branch generation failed: {response.output}. Using fallback.")
+            fallback = generate_fallback_branch_name(issue.number, adw_id, issue_class, logger)
+            return fallback, None
 
-    # Extract and validate branch name from LLM output
-    # LLMs may include reasoning/thinking before the actual branch name
-    branch_name = extract_branch_name_from_output(response.output, logger)
+        # Extract and validate branch name from LLM output
+        # LLMs may include reasoning/thinking before the actual branch name
+        branch_name = extract_branch_name_from_output(response.output, logger)
 
-    if not branch_name:
-        # Provide helpful error with context
-        return None, (
-            f"Failed to extract valid branch name from LLM output. "
-            f"Expected format: <type>-issue-<number>-adw-<id>-<concise-name>. "
-            f"Raw output: {response.output[:500]}"
-        )
+        if not branch_name:
+            # LLM gave output but we couldn't extract valid branch name
+            # Use fallback instead of failing the entire workflow
+            logger.warning(
+                f"Could not extract valid branch name from LLM output. "
+                f"Raw output: {response.output[:200]}. Using fallback."
+            )
+            fallback = generate_fallback_branch_name(issue.number, adw_id, issue_class, logger)
+            return fallback, None
 
-    logger.info(f"Generated branch name: {branch_name}")
-    return branch_name, None
+        logger.info(f"Generated branch name: {branch_name}")
+        return branch_name, None
+
+    except Exception as e:
+        # Any exception during branch name generation should not stop the workflow
+        logger.warning(f"Exception during branch name generation: {e}. Using fallback.")
+        fallback = generate_fallback_branch_name(issue.number, adw_id, issue_class, logger)
+        return fallback, None
 
 
 def create_commit(

@@ -1,0 +1,9 @@
+{
+  "session_id": "d0b20719-1e41-4cce-9e72-aeada0702cec",
+  "prompts": [
+    "till that time after teh click --> i want to see the progress like how we currently show delteing within hte card u can follow the similar typeof styling.. and give the status what happend if it opned or if it is delted etc?",
+    "did u verify hte worktree not found..??",
+    "defintely great job.. lets refacto the name from open worktree to start worktee, i want similar button open codebase -> this should also do the same but its like once it goes to the worktree directory nvim should be used so that it opens things in neovim",
+    "u are doing great job.. i see lot of duplicated that are being created when i click on open codebase... can u ensure that if hter eis already one exisitn open that itself directly??"
+  ]
+}

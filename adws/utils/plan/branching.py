@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from adw_modules.state import ADWState
 from adw_modules.websocket_client import WebSocketNotifier
 from adw_modules.data_types import GitHubIssue, IssueClassSlashCommand
-from adw_modules.workflow_ops import generate_branch_name, format_issue_message
+from adw_modules.workflow_ops import generate_branch_name, generate_fallback_branch_name, format_issue_message
 from adw_modules.github import make_issue_comment_safe
 
 
@@ -25,6 +25,7 @@ def generate_branch(
     """Generate branch name and save to state.
 
     Does NOT create the branch - that happens with worktree creation.
+    Uses fallback branch name if generation fails to ensure workflow continues.
 
     Args:
         issue: GitHub issue object
@@ -36,25 +37,25 @@ def generate_branch(
         logger: Logger instance
 
     Returns:
-        Generated branch name
-
-    Raises:
-        SystemExit: If branch name generation fails
+        Generated branch name (never fails - uses fallback if needed)
     """
     notifier.notify_progress("adw_plan_iso", 30, "Generating branch", "Creating branch name for isolated worktree")
-    branch_name, error = generate_branch_name(issue, issue_command, adw_id, logger)
 
-    if error:
-        logger.error(f"Error generating branch name: {error}")
-        notifier.notify_error("adw_plan_iso", f"Error generating branch name: {error}", "Generating branch")
-        make_issue_comment_safe(
-            issue_number,
-            format_issue_message(
-                adw_id, "ops", f"Error generating branch name: {error}"
-            ),
-            state
-        )
-        sys.exit(1)
+    try:
+        branch_name, error = generate_branch_name(issue, issue_command, adw_id, logger)
+
+        if error:
+            # This shouldn't happen since generate_branch_name now uses fallback internally
+            # But if it does, use our own fallback here as a safety net
+            logger.warning(f"Unexpected error from generate_branch_name: {error}. Using fallback.")
+            notifier.notify_log("adw_plan_iso", f"Branch generation issue, using fallback: {error}", "WARN")
+            branch_name = generate_fallback_branch_name(issue.number, adw_id, issue_command, logger)
+
+    except Exception as e:
+        # Final safety net - any exception should not stop the workflow
+        logger.warning(f"Exception in branch generation: {e}. Using fallback.")
+        notifier.notify_log("adw_plan_iso", f"Branch generation exception, using fallback", "WARN")
+        branch_name = generate_fallback_branch_name(issue.number, adw_id, issue_command, logger)
 
     # Don't create branch here - let worktree create it
     # The worktree command will create the branch when we specify -b

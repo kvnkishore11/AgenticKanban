@@ -687,4 +687,77 @@ describe('KanbanCard Component', () => {
       expect(() => fireEvent.click(editButton)).not.toThrow();
     });
   });
+
+  describe('Patch Indicator', () => {
+    it('should display patch badge when patch_status is in_progress', () => {
+      const taskWithPatch = {
+        ...MOCK_TASK,
+        metadata: {
+          ...MOCK_TASK.metadata,
+          patch_status: 'in_progress',
+          patch_number: 1,
+          patch_request: 'Fix the button color'
+        }
+      };
+
+      render(<KanbanCard task={taskWithPatch} />);
+
+      expect(screen.getByText(/PATCH #1/)).toBeInTheDocument();
+    });
+
+    it('should display patch count badge when patch_history has entries', () => {
+      const taskWithPatchHistory = {
+        ...MOCK_TASK,
+        metadata: {
+          ...MOCK_TASK.metadata,
+          patch_history: [
+            { patch_number: 1, patch_reason: 'Fix A', status: 'completed' },
+            { patch_number: 2, patch_reason: 'Fix B', status: 'completed' }
+          ]
+        }
+      };
+
+      render(<KanbanCard task={taskWithPatchHistory} />);
+
+      expect(screen.getByText(/2 PATCHES/)).toBeInTheDocument();
+    });
+
+    it('should display singular PATCH when only 1 patch in history', () => {
+      const taskWithOnePatch = {
+        ...MOCK_TASK,
+        metadata: {
+          ...MOCK_TASK.metadata,
+          patch_history: [
+            { patch_number: 1, patch_reason: 'Fix A', status: 'completed' }
+          ]
+        }
+      };
+
+      render(<KanbanCard task={taskWithOnePatch} />);
+
+      expect(screen.getByText(/1 PATCH(?!ES)/)).toBeInTheDocument();
+    });
+
+    it('should not display patch badge when no patch info exists', () => {
+      render(<KanbanCard task={MOCK_TASK} />);
+
+      expect(screen.queryByText(/PATCH/)).not.toBeInTheDocument();
+    });
+
+    it('should apply correct status class to patch badge', () => {
+      const taskWithPendingPatch = {
+        ...MOCK_TASK,
+        metadata: {
+          ...MOCK_TASK.metadata,
+          patch_status: 'pending',
+          patch_number: 1
+        }
+      };
+
+      const { container } = render(<KanbanCard task={taskWithPendingPatch} />);
+
+      const patchBadge = container.querySelector('.brutalist-label.patch');
+      expect(patchBadge).toHaveClass('pending');
+    });
+  });
 });

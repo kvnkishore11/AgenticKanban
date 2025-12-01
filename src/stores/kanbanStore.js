@@ -1463,20 +1463,36 @@ export const useKanbanStore = create()(
             console.log('[PATCH] Starting patch for task:', taskId, 'ADW ID:', adwId);
             set({ isLoading: true }, false, 'applyPatch');
 
-            // Update task with patch request in metadata and move to implement stage
+            // Calculate patch number from existing history
+            const existingHistory = task.metadata?.patch_history || [];
+            const patchNumber = existingHistory.length + 1;
+            console.log('[PATCH] This is patch #' + patchNumber);
+
+            // Create new patch entry
+            const newPatchEntry = {
+              patch_number: patchNumber,
+              patch_reason: patchRequest,
+              timestamp: new Date().toISOString(),
+              status: 'pending',
+            };
+
+            // Update task with patch request in metadata and move to build stage
+            // Note: The kanban board uses 'build' as the stage id, not 'implement'
             set((state) => ({
               tasks: state.tasks.map(t =>
                 t.id === taskId
                   ? {
                       ...t,
-                      stage: 'implement',
+                      stage: 'build',
                       substage: null,
                       progress: 0,
                       metadata: {
                         ...t.metadata,
                         patch_request: patchRequest,
                         patch_status: 'pending',
+                        patch_number: patchNumber,
                         patch_started_at: new Date().toISOString(),
+                        patch_history: [...existingHistory, newPatchEntry],
                       },
                       updatedAt: new Date().toISOString()
                     }
@@ -1500,23 +1516,29 @@ export const useKanbanStore = create()(
 
             console.log('[PATCH] Patch workflow triggered successfully:', response);
 
-            // Update task with workflow response
+            // Update task with workflow response and update patch history status
             set((state) => ({
-              tasks: state.tasks.map(t =>
-                t.id === taskId
-                  ? {
-                      ...t,
-                      metadata: {
-                        ...t.metadata,
-                        workflow_name: response.workflow_name,
-                        workflow_status: 'started',
-                        patch_status: 'in_progress',
-                        logs_path: response.logs_path,
-                      },
-                      updatedAt: new Date().toISOString()
-                    }
-                  : t
-              ),
+              tasks: state.tasks.map(t => {
+                if (t.id !== taskId) return t;
+
+                // Update the latest patch entry in history to in_progress
+                const updatedHistory = (t.metadata?.patch_history || []).map((entry, idx, arr) =>
+                  idx === arr.length - 1 ? { ...entry, status: 'in_progress' } : entry
+                );
+
+                return {
+                  ...t,
+                  metadata: {
+                    ...t.metadata,
+                    workflow_name: response.workflow_name,
+                    workflow_status: 'started',
+                    patch_status: 'in_progress',
+                    logs_path: response.logs_path,
+                    patch_history: updatedHistory,
+                  },
+                  updatedAt: new Date().toISOString()
+                };
+              }),
             }), false, 'applyPatch_workflowStarted');
 
             // Track the active workflow
@@ -1535,21 +1557,27 @@ export const useKanbanStore = create()(
           } catch (error) {
             console.error('[PATCH ERROR] Failed to apply patch:', taskId, error);
 
-            // Revert task stage on failure
+            // Revert task stage on failure and update patch history
             set((state) => ({
-              tasks: state.tasks.map(t =>
-                t.id === taskId
-                  ? {
-                      ...t,
-                      metadata: {
-                        ...t.metadata,
-                        patch_status: 'failed',
-                        patch_error: error.message,
-                      },
-                      updatedAt: new Date().toISOString()
-                    }
-                  : t
-              ),
+              tasks: state.tasks.map(t => {
+                if (t.id !== taskId) return t;
+
+                // Update the latest patch entry in history to failed
+                const updatedHistory = (t.metadata?.patch_history || []).map((entry, idx, arr) =>
+                  idx === arr.length - 1 ? { ...entry, status: 'failed', error: error.message } : entry
+                );
+
+                return {
+                  ...t,
+                  metadata: {
+                    ...t.metadata,
+                    patch_status: 'failed',
+                    patch_error: error.message,
+                    patch_history: updatedHistory,
+                  },
+                  updatedAt: new Date().toISOString()
+                };
+              }),
               isLoading: false,
               error: `Failed to apply patch: ${error.message}`
             }), false, 'applyPatchError');
@@ -1844,10 +1872,20 @@ export const useKanbanStore = create()(
 
               // Handle terminal states with additional metadata updates
               if (to_stage === 'ready-to-merge' || to_stage === 'completed') {
+                // Update patch history if this was a patch workflow
+                let updatedPatchHistory = task.metadata?.patch_history;
+                if (task.metadata?.patch_status === 'in_progress' && updatedPatchHistory?.length > 0) {
+                  updatedPatchHistory = updatedPatchHistory.map((entry, idx, arr) =>
+                    idx === arr.length - 1 ? { ...entry, status: 'completed' } : entry
+                  );
+                }
+
                 get().updateTask(task.id, {
                   metadata: {
                     ...task.metadata,
                     workflow_complete: true,
+                    patch_status: task.metadata?.patch_status === 'in_progress' ? 'completed' : task.metadata?.patch_status,
+                    patch_history: updatedPatchHistory,
                   },
                   progress: 100,
                 });

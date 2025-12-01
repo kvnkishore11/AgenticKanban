@@ -167,6 +167,8 @@ def setup_worktree_environment(worktree_path: str, websocket_port: int, frontend
     with open(ports_env_path, "w") as f:
         f.write(f"WEBSOCKET_PORT={websocket_port}\n")
         f.write(f"FRONTEND_PORT={frontend_port}\n")
+        f.write(f"ADW_PORT={websocket_port}\n")
+        f.write(f"VITE_ADW_PORT={websocket_port}\n")
         f.write(f"VITE_BACKEND_URL=http://localhost:{websocket_port}\n")
 
     logger.info(f"Created .ports.env with WebSocket: {websocket_port}, Frontend: {frontend_port}")

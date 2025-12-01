@@ -254,6 +254,13 @@ const KanbanCard = memo(({ task, onEdit }) => {
   const pipelineStages = getPipelineStages();
   const currentStageIdx = getCurrentStageIndex();
 
+  // Patch information
+  const patchHistory = task.metadata?.patch_history || [];
+  const patchCount = patchHistory.length;
+  const currentPatchNumber = task.metadata?.patch_number;
+  const patchStatus = task.metadata?.patch_status;
+  const hasPatch = patchCount > 0 || patchStatus;
+
   return (
     <div
       className={`brutalist-task-card ${transitionClass} ${glowClass} ${pulseClass} ${isDeleting ? 'deleting' : ''}`}
@@ -377,6 +384,11 @@ const KanbanCard = memo(({ task, onEdit }) => {
             <span className="brutalist-label bug">🐛 BUG</span>
           ) : (
             <span className="brutalist-label feature">✨ FEATURE</span>
+          )}
+          {hasPatch && (
+            <span className={`brutalist-label patch ${patchStatus || ''}`}>
+              🔧 {patchStatus === 'in_progress' ? `PATCH #${currentPatchNumber}` : patchCount > 0 ? `${patchCount} PATCH${patchCount !== 1 ? 'ES' : ''}` : 'PATCH'}
+            </span>
           )}
         </div>
 

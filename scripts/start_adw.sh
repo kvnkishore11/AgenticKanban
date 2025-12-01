@@ -44,9 +44,8 @@ else
     echo -e "${GREEN}✓ Port $ADW_PORT is available${NC}"
 fi
 
-# Kill any lingering trigger_websocket processes
-echo -e "${YELLOW}Checking for lingering ADW WebSocket processes...${NC}"
-pkill -f "trigger_websocket.py" 2>/dev/null && echo -e "${GREEN}✓ Killed lingering WebSocket processes${NC}"
+# Note: We only kill the process on the specific port above to maintain worktree isolation.
+# A global pkill would kill trigger_websocket.py processes from other worktrees.
 
 # Change to project root directory
 cd "$PROJECT_ROOT"

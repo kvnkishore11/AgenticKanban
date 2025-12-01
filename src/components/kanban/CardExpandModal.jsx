@@ -814,6 +814,51 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                   </button>
                 </div>
               )}
+
+              {/* PATCH HISTORY SECTION */}
+              {(task.metadata?.patch_history?.length > 0 || task.metadata?.patch_status) && (
+                <div className="brutalist-section patch-history-section">
+                  <div className="brutalist-section-header">
+                    <div className="brutalist-section-icon icon-gradient-yellow">
+                      🔧
+                    </div>
+                    <div className="brutalist-section-title">PATCH HISTORY</div>
+                    {task.metadata?.patch_number && (
+                      <div className={`patch-status-badge ${task.metadata?.patch_status || 'pending'}`}>
+                        #{task.metadata.patch_number} {task.metadata?.patch_status?.toUpperCase() || 'PENDING'}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Current Patch Request */}
+                  {task.metadata?.patch_status === 'in_progress' && task.metadata?.patch_request && (
+                    <div className="current-patch-info">
+                      <div className="current-patch-label">CURRENT PATCH:</div>
+                      <div className="current-patch-request">{task.metadata.patch_request}</div>
+                    </div>
+                  )}
+
+                  {/* Patch History List */}
+                  {task.metadata?.patch_history?.length > 0 && (
+                    <div className="patch-history-list">
+                      {[...task.metadata.patch_history].reverse().map((patch, idx) => (
+                        <div key={idx} className={`patch-history-item ${patch.status || 'pending'}`}>
+                          <div className="patch-history-header">
+                            <span className="patch-history-number">Patch #{patch.patch_number}</span>
+                            <span className={`patch-history-status ${patch.status || 'pending'}`}>
+                              {patch.status === 'completed' ? '✓' : patch.status === 'failed' ? '✗' : patch.status === 'in_progress' ? '⟳' : '○'}
+                            </span>
+                          </div>
+                          <div className="patch-history-reason">{patch.patch_reason}</div>
+                          {patch.timestamp && (
+                            <div className="patch-history-time">{formatTimeAgo(patch.timestamp)}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* RIGHT PANEL - Two-Level Tab Navigation */}

@@ -821,9 +821,16 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
         # Start agent directory monitoring for real-time updates
         start_agent_directory_monitoring(adw_id)
 
-        # Force stage transition to plan if this is a restart
+        # Force stage transition if this is a restart
         if is_restart:
-            logger.info("Forcing stage transition to 'plan' for workflow restart")
+            # Determine target stage based on workflow type
+            # Patch workflows skip planning and go directly to build
+            if request.workflow_type == "adw_patch_iso":
+                target_stage = "build"
+                logger.info("Forcing stage transition to 'build' for patch workflow restart")
+            else:
+                target_stage = "plan"
+                logger.info("Forcing stage transition to 'plan' for workflow restart")
 
             # Create WebSocketNotifier for stage transition
             try:
@@ -835,18 +842,18 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
                     from_stage = request.issue_json.get("stage")
 
                 # Send stage transition notification
-                transition_msg = f"Workflow restarted - transitioning from {from_stage} to plan"
+                transition_msg = f"Workflow restarted - transitioning from {from_stage} to {target_stage}"
                 if old_adw_id:
                     transition_msg += f" (cleaned up old ADW: {old_adw_id})"
 
                 notifier.notify_stage_transition(
                     workflow_name=request.workflow_type,
                     from_stage=from_stage,
-                    to_stage="plan",
+                    to_stage=target_stage,
                     message=transition_msg
                 )
 
-                logger.info(f"Stage transition notification sent: {from_stage} -> plan")
+                logger.info(f"Stage transition notification sent: {from_stage} -> {target_stage}")
 
                 # Also send a WebSocket update about the restart
                 await send_status_update(
@@ -855,7 +862,7 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
                     "in_progress",
                     transition_msg,
                     websocket,
-                    current_step="Stage: plan"
+                    current_step=f"Stage: {target_stage}"
                 )
             except Exception as e:
                 logger.warning(f"Failed to send stage transition notification: {e}")
@@ -863,7 +870,7 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
         # Return success response
         response_msg = f"ADW {request.workflow_type} triggered successfully"
         if is_restart:
-            response_msg += " (workflow restarted, transitioned to plan stage)"
+            response_msg += f" (workflow restarted, transitioned to {target_stage} stage)"
 
         return WorkflowTriggerResponse(
             status="accepted",

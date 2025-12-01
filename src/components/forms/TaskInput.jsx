@@ -41,7 +41,9 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
   const [title, setTitle] = useState(task?.title || '');
   const [description, setDescription] = useState(task?.description || '');
   const [workItemType, setWorkItemType] = useState(task?.workItemType || WORK_ITEM_TYPES.FEATURE);
-  const [queuedStages, setQueuedStages] = useState(task?.queuedStages || ['plan', 'implement']);
+  const [queuedStages, setQueuedStages] = useState(
+    task?.workItemType === WORK_ITEM_TYPES.PATCH ? [] : (task?.queuedStages || ['plan', 'implement'])
+  );
   const [customAdwId, setCustomAdwId] = useState(task?.customAdwId || task?.adw_id || '');
   const [images, setImages] = useState(task?.images || []);
   const [errors, setErrors] = useState([]);
@@ -65,6 +67,19 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
       setImageAnnotations(annotations);
     }
   }, [task]);
+
+  // Clear stages when switching to patch type (patch doesn't use stages)
+  useEffect(() => {
+    if (workItemType === WORK_ITEM_TYPES.PATCH) {
+      setQueuedStages([]);
+    } else if (queuedStages.length === 0 && !isEditMode) {
+      // Restore default stages when switching away from patch (only for new tasks)
+      setQueuedStages(['plan', 'implement']);
+    }
+  }, [workItemType]);
+
+  // Determine if stages should be disabled (for patch type)
+  const isPatchType = workItemType === WORK_ITEM_TYPES.PATCH;
 
   // Handle close - use onClose prop for edit mode, toggleTaskInput for create mode
   const handleClose = () => {
@@ -108,7 +123,11 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
         handleClose();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        if (description.trim() && queuedStages.length > 0) {
+        // For patch type, only require description. For others, require stages too.
+        const canSubmit = isPatchType
+          ? description.trim()
+          : description.trim() && queuedStages.length > 0;
+        if (canSubmit) {
           handleSubmit(e);
         }
       }
@@ -116,7 +135,7 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isEditMode, onClose, toggleTaskInput, description, queuedStages]);
+  }, [isEditMode, onClose, toggleTaskInput, description, queuedStages, isPatchType]);
 
   // Image upload with react-dropzone
   const onDrop = (acceptedFiles) => {
@@ -438,9 +457,10 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
           {/* Row 2: Stages */}
           <div className="mb-6">
             <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[2px] mb-2.5">
-              STAGES <span className="text-red-500">*</span>
+              STAGES {!isPatchType && <span className="text-red-500">*</span>}
+              {isPatchType && <span className="text-gray-500 font-normal tracking-[1px]">(not applicable for patch)</span>}
             </label>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className={`flex items-center gap-2 flex-wrap ${isPatchType ? 'opacity-40 pointer-events-none' : ''}`}>
               {/* SDLC Preset */}
               <button
                 type="button"
@@ -448,11 +468,13 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
                   handleFullSdlcToggle();
                   showToast(isFullSdlcSelected ? 'SDLC deselected' : 'All SDLC stages selected');
                 }}
+                disabled={isPatchType}
                 className={`px-4 py-2.5 border-[3px] border-black text-[9px] font-bold uppercase tracking-[1px] cursor-pointer transition-all flex items-center gap-1.5
                   ${isFullSdlcSelected
                     ? 'bg-black text-white -translate-x-0.5 -translate-y-0.5 shadow-[2px_2px_0_#444]'
                     : 'bg-white hover:bg-black hover:text-white'
-                  }`}
+                  }
+                  ${isPatchType ? 'cursor-not-allowed' : ''}`}
                 style={{ fontFamily: "'Courier New', monospace" }}
               >
                 <span>⚡</span> SDLC
@@ -466,11 +488,13 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
                     key={stage.id}
                     type="button"
                     onClick={() => handleStageToggle(stage.id)}
+                    disabled={isPatchType}
                     className={`px-3.5 py-2.5 border-[3px] border-black text-[10px] font-bold uppercase cursor-pointer transition-all flex items-center gap-1.5
                       ${isSelected
                         ? 'bg-black text-white -translate-x-0.5 -translate-y-0.5 shadow-[2px_2px_0_#444]'
                         : 'bg-white hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_#000]'
-                      }`}
+                      }
+                      ${isPatchType ? 'cursor-not-allowed' : ''}`}
                     style={{ fontFamily: "'Courier New', monospace" }}
                   >
                     {stage.icon} {stage.label}
@@ -485,11 +509,13 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
                   handleMergeToggle();
                   showToast(isMergeSelected ? 'Merge deselected' : 'Merge workflow added');
                 }}
+                disabled={isPatchType}
                 className={`px-3.5 py-2.5 border-[3px] text-[10px] font-bold uppercase cursor-pointer transition-all flex items-center gap-1.5
                   ${isMergeSelected
                     ? 'bg-purple-500 border-purple-600 text-white -translate-x-0.5 -translate-y-0.5 shadow-[2px_2px_0_#6d28d9]'
                     : 'border-purple-500 text-purple-700 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_#6d28d9]'
-                  }`}
+                  }
+                  ${isPatchType ? 'cursor-not-allowed' : ''}`}
                 style={{ fontFamily: "'Courier New', monospace" }}
               >
                 <GitMerge size={14} /> Merge
@@ -678,7 +704,7 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={!description.trim() || queuedStages.length === 0}
+              disabled={!description.trim() || (!isPatchType && queuedStages.length === 0)}
               className="px-7 py-3.5 border-[3px] border-black bg-black text-white text-[11px] font-bold uppercase tracking-[1px] cursor-pointer transition-all hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ fontFamily: "'Courier New', monospace" }}
             >

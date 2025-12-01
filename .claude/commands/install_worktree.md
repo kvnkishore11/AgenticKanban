@@ -25,11 +25,12 @@ This command sets up an isolated worktree environment with custom port configura
    WEBSOCKET_PORT={1}
    FRONTEND_PORT={2}
    ADW_PORT={1}
+   VITE_ADW_PORT={1}
    VITE_BACKEND_URL=http://localhost:{1}
    ```
 
 3. **Copy and update .env files**
-   - Copy `.env` from parent repo if it exists
+   - Copy `.env` from parent repo if it exists (note: parent `.env` should NOT contain port-related vars like VITE_BACKEND_URL, VITE_ADW_PORT, etc. - these are in `.ports.env`)
    - Append `.ports.env` contents to `.env`
 
 4. **Copy and configure MCP files**
