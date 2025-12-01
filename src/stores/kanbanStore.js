@@ -791,16 +791,19 @@ export const useKanbanStore = create()(
             errors.push('Valid work item type is required (Feature, Chore, Bug, or Patch)');
           }
 
-          // Queued stages validation
+          // Queued stages validation (skip for patch type - patch doesn't use stages)
+          const isPatchType = task.workItemType === WORK_ITEM_TYPES.PATCH;
+
           if (task.queuedStages && !Array.isArray(task.queuedStages)) {
             errors.push('Queued stages must be an array');
           }
 
-          if (task.queuedStages && task.queuedStages.length === 0) {
+          // Patch type doesn't require stages; other types do
+          if (!isPatchType && task.queuedStages && task.queuedStages.length === 0) {
             errors.push('At least one stage must be selected');
           }
 
-          // Validate each queued stage
+          // Validate each queued stage (only if stages are provided)
           if (task.queuedStages && task.queuedStages.length > 0) {
             const validStageIds = QUEUEABLE_STAGES.map(s => s.id);
             const invalidStages = task.queuedStages.filter(stage => !validStageIds.includes(stage));
@@ -1435,6 +1438,122 @@ export const useKanbanStore = create()(
             }, false, 'triggerWorkflowForTaskError');
 
             // Re-throw so caller can handle it, but it will be caught by try-catch in components
+            throw error;
+          }
+        },
+
+        // Apply patch to an existing task
+        // Flow: Move to Implement -> Run patch -> Test -> Ready to Merge
+        applyPatch: async (taskId, patchRequest) => {
+          const task = get().tasks.find(t => t.id === taskId);
+          if (!task) {
+            const error = new Error('Task not found');
+            console.error('[PATCH ERROR] Task not found:', taskId);
+            throw error;
+          }
+
+          const adwId = task.metadata?.adw_id;
+          if (!adwId) {
+            const error = new Error('Cannot apply patch: Task has no ADW ID');
+            console.error('[PATCH ERROR] No ADW ID for task:', taskId);
+            throw error;
+          }
+
+          try {
+            console.log('[PATCH] Starting patch for task:', taskId, 'ADW ID:', adwId);
+            set({ isLoading: true }, false, 'applyPatch');
+
+            // Update task with patch request in metadata and move to implement stage
+            set((state) => ({
+              tasks: state.tasks.map(t =>
+                t.id === taskId
+                  ? {
+                      ...t,
+                      stage: 'implement',
+                      substage: null,
+                      progress: 0,
+                      metadata: {
+                        ...t.metadata,
+                        patch_request: patchRequest,
+                        patch_status: 'pending',
+                        patch_started_at: new Date().toISOString(),
+                      },
+                      updatedAt: new Date().toISOString()
+                    }
+                  : t
+              ),
+            }), false, 'applyPatch_updateTask');
+
+            // Get the updated task
+            const updatedTask = get().tasks.find(t => t.id === taskId);
+
+            // Trigger patch workflow via WebSocket
+            const response = await websocketService.triggerWorkflowForTask(
+              updatedTask,
+              'adw_patch_iso',
+              {
+                adw_id: adwId,
+                issue_number: String(taskId),
+                patch_request: patchRequest,
+              }
+            );
+
+            console.log('[PATCH] Patch workflow triggered successfully:', response);
+
+            // Update task with workflow response
+            set((state) => ({
+              tasks: state.tasks.map(t =>
+                t.id === taskId
+                  ? {
+                      ...t,
+                      metadata: {
+                        ...t.metadata,
+                        workflow_name: response.workflow_name,
+                        workflow_status: 'started',
+                        patch_status: 'in_progress',
+                        logs_path: response.logs_path,
+                      },
+                      updatedAt: new Date().toISOString()
+                    }
+                  : t
+              ),
+            }), false, 'applyPatch_workflowStarted');
+
+            // Track the active workflow
+            get().trackActiveWorkflow(adwId, {
+              taskId,
+              workflowName: response.workflow_name,
+              status: 'started',
+              logsPath: response.logs_path,
+              startedAt: new Date().toISOString(),
+              isPatch: true,
+            });
+
+            set({ isLoading: false }, false, 'applyPatchSuccess');
+            return response;
+
+          } catch (error) {
+            console.error('[PATCH ERROR] Failed to apply patch:', taskId, error);
+
+            // Revert task stage on failure
+            set((state) => ({
+              tasks: state.tasks.map(t =>
+                t.id === taskId
+                  ? {
+                      ...t,
+                      metadata: {
+                        ...t.metadata,
+                        patch_status: 'failed',
+                        patch_error: error.message,
+                      },
+                      updatedAt: new Date().toISOString()
+                    }
+                  : t
+              ),
+              isLoading: false,
+              error: `Failed to apply patch: ${error.message}`
+            }), false, 'applyPatchError');
+
             throw error;
           }
         },

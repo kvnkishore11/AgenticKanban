@@ -72,6 +72,17 @@ def finalize_patch(
             f"Isolated patch workflow completed (Patch #{patch_result.patch_number})"
         ),
     )
+
+    # Notify stage transition to ready-to-merge
+    # This moves the card to the review stage for manual review before merge
+    notifier.notify_stage_transition(
+        workflow_name="adw_patch_iso",
+        from_stage="implement",
+        to_stage="ready-to-merge",
+        message=f"Patch #{patch_result.patch_number} applied successfully - ready for review"
+    )
+    logger.info("Stage transition notification sent: implement -> ready-to-merge")
+
     notifier.notify_complete(
         "adw_patch_iso",
         f"Patch #{patch_result.patch_number} completed successfully"

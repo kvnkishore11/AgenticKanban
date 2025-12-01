@@ -24,7 +24,8 @@ import {
   Pencil,
   XCircle,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Wrench
 } from 'lucide-react';
 import Toast from '../ui/Toast';
 import MDEditor from '@uiw/react-md-editor';
@@ -38,6 +39,7 @@ import ExecutionLogsViewer from './ExecutionLogsViewer';
 import ResultViewer from './ResultViewer';
 import adwDiscoveryService from '../../services/api/adwDiscoveryService';
 import fileOperationsService from '../../services/api/fileOperationsService';
+import PatchRequestModal from './PatchRequestModal';
 
 // Stage configuration mapping
 const STAGE_CONFIG = {
@@ -70,7 +72,8 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
     clearWorkflowLogsForTask,
     triggerMergeWorkflow,
     getMergeState,
-    clearMergeState
+    clearMergeState,
+    applyPatch
   } = useKanbanStore();
 
   const [viewMode, setViewMode] = useState('details'); // 'details' or 'plan'
@@ -91,6 +94,10 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
 
   // Toast notification state
   const [toast, setToast] = useState(null);
+
+  // Patch modal state
+  const [showPatchModal, setShowPatchModal] = useState(false);
+  const [isPatchSubmitting, setIsPatchSubmitting] = useState(false);
 
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
@@ -419,6 +426,39 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
         message: error.message || 'Failed to trigger merge workflow.',
         duration: 8000
       });
+    }
+  };
+
+  const handleApplyPatch = async (patchRequest) => {
+    setIsPatchSubmitting(true);
+    try {
+      setToast({
+        type: 'info',
+        title: 'Patch Started',
+        message: 'Applying patch to the codebase...',
+        duration: 3000
+      });
+
+      await applyPatch(task.id, patchRequest);
+
+      setToast({
+        type: 'success',
+        title: 'Patch In Progress',
+        message: 'Patch workflow is running. Task moved to Implement stage.',
+        duration: 5000
+      });
+
+      setShowPatchModal(false);
+    } catch (error) {
+      console.error('Failed to apply patch:', error);
+      setToast({
+        type: 'error',
+        title: 'Patch Failed',
+        message: error.message || 'Failed to apply patch.',
+        duration: 8000
+      });
+    } finally {
+      setIsPatchSubmitting(false);
     }
   };
 
@@ -875,6 +915,29 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                 <span>TRIGGER</span>
               </button>
 
+              {/* PATCH - Only visible when task has an ADW ID */}
+              {(task.metadata?.adw_id || workflowMetadata?.adw_id) && (
+                <button
+                  type="button"
+                  onClick={() => setShowPatchModal(true)}
+                  disabled={!websocketStatus.connected || isPatchSubmitting}
+                  className="brutalist-footer-btn patch"
+                  title="Apply a quick patch to this task"
+                >
+                  {isPatchSubmitting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>PATCHING...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wrench size={16} />
+                      <span>PATCH</span>
+                    </>
+                  )}
+                </button>
+              )}
+
               {/* MERGE TO MAIN - Always visible, disabled when not ready or when merging */}
               {!task.metadata?.merge_completed ? (
                 <button
@@ -947,6 +1010,15 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
           show={!!toast}
         />
       )}
+
+      {/* Patch Request Modal */}
+      <PatchRequestModal
+        task={task}
+        isOpen={showPatchModal}
+        onClose={() => setShowPatchModal(false)}
+        onSubmit={handleApplyPatch}
+        isSubmitting={isPatchSubmitting}
+      />
     </div>
   );
 };

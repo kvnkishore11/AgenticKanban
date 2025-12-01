@@ -122,3 +122,59 @@ class TestFinalizePatch:
 
         mock_logger.info.assert_any_call("Isolated patch workflow completed successfully")
         mock_logger.info.assert_any_call("Added patch #1 to history")
+
+    @patch('utils.patch.finalization.finalize_git_operations')
+    @patch('utils.patch.finalization.add_patch_to_history')
+    @patch('utils.patch.finalization.make_issue_comment')
+    @patch('utils.patch.finalization.format_issue_message')
+    def test_sends_stage_transition_to_ready_to_merge(
+        self, mock_format, mock_comment, mock_add_history, mock_finalize_git,
+        mock_logger, mock_notifier, mock_state
+    ):
+        """Test that stage transition to ready-to-merge is sent."""
+        patch_result = PatchResultContext(
+            patch_file="patch.md",
+            patch_number=1,
+            patch_reason="Fix critical bug",
+            success=True
+        )
+        mock_format.return_value = "formatted"
+
+        finalize_patch(
+            patch_result, "/path/to/worktree", "999",
+            "test1234", mock_state, mock_notifier, mock_logger
+        )
+
+        # Verify stage transition notification was sent
+        mock_notifier.notify_stage_transition.assert_called_once_with(
+            workflow_name="adw_patch_iso",
+            from_stage="implement",
+            to_stage="ready-to-merge",
+            message="Patch #1 applied successfully - ready for review"
+        )
+
+    @patch('utils.patch.finalization.finalize_git_operations')
+    @patch('utils.patch.finalization.add_patch_to_history')
+    @patch('utils.patch.finalization.make_issue_comment')
+    @patch('utils.patch.finalization.format_issue_message')
+    def test_logs_stage_transition(
+        self, mock_format, mock_comment, mock_add_history, mock_finalize_git,
+        mock_logger, mock_notifier, mock_state
+    ):
+        """Test that stage transition is logged."""
+        patch_result = PatchResultContext(
+            patch_file="patch.md",
+            patch_number=2,
+            patch_reason="Update UI",
+            success=True
+        )
+        mock_format.return_value = "formatted"
+
+        finalize_patch(
+            patch_result, "/path/to/worktree", "888",
+            "test4567", mock_state, mock_notifier, mock_logger
+        )
+
+        mock_logger.info.assert_any_call(
+            "Stage transition notification sent: implement -> ready-to-merge"
+        )
