@@ -2791,6 +2791,225 @@ async def list_slash_commands():
         )
 
 
+@app.post("/api/codebase/open/{adw_id}")
+async def open_codebase_terminal(adw_id: str):
+    """Open neovim in the worktree's tmux session.
+
+    Creates a tmux session named after the branch (or attaches if exists),
+    adds a 'code' window, and launches neovim. Each worktree gets its own
+    session with 'logs' and 'code' windows.
+
+    Args:
+        adw_id: The ADW ID (8-character alphanumeric)
+
+    Returns:
+        JSON response with success status, branch_name, and session details
+    """
+    from adw_modules.terminal_ops import open_codebase_in_terminal
+
+    # Validate ADW ID format
+    if not adw_id or len(adw_id) != 8 or not adw_id.isalnum():
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": f"Invalid ADW ID format: {adw_id}. Must be 8 alphanumeric characters."
+            }
+        )
+
+    # Calculate project root (go up from adws/adw_triggers to project root)
+    current_file = Path(__file__).resolve()
+    project_root = current_file.parent.parent.parent
+
+    # Find worktree path
+    worktree_path = os.path.join(project_root, "trees", adw_id)
+
+    if not os.path.isdir(worktree_path):
+        return JSONResponse(
+            status_code=404,
+            content={
+                "success": False,
+                "error": f"Worktree not found: trees/{adw_id}"
+            }
+        )
+
+    # Open the codebase in neovim
+    result = open_codebase_in_terminal(
+        adw_id=adw_id,
+        worktree_path=worktree_path
+    )
+
+    if result.success:
+        return JSONResponse(
+            content={
+                "success": True,
+                "message": result.message,
+                "session_name": result.session_name,
+                "window_name": result.window_name,
+                "branch_name": result.branch_name,
+                "adw_id": adw_id,
+                "worktree_path": worktree_path
+            }
+        )
+    else:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "message": result.message,
+                "error": result.error,
+                "adw_id": adw_id
+            }
+        )
+
+
+@app.post("/api/worktree/open/{adw_id}")
+async def open_worktree_terminal(adw_id: str):
+    """Start a worktree with its own tmux session.
+
+    Creates a tmux session named after the branch with a 'logs' window
+    containing split panes for frontend and backend scripts. Each worktree
+    gets its own session that can be killed when merging.
+
+    Args:
+        adw_id: The ADW ID (8-character alphanumeric)
+
+    Returns:
+        JSON response with success status, branch_name, and session details
+    """
+    from adw_modules.terminal_ops import open_worktree_in_terminal
+
+    # Validate ADW ID format
+    if not adw_id or len(adw_id) != 8 or not adw_id.isalnum():
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": f"Invalid ADW ID format: {adw_id}. Must be 8 alphanumeric characters."
+            }
+        )
+
+    # Calculate project root (go up from adws/adw_triggers to project root)
+    current_file = Path(__file__).resolve()
+    project_root = current_file.parent.parent.parent
+
+    # Find worktree path
+    worktree_path = os.path.join(project_root, "trees", adw_id)
+
+    if not os.path.isdir(worktree_path):
+        return JSONResponse(
+            status_code=404,
+            content={
+                "success": False,
+                "error": f"Worktree not found: trees/{adw_id}"
+            }
+        )
+
+    # Try to read port config from worktree
+    frontend_port = 5173  # Default
+    ports_env = os.path.join(worktree_path, ".ports.env")
+    if os.path.exists(ports_env):
+        try:
+            with open(ports_env, 'r') as f:
+                for line in f:
+                    if line.startswith('FRONTEND_PORT='):
+                        frontend_port = int(line.split('=')[1].strip())
+                        break
+        except Exception as e:
+            logger.warning(f"Failed to read ports.env: {e}")
+
+    # Open the worktree in terminal
+    result = open_worktree_in_terminal(
+        adw_id=adw_id,
+        worktree_path=worktree_path,
+        frontend_port=frontend_port
+    )
+
+    if result.success:
+        return JSONResponse(
+            content={
+                "success": True,
+                "message": result.message,
+                "session_name": result.session_name,
+                "window_name": result.window_name,
+                "branch_name": result.branch_name,
+                "adw_id": adw_id,
+                "worktree_path": worktree_path,
+                "frontend_url": f"http://localhost:{frontend_port}"
+            }
+        )
+    else:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "message": result.message,
+                "error": result.error,
+                "adw_id": adw_id
+            }
+        )
+
+
+@app.post("/api/session/kill/{adw_id}")
+async def kill_worktree_session(adw_id: str):
+    """Kill the tmux session for a worktree.
+
+    Useful for cleanup when merging or deleting a worktree.
+    The session is named after the branch.
+
+    Args:
+        adw_id: The ADW ID (8-character alphanumeric)
+
+    Returns:
+        JSON response with success status
+    """
+    from adw_modules.terminal_ops import kill_worktree_session as kill_session
+
+    # Validate ADW ID format
+    if not adw_id or len(adw_id) != 8 or not adw_id.isalnum():
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": f"Invalid ADW ID format: {adw_id}. Must be 8 alphanumeric characters."
+            }
+        )
+
+    # Calculate project root (go up from adws/adw_triggers to project root)
+    current_file = Path(__file__).resolve()
+    project_root = current_file.parent.parent.parent
+
+    # Find worktree path
+    worktree_path = os.path.join(project_root, "trees", adw_id)
+
+    # Kill the session
+    result = kill_session(
+        adw_id=adw_id,
+        worktree_path=worktree_path if os.path.isdir(worktree_path) else None
+    )
+
+    if result.success:
+        return JSONResponse(
+            content={
+                "success": True,
+                "message": result.message,
+                "session_name": result.session_name,
+                "branch_name": result.branch_name,
+                "adw_id": adw_id
+            }
+        )
+    else:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "message": result.message,
+                "error": result.error,
+                "adw_id": adw_id
+            }
+        )
+
+
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
     print(f"\nReceived signal {signum}, shutting down gracefully...")

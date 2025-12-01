@@ -489,6 +489,78 @@ class ADWService {
   }
 
   /**
+   * Open codebase in neovim within a tmux session
+   * Creates/attaches to AgenticKanban tmux session and opens neovim at worktree path
+   *
+   * @param {string} adw_id - The ADW identifier (8-character alphanumeric)
+   * @returns {Promise<Object>} Response with success status and details
+   * @throws {Error} If worktree not found or terminal operation fails
+   */
+  async openCodebase(adw_id) {
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL;
+      if (!backendUrl) {
+        throw new Error('VITE_BACKEND_URL environment variable is required');
+      }
+
+      const response = await fetch(`${backendUrl}/api/codebase/open/${adw_id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      console.log(`Successfully opened codebase ${adw_id}:`, data);
+      return data;
+    } catch (error) {
+      console.error(`Failed to open codebase ${adw_id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Start a worktree in WezTerm with tmux session
+   * Creates/attaches to AgenticKanban tmux session and opens terminal at worktree path
+   *
+   * @param {string} adw_id - The ADW identifier (8-character alphanumeric)
+   * @returns {Promise<Object>} Response with success status and details
+   * @throws {Error} If worktree not found or terminal operation fails
+   */
+  async openWorktree(adw_id) {
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL;
+      if (!backendUrl) {
+        throw new Error('VITE_BACKEND_URL environment variable is required');
+      }
+
+      const response = await fetch(`${backendUrl}/api/worktree/open/${adw_id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      console.log(`Successfully opened worktree ${adw_id}:`, data);
+      return data;
+    } catch (error) {
+      console.error(`Failed to open worktree ${adw_id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Delete a worktree and all associated files
    * Calls the backend DELETE endpoint to remove worktree, agents directory, and kill processes
    *

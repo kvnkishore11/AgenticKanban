@@ -14,6 +14,7 @@ import { createPortal } from 'react-dom';
 import { useKanbanStore } from '../../stores/kanbanStore';
 import CardExpandModal from './CardExpandModal';
 import { useStageTransition } from '../../hooks/useStageTransition';
+import adwService from '../../services/api/adwService';
 
 // Stable empty array reference to prevent infinite re-renders
 // When a selector returns `|| []`, it creates a new array each time,
@@ -37,7 +38,15 @@ const KanbanCard = memo(({ task, onEdit }) => {
 
   const [showMenu, setShowMenu] = useState(false);
   const [showExpandModal, setShowExpandModal] = useState(false);
+  const [openWorktreeStatus, setOpenWorktreeStatus] = useState('idle'); // 'idle' | 'opening' | 'success' | 'error'
+  const [openWorktreeMessage, setOpenWorktreeMessage] = useState('');
+  const [openCodebaseStatus, setOpenCodebaseStatus] = useState('idle'); // 'idle' | 'opening' | 'success' | 'error'
+  const [openCodebaseMessage, setOpenCodebaseMessage] = useState('');
   const menuRef = useRef(null);
+
+  // Derived state for backwards compatibility
+  const isOpeningWorktree = openWorktreeStatus === 'opening';
+  const isOpeningCodebase = openCodebaseStatus === 'opening';
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -157,6 +166,74 @@ const KanbanCard = memo(({ task, onEdit }) => {
     }
   };
 
+  const handleOpenWorktree = async () => {
+    setShowMenu(false);
+
+    if (!adwId) {
+      console.error('Cannot open worktree: No ADW ID found');
+      setOpenWorktreeStatus('error');
+      setOpenWorktreeMessage('No ADW ID found');
+      setTimeout(() => setOpenWorktreeStatus('idle'), 3000);
+      return;
+    }
+
+    setOpenWorktreeStatus('opening');
+    setOpenWorktreeMessage('Opening terminal...');
+
+    try {
+      console.log(`Opening worktree for ADW ${adwId}`);
+      const result = await adwService.openWorktree(adwId);
+      setOpenWorktreeStatus('success');
+      setOpenWorktreeMessage('Terminal opened!');
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => setOpenWorktreeStatus('idle'), 3000);
+    } catch (error) {
+      console.error('Failed to open worktree:', error);
+      setOpenWorktreeStatus('error');
+      // Extract meaningful error message
+      const errorMsg = error.message?.includes('Worktree not found')
+        ? 'Worktree not found'
+        : 'Failed to open';
+      setOpenWorktreeMessage(errorMsg);
+      // Auto-hide error message after 4 seconds
+      setTimeout(() => setOpenWorktreeStatus('idle'), 4000);
+    }
+  };
+
+  const handleOpenCodebase = async () => {
+    setShowMenu(false);
+
+    if (!adwId) {
+      console.error('Cannot open codebase: No ADW ID found');
+      setOpenCodebaseStatus('error');
+      setOpenCodebaseMessage('No ADW ID found');
+      setTimeout(() => setOpenCodebaseStatus('idle'), 3000);
+      return;
+    }
+
+    setOpenCodebaseStatus('opening');
+    setOpenCodebaseMessage('Opening neovim...');
+
+    try {
+      console.log(`Opening codebase for ADW ${adwId}`);
+      const result = await adwService.openCodebase(adwId);
+      setOpenCodebaseStatus('success');
+      setOpenCodebaseMessage('Neovim opened!');
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => setOpenCodebaseStatus('idle'), 3000);
+    } catch (error) {
+      console.error('Failed to open codebase:', error);
+      setOpenCodebaseStatus('error');
+      // Extract meaningful error message
+      const errorMsg = error.message?.includes('Worktree not found')
+        ? 'Worktree not found'
+        : 'Failed to open';
+      setOpenCodebaseMessage(errorMsg);
+      // Auto-hide error message after 4 seconds
+      setTimeout(() => setOpenCodebaseStatus('idle'), 4000);
+    }
+  };
+
   // Check if this is a completed task
   const isCompleted = task.stage === 'completed';
 
@@ -190,6 +267,28 @@ const KanbanCard = memo(({ task, onEdit }) => {
           <span className="brutalist-deletion-text">DELETING...</span>
         </div>
       )}
+      {/* Start Worktree overlay */}
+      {openWorktreeStatus !== 'idle' && (
+        <div className={`brutalist-worktree-overlay ${openWorktreeStatus}`}>
+          <span className="brutalist-worktree-icon">
+            {openWorktreeStatus === 'opening' && '▶️'}
+            {openWorktreeStatus === 'success' && '✅'}
+            {openWorktreeStatus === 'error' && '❌'}
+          </span>
+          <span className="brutalist-worktree-text">{openWorktreeMessage}</span>
+        </div>
+      )}
+      {/* Open Codebase overlay */}
+      {openCodebaseStatus !== 'idle' && (
+        <div className={`brutalist-worktree-overlay ${openCodebaseStatus}`}>
+          <span className="brutalist-worktree-icon">
+            {openCodebaseStatus === 'opening' && '📝'}
+            {openCodebaseStatus === 'success' && '✅'}
+            {openCodebaseStatus === 'error' && '❌'}
+          </span>
+          <span className="brutalist-worktree-text">{openCodebaseMessage}</span>
+        </div>
+      )}
       {/* Card Header with Issue Number and Task ID */}
       <div className="brutalist-task-card-header">
         <div className="brutalist-task-number">
@@ -216,6 +315,18 @@ const KanbanCard = memo(({ task, onEdit }) => {
               </div>
               <div className="brutalist-card-dropdown-item" onClick={(e) => { e.stopPropagation(); handleTriggerWorkflow(); setShowMenu(false); }}>
                 ▶ TRIGGER
+              </div>
+              <div
+                className={`brutalist-card-dropdown-item ${isOpeningWorktree ? 'disabled' : ''}`}
+                onClick={(e) => { e.stopPropagation(); if (!isOpeningWorktree) handleOpenWorktree(); }}
+              >
+                {isOpeningWorktree ? '⏳ STARTING...' : '▶️ START WORKTREE'}
+              </div>
+              <div
+                className={`brutalist-card-dropdown-item ${isOpeningCodebase ? 'disabled' : ''}`}
+                onClick={(e) => { e.stopPropagation(); if (!isOpeningCodebase) handleOpenCodebase(); }}
+              >
+                {isOpeningCodebase ? '⏳ OPENING...' : '📝 OPEN CODEBASE'}
               </div>
               <div
                 className={`brutalist-card-dropdown-item danger ${isDeleting ? 'disabled' : ''}`}
