@@ -20,10 +20,14 @@ else
     exit 1
 fi
 
-# Check if ADW_PORT is set
+# Check if ADW_PORT is set, fallback to WEBSOCKET_PORT if not
 if [ -z "$ADW_PORT" ]; then
-    echo -e "${RED}Error: ADW_PORT not defined in .ports.env${NC}"
-    exit 1
+    if [ -z "$WEBSOCKET_PORT" ]; then
+        echo -e "${RED}Error: Neither ADW_PORT nor WEBSOCKET_PORT defined in .ports.env${NC}"
+        exit 1
+    fi
+    echo -e "${YELLOW}ADW_PORT not defined, using WEBSOCKET_PORT ($WEBSOCKET_PORT)${NC}"
+    ADW_PORT=$WEBSOCKET_PORT
 fi
 
 echo -e "${BLUE}Starting ADW WebSocket Trigger Server on port $ADW_PORT...${NC}"
