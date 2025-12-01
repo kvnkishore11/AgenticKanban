@@ -1154,6 +1154,13 @@ export const useKanbanStore = create()(
               }, false, 'websocketConnected');
               // Exit startup phase on successful connection
               websocketService.exitStartupPhase();
+
+              // Sync task stages from backend on connect/reconnect
+              // This ensures frontend state matches backend after any missed WebSocket events
+              console.log('[KanbanStore] WebSocket connected: Triggering stage sync...');
+              get().syncTaskStagesFromBackend().catch(error => {
+                console.error('[KanbanStore] Stage sync failed:', error);
+              });
             };
 
             const onDisconnect = () => {
@@ -1738,6 +1745,132 @@ export const useKanbanStore = create()(
             }
           } else {
             console.warn('[WebSocket] No task found for stage transition with adw_id:', adw_id);
+          }
+        },
+
+        // Sync task stages from backend - called on WebSocket reconnect or page load
+        // This ensures frontend stage state matches backend state
+        syncTaskStagesFromBackend: async () => {
+          const { tasks } = get();
+          const backendUrl = import.meta.env.VITE_BACKEND_URL;
+
+          if (!backendUrl) {
+            console.warn('[StageSync] VITE_BACKEND_URL not set, skipping stage sync');
+            return;
+          }
+
+          // Find all tasks with adw_ids that are in workflow stages (not completed/errored)
+          const workflowStages = ['backlog', 'plan', 'build', 'test', 'review', 'document', 'ready-to-merge'];
+          const tasksToSync = tasks.filter(task =>
+            task.metadata?.adw_id &&
+            workflowStages.includes(task.stage)
+          );
+
+          if (tasksToSync.length === 0) {
+            console.log('[StageSync] No tasks to sync');
+            return;
+          }
+
+          console.log(`[StageSync] Syncing ${tasksToSync.length} tasks with backend...`);
+
+          // Sync each task's stage from backend
+          for (const task of tasksToSync) {
+            try {
+              const adwId = task.metadata.adw_id;
+              const response = await fetch(`${backendUrl}/api/adws/${adwId}`);
+
+              if (!response.ok) {
+                console.warn(`[StageSync] Failed to fetch ADW ${adwId}: ${response.status}`);
+                continue;
+              }
+
+              const data = await response.json();
+
+              // Check if backend has a different stage than frontend
+              if (data.current_stage && data.current_stage !== task.stage) {
+                console.log(`[StageSync] Updating task ${task.id} from stage '${task.stage}' to '${data.current_stage}'`);
+
+                // Move task to the correct stage
+                get().moveTaskToStage(task.id, data.current_stage);
+
+                // Handle terminal states
+                if (data.current_stage === 'ready-to-merge' || data.current_stage === 'completed') {
+                  get().updateTask(task.id, {
+                    metadata: {
+                      ...task.metadata,
+                      workflow_complete: true,
+                      workflow_status: data.workflow_status,
+                    },
+                    progress: 100,
+                  });
+                } else if (data.current_stage === 'errored') {
+                  get().updateTask(task.id, {
+                    metadata: {
+                      ...task.metadata,
+                      workflow_status: 'failed',
+                    },
+                  });
+                } else {
+                  // Update workflow status for in-progress stages
+                  get().updateTask(task.id, {
+                    metadata: {
+                      ...task.metadata,
+                      workflow_status: data.workflow_status,
+                    },
+                  });
+                }
+              }
+            } catch (error) {
+              console.error(`[StageSync] Error syncing task ${task.id}:`, error);
+            }
+          }
+
+          console.log('[StageSync] Stage sync complete');
+        },
+
+        // Sync a single task's stage from backend
+        syncSingleTaskStage: async (taskId) => {
+          const task = get().tasks.find(t => t.id === taskId);
+          if (!task || !task.metadata?.adw_id) {
+            return;
+          }
+
+          const backendUrl = import.meta.env.VITE_BACKEND_URL;
+          if (!backendUrl) {
+            return;
+          }
+
+          try {
+            const adwId = task.metadata.adw_id;
+            const response = await fetch(`${backendUrl}/api/adws/${adwId}`);
+
+            if (!response.ok) {
+              console.warn(`[StageSync] Failed to fetch ADW ${adwId}: ${response.status}`);
+              return;
+            }
+
+            const data = await response.json();
+
+            if (data.current_stage && data.current_stage !== task.stage) {
+              console.log(`[StageSync] Syncing task ${task.id} from '${task.stage}' to '${data.current_stage}'`);
+              get().moveTaskToStage(task.id, data.current_stage);
+
+              // Handle terminal states
+              if (data.current_stage === 'ready-to-merge' || data.current_stage === 'completed') {
+                get().updateTask(task.id, {
+                  metadata: {
+                    ...task.metadata,
+                    workflow_complete: true,
+                    workflow_status: data.workflow_status,
+                  },
+                  progress: 100,
+                });
+              }
+            }
+
+            return data;
+          } catch (error) {
+            console.error(`[StageSync] Error syncing task ${task.id}:`, error);
           }
         },
 

@@ -113,6 +113,55 @@ def format_adw_response(state_data: Dict[str, Any]) -> Dict[str, Any]:
         issue_title = issue_json.get("title")
         issue_body = issue_json.get("body")
 
+    # Extract orchestrator execution data for stage synchronization
+    current_stage = None
+    workflow_status = None
+    workflow_stages = []
+
+    orchestrator_data = state_data.get("orchestrator", {})
+    execution_data = orchestrator_data.get("execution", {})
+
+    if execution_data:
+        workflow_status = execution_data.get("status")  # completed, running, failed
+        stages = execution_data.get("stages", [])
+
+        if stages:
+            workflow_stages = stages
+            # Determine current stage based on execution state
+            current_stage_index = execution_data.get("current_stage_index", 0)
+
+            # Find the current or last completed stage
+            if workflow_status == "completed":
+                # Workflow is complete - use the last stage or ready-to-merge
+                last_stage = stages[-1] if stages else None
+                if last_stage and last_stage.get("status") == "completed":
+                    current_stage = "ready-to-merge"
+                else:
+                    current_stage = last_stage.get("stage_name") if last_stage else None
+            elif workflow_status == "failed":
+                # Find the failed stage
+                for stage in stages:
+                    if stage.get("status") == "failed":
+                        current_stage = "errored"
+                        break
+                    elif stage.get("status") == "running":
+                        current_stage = stage.get("stage_name")
+                        break
+            else:
+                # Running or pending - find the current running stage
+                for stage in stages:
+                    if stage.get("status") == "running":
+                        current_stage = stage.get("stage_name")
+                        break
+                    elif stage.get("status") == "pending":
+                        # If no running stage, use the first pending stage
+                        if current_stage is None:
+                            current_stage = stage.get("stage_name")
+                        break
+                    elif stage.get("status") == "completed":
+                        # Track the last completed stage
+                        current_stage = stage.get("stage_name")
+
     return {
         "adw_id": state_data.get("adw_id"),
         "issue_number": state_data.get("issue_number"),
@@ -127,5 +176,10 @@ def format_adw_response(state_data: Dict[str, Any]) -> Dict[str, Any]:
         "frontend_port": state_data.get("frontend_port"),
         "data_source": state_data.get("data_source", "github"),
         "worktree_path": state_data.get("worktree_path"),
-        "all_adws": state_data.get("all_adws", [])
+        "all_adws": state_data.get("all_adws", []),
+        # New fields for stage synchronization
+        "current_stage": current_stage,
+        "workflow_status": workflow_status,
+        "workflow_stages": workflow_stages,
+        "completed": state_data.get("completed", False),
     }

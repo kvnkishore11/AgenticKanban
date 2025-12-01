@@ -838,4 +838,138 @@ describe('Kanban Store', () => {
       expect(useKanbanStore.getState().getMergeState(task.id)).toBeNull();
     });
   });
+
+  describe('Stage Sync from Backend', () => {
+    beforeEach(() => {
+      // Set up tasks with ADW IDs for sync tests
+      useKanbanStore.setState({
+        tasks: [
+          {
+            id: 1,
+            title: 'Task 1',
+            stage: 'review', // Out of sync - should be ready-to-merge
+            metadata: { adw_id: 'ADW-SYNC-001' }
+          },
+          {
+            id: 2,
+            title: 'Task 2',
+            stage: 'plan', // In sync
+            metadata: { adw_id: 'ADW-SYNC-002' }
+          },
+          {
+            id: 3,
+            title: 'Task without ADW',
+            stage: 'backlog',
+            metadata: {}
+          }
+        ],
+        tasksByAdwId: {
+          'ADW-SYNC-001': 1,
+          'ADW-SYNC-002': 2
+        }
+      });
+    });
+
+    it('should have syncTaskStagesFromBackend function', () => {
+      const { syncTaskStagesFromBackend } = useKanbanStore.getState();
+      expect(typeof syncTaskStagesFromBackend).toBe('function');
+    });
+
+    it('should have syncSingleTaskStage function', () => {
+      const { syncSingleTaskStage } = useKanbanStore.getState();
+      expect(typeof syncSingleTaskStage).toBe('function');
+    });
+
+    it('should filter tasks correctly for sync', () => {
+      const { tasks } = useKanbanStore.getState();
+
+      // Only tasks with adw_ids in workflow stages should be synced
+      const workflowStages = ['backlog', 'plan', 'build', 'test', 'review', 'document', 'ready-to-merge'];
+      const tasksToSync = tasks.filter(task =>
+        task.metadata?.adw_id &&
+        workflowStages.includes(task.stage)
+      );
+
+      expect(tasksToSync.length).toBe(2);
+      expect(tasksToSync.find(t => t.id === 3)).toBeUndefined(); // Task without ADW
+    });
+
+    it('should sync task stage when backend returns different stage', async () => {
+      // Mock fetch to return ready-to-merge for task 1
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          adw_id: 'ADW-SYNC-001',
+          current_stage: 'ready-to-merge',
+          workflow_status: 'completed'
+        })
+      });
+
+      // Mock VITE_BACKEND_URL
+      const originalEnv = import.meta.env.VITE_BACKEND_URL;
+      import.meta.env.VITE_BACKEND_URL = 'http://localhost:8500';
+
+      await act(async () => {
+        await useKanbanStore.getState().syncSingleTaskStage(1);
+      });
+
+      const task = useKanbanStore.getState().tasks.find(t => t.id === 1);
+      expect(task.stage).toBe('ready-to-merge');
+      expect(task.metadata.workflow_complete).toBe(true);
+
+      // Cleanup
+      import.meta.env.VITE_BACKEND_URL = originalEnv;
+    });
+
+    it('should not sync if backend returns same stage', async () => {
+      // Mock fetch to return same stage
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          adw_id: 'ADW-SYNC-002',
+          current_stage: 'plan', // Same as current
+          workflow_status: 'running'
+        })
+      });
+
+      import.meta.env.VITE_BACKEND_URL = 'http://localhost:8500';
+
+      await act(async () => {
+        await useKanbanStore.getState().syncSingleTaskStage(2);
+      });
+
+      const task = useKanbanStore.getState().tasks.find(t => t.id === 2);
+      expect(task.stage).toBe('plan'); // Unchanged
+    });
+
+    it('should handle fetch errors gracefully', async () => {
+      // Mock fetch to fail
+      global.fetch = vi.fn().mockRejectedValueOnce(new Error('Network error'));
+
+      import.meta.env.VITE_BACKEND_URL = 'http://localhost:8500';
+
+      // Should not throw
+      await act(async () => {
+        await useKanbanStore.getState().syncSingleTaskStage(1);
+      });
+
+      // Task should remain unchanged
+      const task = useKanbanStore.getState().tasks.find(t => t.id === 1);
+      expect(task.stage).toBe('review');
+    });
+
+    it('should skip sync if VITE_BACKEND_URL not set', async () => {
+      const originalEnv = import.meta.env.VITE_BACKEND_URL;
+      delete import.meta.env.VITE_BACKEND_URL;
+
+      await act(async () => {
+        await useKanbanStore.getState().syncTaskStagesFromBackend();
+      });
+
+      // Should not have called fetch
+      expect(global.fetch).not.toHaveBeenCalled();
+
+      import.meta.env.VITE_BACKEND_URL = originalEnv;
+    });
+  });
 });
