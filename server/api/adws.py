@@ -115,6 +115,7 @@ def _list_adws_from_database() -> List[Dict[str, Any]]:
         cursor.execute("""
             SELECT adw_id, issue_number, issue_class, issue_title,
                    branch_name, status, current_stage, workflow_name,
+                   patch_history, orchestrator_state,
                    CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END as completed
             FROM adw_states
             WHERE deleted_at IS NULL
@@ -131,6 +132,22 @@ def _list_adws_from_database() -> List[Dict[str, Any]]:
             if issue_class and issue_class.startswith("/"):
                 issue_class = issue_class[1:]
 
+            # Parse patch_history JSON
+            patch_history = None
+            if row_dict.get("patch_history"):
+                try:
+                    patch_history = json.loads(row_dict["patch_history"])
+                except json.JSONDecodeError:
+                    pass
+
+            # Parse orchestrator_state JSON
+            orchestrator_state = None
+            if row_dict.get("orchestrator_state"):
+                try:
+                    orchestrator_state = json.loads(row_dict["orchestrator_state"])
+                except json.JSONDecodeError:
+                    pass
+
             adws.append({
                 "adw_id": row_dict.get("adw_id", ""),
                 "issue_class": issue_class,
@@ -139,7 +156,9 @@ def _list_adws_from_database() -> List[Dict[str, Any]]:
                 "branch_name": row_dict.get("branch_name", ""),
                 "workflow_name": row_dict.get("workflow_name"),
                 "current_stage": row_dict.get("current_stage"),
-                "completed": bool(row_dict.get("completed", 0))
+                "completed": bool(row_dict.get("completed", 0)),
+                "patch_history": patch_history,
+                "orchestrator_state": orchestrator_state,
             })
 
         return adws
@@ -180,6 +199,22 @@ def _get_adw_from_database(adw_id: str) -> Optional[Dict[str, Any]]:
             except json.JSONDecodeError:
                 pass
 
+        # Parse patch_history JSON field
+        patch_history = None
+        if row_dict.get("patch_history"):
+            try:
+                patch_history = json.loads(row_dict["patch_history"])
+            except json.JSONDecodeError:
+                pass
+
+        # Parse orchestrator_state JSON field
+        orchestrator_state = None
+        if row_dict.get("orchestrator_state"):
+            try:
+                orchestrator_state = json.loads(row_dict["orchestrator_state"])
+            except json.JSONDecodeError:
+                pass
+
         # Build response similar to file-based state
         return {
             "adw_id": row_dict.get("adw_id"),
@@ -200,6 +235,8 @@ def _get_adw_from_database(adw_id: str) -> Optional[Dict[str, Any]]:
             "current_stage": row_dict.get("current_stage"),
             "status": row_dict.get("status"),
             "workflow_name": row_dict.get("workflow_name"),
+            "patch_history": patch_history,
+            "orchestrator_state": orchestrator_state,
         }
 
     except Exception as e:

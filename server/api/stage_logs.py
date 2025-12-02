@@ -24,6 +24,7 @@ STAGE_TO_FOLDERS = {
     "test": ["tester", "adw_test_iso"],
     "review": ["reviewer", "adw_review_iso"],
     "document": ["documenter", "adw_document_iso", "ops"],
+    "patch": ["patch_planner", "patch_implementor", "adw_patch_iso"],
 }
 
 # Stage to ISO folder mapping for execution.log
@@ -33,6 +34,7 @@ STAGE_TO_ISO_FOLDER = {
     "test": "adw_test_iso",
     "review": "adw_review_iso",
     "document": "adw_document_iso",
+    "patch": "adw_patch_iso",
 }
 
 class LogEntry(BaseModel):

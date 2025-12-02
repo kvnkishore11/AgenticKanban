@@ -52,7 +52,8 @@ const STAGE_CONFIG = {
   review: { id: 'review', name: 'REV', icon: '👀', abbrev: 'R' },
   document: { id: 'document', name: 'DOC', icon: '📄', abbrev: 'D' },
   pr: { id: 'pr', name: 'PR', icon: '🔀', abbrev: 'PR' },
-  merger: { id: 'merger', name: 'MERGE', icon: '🔀', abbrev: 'M' }
+  merger: { id: 'merger', name: 'MERGE', icon: '🔀', abbrev: 'M' },
+  patch: { id: 'patch', name: 'PATCH', icon: '🔧', abbrev: 'PA' }
 };
 
 // Issue type badge configuration
@@ -948,11 +949,12 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                     <div className="logs-container">
                       {viewingPatch && selectedPatch ? (
                         // PATCH VIEW: Show logs for the selected patch
+                        // Use patch's adw_id or fallback to task's adw_id
                         activeContentType === 'execution' ? (
-                          selectedPatch.adw_id ? (
+                          (selectedPatch.adw_id || task.metadata?.adw_id || workflowMetadata?.adw_id) ? (
                             <ExecutionLogsViewer
-                              adwId={selectedPatch.adw_id}
-                              stage="implement"
+                              adwId={selectedPatch.adw_id || task.metadata?.adw_id || workflowMetadata?.adw_id}
+                              stage="patch"
                               autoScroll={true}
                               maxHeight="100%"
                               onLogCountChange={setExecutionLogCount}
@@ -967,11 +969,11 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                             </div>
                           )
                         ) : activeContentType === 'thinking' ? (
-                          selectedPatch.adw_id ? (
+                          (selectedPatch.adw_id || task.metadata?.adw_id || workflowMetadata?.adw_id) ? (
                             <AgentLogsPanel
                               taskId={task.id}
-                              adwId={selectedPatch.adw_id}
-                              stage="implement"
+                              adwId={selectedPatch.adw_id || task.metadata?.adw_id || workflowMetadata?.adw_id}
+                              stage="patch"
                               maxHeight="100%"
                               autoScrollDefault={true}
                               onLogCountChange={setThinkingLogCount}

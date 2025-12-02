@@ -1840,6 +1840,26 @@ export const useKanbanStore = create()(
               ),
             }), false, 'applyPatch_updateTask');
 
+            // Persist initial patch state to database
+            try {
+              await adwDbService.updateAdw(adwId, {
+                current_stage: 'build',
+                patch_history: [...existingHistory, newPatchEntry],
+              });
+              console.log(`[PATCH] Persisted patch #${patchNumber} to database for ADW ${adwId}`);
+            } catch (dbError) {
+              console.error('[PATCH ERROR] Failed to persist patch to database:', dbError);
+              // Revert local state on database failure
+              set((state) => ({
+                tasks: state.tasks.map(t =>
+                  t.id === taskId ? task : t
+                ),
+                isLoading: false,
+                error: `Failed to save patch: ${dbError.message}`
+              }), false, 'applyPatch_dbError');
+              throw dbError;
+            }
+
             // Get the updated task
             const updatedTask = get().tasks.find(t => t.id === taskId);
 
@@ -1885,6 +1905,21 @@ export const useKanbanStore = create()(
               }),
             }), false, 'applyPatch_workflowStarted');
 
+            // Persist workflow started state to database
+            // Get the updated history with in_progress status and patch adw_id
+            const taskAfterWorkflow = get().tasks.find(t => t.id === taskId);
+            const historyAfterWorkflow = taskAfterWorkflow?.metadata?.patch_history || [];
+            try {
+              await adwDbService.updateAdw(adwId, {
+                workflow_name: response.workflow_name,
+                patch_history: historyAfterWorkflow,
+              });
+              console.log(`[PATCH] Persisted workflow started state to database for ADW ${adwId}`);
+            } catch (dbError) {
+              // Log but don't fail - the patch workflow has already started
+              console.error('[PATCH WARNING] Failed to persist workflow state:', dbError);
+            }
+
             // Track the active workflow
             get().trackActiveWorkflow(adwId, {
               taskId,
@@ -1925,6 +1960,18 @@ export const useKanbanStore = create()(
               isLoading: false,
               error: `Failed to apply patch: ${error.message}`
             }), false, 'applyPatchError');
+
+            // Persist failed state to database (best effort)
+            const failedTask = get().tasks.find(t => t.id === taskId);
+            const failedHistory = failedTask?.metadata?.patch_history || [];
+            try {
+              await adwDbService.updateAdw(adwId, {
+                patch_history: failedHistory,
+              });
+              console.log(`[PATCH] Persisted failed patch state to database for ADW ${adwId}`);
+            } catch (dbError) {
+              console.error('[PATCH WARNING] Failed to persist error state:', dbError);
+            }
 
             throw error;
           }

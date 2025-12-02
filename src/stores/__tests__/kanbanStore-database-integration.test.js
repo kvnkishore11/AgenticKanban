@@ -45,8 +45,12 @@ vi.mock('../../services/websocket/stageProgressionService', () => ({
 }));
 
 vi.mock('../../services/websocket/websocketService', () => ({
-  default: {},
+  default: {
+    triggerWorkflowForTask: vi.fn(),
+  },
 }));
+
+import websocketService from '../../services/websocket/websocketService';
 
 vi.mock('../../services/storage/projectNotificationService', () => ({
   default: {},
@@ -434,6 +438,170 @@ describe('Kanban Store - Database Integration', () => {
       expect(state.addNotification).toHaveBeenCalledWith({
         type: 'error',
         message: expect.stringContaining('Failed to delete task'),
+      });
+    });
+  });
+
+  describe('applyPatch', () => {
+    it('should persist patch to database when applying a patch', async () => {
+      // Mock successful workflow trigger
+      websocketService.triggerWorkflowForTask.mockResolvedValue({
+        adw_id: 'patch123',
+        workflow_name: 'adw_patch_iso',
+        logs_path: '/path/to/logs',
+      });
+
+      // Mock successful database update
+      adwDbService.updateAdw.mockResolvedValue({
+        adw_id: 'abc12345',
+        current_stage: 'build',
+      });
+
+      // Set up initial task state
+      useKanbanStore.setState({
+        tasks: [{
+          id: 1,
+          title: 'Test Task',
+          stage: 'ready_to_merge',
+          metadata: {
+            adw_id: 'abc12345',
+            patch_history: [],
+          },
+        }],
+        tasksByAdwId: { 'abc12345': 1 },
+        isLoading: false,
+        trackActiveWorkflow: vi.fn(),
+      });
+
+      const store = useKanbanStore.getState();
+      await store.applyPatch(1, 'Fix the login bug');
+
+      // Verify database update was called with patch data
+      expect(adwDbService.updateAdw).toHaveBeenCalledWith('abc12345', {
+        current_stage: 'build',
+        patch_history: expect.arrayContaining([
+          expect.objectContaining({
+            patch_number: 1,
+            patch_reason: 'Fix the login bug',
+            status: 'pending',
+          }),
+        ]),
+      });
+
+      // Verify second database call for workflow started state
+      expect(adwDbService.updateAdw).toHaveBeenCalledTimes(2);
+    });
+
+    it('should revert local state if database persistence fails', async () => {
+      // Mock database failure
+      adwDbService.updateAdw.mockRejectedValue(new Error('Database error'));
+
+      // Set up initial task state
+      const originalTask = {
+        id: 1,
+        title: 'Test Task',
+        stage: 'ready_to_merge',
+        metadata: {
+          adw_id: 'abc12345',
+          patch_history: [],
+        },
+      };
+
+      useKanbanStore.setState({
+        tasks: [originalTask],
+        tasksByAdwId: { 'abc12345': 1 },
+        isLoading: false,
+      });
+
+      const store = useKanbanStore.getState();
+
+      // Expect the applyPatch to throw
+      await expect(store.applyPatch(1, 'Fix the bug')).rejects.toThrow('Database error');
+
+      // Verify task was reverted
+      const state = useKanbanStore.getState();
+      expect(state.tasks[0].stage).toBe('ready_to_merge');
+      expect(state.error).toContain('Database error');
+    });
+
+    it('should update patch history status to in_progress after workflow starts', async () => {
+      // Mock successful workflow trigger
+      websocketService.triggerWorkflowForTask.mockResolvedValue({
+        adw_id: 'patchadw1',
+        workflow_name: 'adw_patch_iso',
+        logs_path: '/path/to/logs',
+      });
+
+      // Mock successful database updates
+      adwDbService.updateAdw.mockResolvedValue({});
+
+      useKanbanStore.setState({
+        tasks: [{
+          id: 1,
+          title: 'Test Task',
+          stage: 'ready_to_merge',
+          metadata: {
+            adw_id: 'abc12345',
+            patch_history: [],
+          },
+        }],
+        tasksByAdwId: { 'abc12345': 1 },
+        isLoading: false,
+        trackActiveWorkflow: vi.fn(),
+      });
+
+      const store = useKanbanStore.getState();
+      await store.applyPatch(1, 'Fix bug');
+
+      // The second call should include the updated patch history with in_progress status
+      const secondCall = adwDbService.updateAdw.mock.calls[1];
+      expect(secondCall[0]).toBe('abc12345');
+      expect(secondCall[1].patch_history).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            status: 'in_progress',
+            adw_id: 'patchadw1',
+          }),
+        ])
+      );
+    });
+
+    it('should persist multiple patches with correct patch numbers', async () => {
+      websocketService.triggerWorkflowForTask.mockResolvedValue({
+        adw_id: 'patch456',
+        workflow_name: 'adw_patch_iso',
+        logs_path: '/logs',
+      });
+      adwDbService.updateAdw.mockResolvedValue({});
+
+      // Task with existing patch history
+      useKanbanStore.setState({
+        tasks: [{
+          id: 1,
+          title: 'Test Task',
+          stage: 'ready_to_merge',
+          metadata: {
+            adw_id: 'abc12345',
+            patch_history: [
+              { patch_number: 1, patch_reason: 'First fix', status: 'completed' },
+            ],
+          },
+        }],
+        tasksByAdwId: { 'abc12345': 1 },
+        isLoading: false,
+        trackActiveWorkflow: vi.fn(),
+      });
+
+      const store = useKanbanStore.getState();
+      await store.applyPatch(1, 'Second fix');
+
+      // Verify the new patch has number 2
+      expect(adwDbService.updateAdw).toHaveBeenCalledWith('abc12345', {
+        current_stage: 'build',
+        patch_history: expect.arrayContaining([
+          expect.objectContaining({ patch_number: 1, patch_reason: 'First fix' }),
+          expect.objectContaining({ patch_number: 2, patch_reason: 'Second fix' }),
+        ]),
       });
     });
   });

@@ -279,19 +279,49 @@ class TestFindStageFolder:
         assert result is not None
         assert result.name == "sdlc_planner"
 
+    def test_find_patch_stage_folder(self, tmp_path):
+        """Test finding patch stage folder."""
+        adw_dir = tmp_path / "test_adw"
+        adw_dir.mkdir()
+        (adw_dir / "patch_planner").mkdir()
+
+        result = find_stage_folder(adw_dir, "patch")
+        assert result is not None
+        assert result.name == "patch_planner"
+
+    def test_find_patch_stage_folder_adw_patch_iso(self, tmp_path):
+        """Test finding patch stage folder with adw_patch_iso."""
+        adw_dir = tmp_path / "test_adw"
+        adw_dir.mkdir()
+        (adw_dir / "adw_patch_iso").mkdir()
+
+        result = find_stage_folder(adw_dir, "patch")
+        assert result is not None
+        assert result.name == "adw_patch_iso"
+
+    def test_find_patch_stage_folder_implementor(self, tmp_path):
+        """Test finding patch stage folder with patch_implementor."""
+        adw_dir = tmp_path / "test_adw"
+        adw_dir.mkdir()
+        (adw_dir / "patch_implementor").mkdir()
+
+        result = find_stage_folder(adw_dir, "patch")
+        assert result is not None
+        assert result.name == "patch_implementor"
+
 
 class TestStageMappings:
     """Test cases for stage mapping constants."""
 
     def test_stage_to_folders_has_all_stages(self):
         """Test STAGE_TO_FOLDERS has all required stages."""
-        expected_stages = ["plan", "build", "test", "review", "document"]
+        expected_stages = ["plan", "build", "test", "review", "document", "patch"]
         for stage in expected_stages:
             assert stage in STAGE_TO_FOLDERS
 
     def test_stage_to_iso_folder_has_all_stages(self):
         """Test STAGE_TO_ISO_FOLDER has all required stages."""
-        expected_stages = ["plan", "build", "test", "review", "document"]
+        expected_stages = ["plan", "build", "test", "review", "document", "patch"]
         for stage in expected_stages:
             assert stage in STAGE_TO_ISO_FOLDER
 
@@ -299,6 +329,14 @@ class TestStageMappings:
         """Test ISO folders follow adw_{stage}_iso naming."""
         for stage, folder in STAGE_TO_ISO_FOLDER.items():
             assert folder == f"adw_{stage}_iso"
+
+    def test_patch_stage_has_correct_folders(self):
+        """Test patch stage has patch_planner, patch_implementor, adw_patch_iso folders."""
+        assert "patch" in STAGE_TO_FOLDERS
+        patch_folders = STAGE_TO_FOLDERS["patch"]
+        assert "patch_planner" in patch_folders
+        assert "patch_implementor" in patch_folders
+        assert "adw_patch_iso" in patch_folders
 
 
 class TestExecutionLogEntry:

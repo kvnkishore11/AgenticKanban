@@ -682,13 +682,16 @@ def add_patch_to_history(
     logger = logging.getLogger(__name__)
 
     patch_history = state.get("patch_history", [])
+    adw_id = state.get("adw_id")
 
     patch_entry = {
         "patch_number": patch_number,
-        "reason": patch_reason,
+        "patch_reason": patch_reason,  # Changed from "reason" for frontend consistency
         "patch_file": patch_file,
         "timestamp": datetime.now().isoformat(),
         "success": success,
+        "adw_id": adw_id,  # Store ADW ID for log retrieval
+        "status": "completed" if success else "failed",  # Store status for UI display
     }
 
     patch_history.append(patch_entry)
