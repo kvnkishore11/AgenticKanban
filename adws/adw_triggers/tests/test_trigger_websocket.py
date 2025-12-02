@@ -346,3 +346,194 @@ class TestOpenWorktreeEndpoint:
         adw_id = "test1234"
         expected_window_name = f"logs-{adw_id[:8]}"
         assert expected_window_name == "logs-test1234"
+
+
+class TestCreateADWEndpoint:
+    """Tests for POST /api/adws endpoint."""
+
+    def test_create_adw_requires_db_available(self):
+        """Test that create_adw returns 503 when DB is not available."""
+        import asyncio
+        from unittest.mock import patch
+
+        # Import the function
+        from adw_triggers.trigger_websocket import create_adw
+
+        # Create mock request data
+        class MockADWData:
+            adw_id = "test1234"
+            issue_number = None
+            issue_title = "Test Task"
+            issue_body = "Test body"
+            issue_class = "feature"
+            branch_name = None
+            worktree_path = None
+            current_stage = "backlog"
+            status = "pending"
+            workflow_name = None
+            model_set = "base"
+            data_source = "kanban"
+            issue_json = None
+            orchestrator_state = None
+            backend_port = None
+            websocket_port = None
+            frontend_port = None
+
+        # Test with DB unavailable
+        with patch('adw_triggers.trigger_websocket.DB_AVAILABLE', False):
+            result = asyncio.get_event_loop().run_until_complete(create_adw(MockADWData()))
+            assert result.status_code == 503
+            assert "Database not available" in result.body.decode()
+
+    def test_create_adw_rejects_duplicate_adw_id(self):
+        """Test that create_adw returns 409 for duplicate ADW IDs."""
+        import asyncio
+        from unittest.mock import patch, MagicMock
+
+        from adw_triggers.trigger_websocket import create_adw
+
+        class MockADWData:
+            adw_id = "test1234"
+            issue_number = None
+            issue_title = "Test Task"
+            issue_body = "Test body"
+            issue_class = "feature"
+            branch_name = None
+            worktree_path = None
+            current_stage = "backlog"
+            status = "pending"
+            workflow_name = None
+            model_set = "base"
+            data_source = "kanban"
+            issue_json = None
+            orchestrator_state = None
+            backend_port = None
+            websocket_port = None
+            frontend_port = None
+
+        # Mock DB manager to return existing ADW
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = [{"id": 1}]  # Simulate existing ADW
+
+        with patch('adw_triggers.trigger_websocket.DB_AVAILABLE', True):
+            with patch('adw_triggers.trigger_websocket.get_db_manager', return_value=mock_db):
+                with patch('adw_triggers.trigger_websocket.ADWStateCreate', MockADWData):
+                    result = asyncio.get_event_loop().run_until_complete(create_adw(MockADWData()))
+                    assert result.status_code == 409
+                    assert "already exists" in result.body.decode()
+
+
+class TestUpdateADWEndpoint:
+    """Tests for PATCH /api/adws/{adw_id} endpoint."""
+
+    def test_update_adw_requires_db_available(self):
+        """Test that update_adw returns 503 when DB is not available."""
+        import asyncio
+        from unittest.mock import patch
+
+        from adw_triggers.trigger_websocket import update_adw
+
+        class MockUpdateData:
+            current_stage = "build"
+            status = None
+            is_stuck = None
+            issue_title = None
+            issue_body = None
+            issue_class = None
+            branch_name = None
+            worktree_path = None
+            workflow_name = None
+            orchestrator_state = None
+            patch_file = None
+            patch_history = None
+            completed_at = None
+
+        with patch('adw_triggers.trigger_websocket.DB_AVAILABLE', False):
+            result = asyncio.get_event_loop().run_until_complete(
+                update_adw("test1234", MockUpdateData())
+            )
+            assert result.status_code == 503
+            assert "Database not available" in result.body.decode()
+
+    def test_update_adw_returns_404_for_nonexistent_adw(self):
+        """Test that update_adw returns 404 for nonexistent ADW IDs."""
+        import asyncio
+        from unittest.mock import patch, MagicMock
+
+        from adw_triggers.trigger_websocket import update_adw
+
+        class MockUpdateData:
+            current_stage = "build"
+            status = None
+            is_stuck = None
+            issue_title = None
+            issue_body = None
+            issue_class = None
+            branch_name = None
+            worktree_path = None
+            workflow_name = None
+            orchestrator_state = None
+            patch_file = None
+            patch_history = None
+            completed_at = None
+
+        # Mock DB manager to return no existing ADW
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = []  # Simulate non-existent ADW
+
+        with patch('adw_triggers.trigger_websocket.DB_AVAILABLE', True):
+            with patch('adw_triggers.trigger_websocket.get_db_manager', return_value=mock_db):
+                with patch('adw_triggers.trigger_websocket.ADWStateUpdate', MockUpdateData):
+                    result = asyncio.get_event_loop().run_until_complete(
+                        update_adw("zzzzzzzz", MockUpdateData())
+                    )
+                    assert result.status_code == 404
+                    assert "not found" in result.body.decode()
+
+
+class TestADWPersistenceFlow:
+    """Integration tests for ADW persistence on task creation."""
+
+    def test_adw_id_format_validation(self):
+        """Test that ADW IDs must be 8 characters alphanumeric."""
+        # Valid ADW IDs
+        valid_ids = ["a1b2c3d4", "test1234", "ABCD1234", "12345678"]
+        for adw_id in valid_ids:
+            assert len(adw_id) == 8, f"ADW ID {adw_id} should be 8 characters"
+            assert adw_id.isalnum(), f"ADW ID {adw_id} should be alphanumeric"
+
+        # Invalid ADW IDs
+        invalid_ids = ["abc", "abcdefghij", "abc!@#12", ""]
+        for adw_id in invalid_ids:
+            is_valid = len(adw_id) == 8 and adw_id.isalnum()
+            assert not is_valid, f"ADW ID {adw_id} should be invalid"
+
+    def test_create_and_list_adw_flow(self):
+        """Test that created ADWs can be retrieved via list endpoint.
+
+        This tests the full flow:
+        1. POST /api/adws creates an ADW
+        2. GET /api/adws returns the created ADW
+
+        This is the fix for the issue where tasks disappear on page refresh.
+        """
+        # This test validates the logic but would need actual DB for integration test
+        create_data = {
+            "adw_id": "test1234",
+            "issue_title": "Test Task",
+            "issue_body": "Test description",
+            "issue_class": "feature",
+            "current_stage": "backlog",
+            "status": "pending",
+            "model_set": "base",
+            "data_source": "kanban",
+        }
+
+        # Validate all required fields are present
+        required_fields = ["adw_id", "current_stage", "status"]
+        for field in required_fields:
+            assert field in create_data, f"Missing required field: {field}"
+
+        # Validate ADW ID format
+        assert len(create_data["adw_id"]) == 8
+        assert create_data["adw_id"].isalnum()

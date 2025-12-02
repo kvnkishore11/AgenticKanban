@@ -69,10 +69,14 @@ try:
     if _server_path not in sys.path:
         sys.path.insert(0, _server_path)
     from core.database import get_db_manager
+    from models.adw_db_models import ADWStateCreate, ADWStateUpdate
     DB_AVAILABLE = True
 except ImportError as e:
     DB_AVAILABLE = False
     print(f"Database module not available: {e}")
+    # Define fallback models if imports fail
+    ADWStateCreate = None
+    ADWStateUpdate = None
 
 # Load environment variables from current working directory
 # This ensures we load from the worktree's .env when running in worktree mode
@@ -2201,6 +2205,9 @@ async def list_adws_database(
 async def get_adw(adw_id: str):
     """Get metadata for a specific ADW ID.
 
+    First tries filesystem discovery (for ADWs with worktrees),
+    then falls back to database lookup (for newly created ADWs without worktrees yet).
+
     Args:
         adw_id: The ADW ID to retrieve
 
@@ -2208,19 +2215,364 @@ async def get_adw(adw_id: str):
         JSON object with ADW metadata, or 404 if not found
     """
     try:
+        # First try filesystem discovery (for ADWs with worktrees)
         metadata = get_adw_metadata(adw_id)
 
-        if metadata is None:
-            return JSONResponse(
-                content={"error": f"ADW ID '{adw_id}' not found"},
-                status_code=404
-            )
+        if metadata is not None:
+            return JSONResponse(content=metadata)
 
-        return JSONResponse(content=metadata)
+        # Fallback to database lookup (for newly created ADWs without worktrees)
+        if DB_AVAILABLE:
+            try:
+                db_manager = get_db_manager()
+                results = db_manager.execute_query(
+                    "SELECT * FROM adw_states WHERE adw_id = ? AND deleted_at IS NULL",
+                    (adw_id,)
+                )
+
+                if results:
+                    row = results[0]
+                    # Return in the same format as filesystem discovery
+                    return JSONResponse(content={
+                        "id": row.get('id'),
+                        "adw_id": row.get('adw_id'),
+                        "issue_number": row.get('issue_number'),
+                        "issue_title": row.get('issue_title'),
+                        "issue_body": row.get('issue_body'),
+                        "issue_class": row.get('issue_class'),
+                        "branch_name": row.get('branch_name'),
+                        "worktree_path": row.get('worktree_path'),
+                        "current_stage": row.get('current_stage'),
+                        "status": row.get('status'),
+                        "is_stuck": bool(row.get('is_stuck', 0)),
+                        "workflow_name": row.get('workflow_name'),
+                        "workflow_stages": row.get('workflow_stages'),
+                        "model_set": row.get('model_set', 'base'),
+                        "data_source": row.get('data_source', 'kanban'),
+                        "issue_json": json.loads(row['issue_json']) if row.get('issue_json') else None,
+                        "orchestrator_state": json.loads(row['orchestrator_state']) if row.get('orchestrator_state') else None,
+                        "backend_port": row.get('backend_port'),
+                        "websocket_port": row.get('websocket_port'),
+                        "frontend_port": row.get('frontend_port'),
+                        "created_at": row.get('created_at'),
+                        "updated_at": row.get('updated_at'),
+                        "completed_at": row.get('completed_at'),
+                    })
+            except Exception as db_error:
+                print(f"Database lookup failed for ADW {adw_id}: {db_error}")
+
+        return JSONResponse(
+            content={"error": f"ADW ID '{adw_id}' not found"},
+            status_code=404
+        )
     except Exception as e:
         print(f"Error retrieving ADW {adw_id}: {e}")
         return JSONResponse(
             content={"error": f"Failed to retrieve ADW: {str(e)}"},
+            status_code=500
+        )
+
+
+@app.post("/api/adws", status_code=201)
+async def create_adw(adw_data: ADWStateCreate):
+    """Create a new ADW state record in the database.
+
+    This endpoint persists a new ADW to the database when tasks are created
+    from the Kanban board.
+
+    Args:
+        adw_data: ADW state creation data
+
+    Returns:
+        JSON object with the created ADW state
+    """
+    if not DB_AVAILABLE:
+        return JSONResponse(
+            content={"detail": "Database not available"},
+            status_code=503
+        )
+
+    if ADWStateCreate is None:
+        return JSONResponse(
+            content={"detail": "ADW models not available"},
+            status_code=503
+        )
+
+    try:
+        db_manager = get_db_manager()
+
+        # Check if ADW ID already exists
+        existing = db_manager.execute_query(
+            "SELECT id FROM adw_states WHERE adw_id = ?",
+            (adw_data.adw_id,)
+        )
+        if existing:
+            return JSONResponse(
+                content={"detail": f"ADW with ID {adw_data.adw_id} already exists"},
+                status_code=409
+            )
+
+        # Prepare JSON fields
+        issue_json_str = json.dumps(adw_data.issue_json) if adw_data.issue_json else None
+        orchestrator_state_str = json.dumps(adw_data.orchestrator_state) if adw_data.orchestrator_state else None
+
+        # Insert ADW state
+        query = """
+            INSERT INTO adw_states (
+                adw_id, issue_number, issue_title, issue_body, issue_class,
+                branch_name, worktree_path, current_stage, status,
+                workflow_name, model_set, data_source, issue_json,
+                orchestrator_state, backend_port, websocket_port, frontend_port
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+
+        params = (
+            adw_data.adw_id,
+            adw_data.issue_number,
+            adw_data.issue_title,
+            adw_data.issue_body,
+            adw_data.issue_class,
+            adw_data.branch_name,
+            adw_data.worktree_path,
+            adw_data.current_stage,
+            adw_data.status,
+            adw_data.workflow_name,
+            adw_data.model_set,
+            adw_data.data_source,
+            issue_json_str,
+            orchestrator_state_str,
+            adw_data.backend_port,
+            adw_data.websocket_port,
+            adw_data.frontend_port
+        )
+
+        row_id = db_manager.execute_insert(query, params)
+
+        # Log creation activity
+        log_query = """
+            INSERT INTO adw_activity_logs (adw_id, event_type, event_data)
+            VALUES (?, ?, ?)
+        """
+        log_data = json.dumps({"created_from": "kanban_api", "timestamp": datetime.now().isoformat()})
+        db_manager.execute_insert(log_query, (adw_data.adw_id, "workflow_started", log_data))
+
+        # Fetch the created ADW
+        created_adw = db_manager.execute_query(
+            "SELECT * FROM adw_states WHERE id = ?",
+            (row_id,)
+        )
+
+        if not created_adw:
+            return JSONResponse(
+                content={"detail": "Failed to retrieve created ADW"},
+                status_code=500
+            )
+
+        adw_record = created_adw[0]
+        logger.info(f"Created ADW {adw_data.adw_id} in database")
+
+        # Return the created ADW in the expected format
+        return JSONResponse(content={
+            "id": adw_record.get('id'),
+            "adw_id": adw_record.get('adw_id'),
+            "issue_number": adw_record.get('issue_number'),
+            "issue_title": adw_record.get('issue_title'),
+            "issue_class": adw_record.get('issue_class'),
+            "branch_name": adw_record.get('branch_name'),
+            "worktree_path": adw_record.get('worktree_path'),
+            "current_stage": adw_record.get('current_stage'),
+            "status": adw_record.get('status'),
+            "is_stuck": bool(adw_record.get('is_stuck', 0)),
+            "workflow_name": adw_record.get('workflow_name'),
+            "model_set": adw_record.get('model_set', 'base'),
+            "data_source": adw_record.get('data_source', 'kanban'),
+            "issue_json": json.loads(adw_record['issue_json']) if adw_record.get('issue_json') else None,
+            "orchestrator_state": json.loads(adw_record['orchestrator_state']) if adw_record.get('orchestrator_state') else None,
+            "created_at": adw_record.get('created_at'),
+            "updated_at": adw_record.get('updated_at'),
+            "completed_at": adw_record.get('completed_at'),
+        }, status_code=201)
+
+    except Exception as e:
+        print(f"Error creating ADW: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            content={"detail": f"Failed to create ADW: {str(e)}"},
+            status_code=500
+        )
+
+
+@app.patch("/api/adws/{adw_id}")
+async def update_adw(adw_id: str, update_data: ADWStateUpdate):
+    """Update an existing ADW state in the database.
+
+    This endpoint updates ADW fields when tasks are modified from the Kanban board.
+
+    Args:
+        adw_id: The ADW ID to update
+        update_data: Fields to update
+
+    Returns:
+        JSON object with the updated ADW state
+    """
+    if not DB_AVAILABLE:
+        return JSONResponse(
+            content={"detail": "Database not available"},
+            status_code=503
+        )
+
+    if ADWStateUpdate is None:
+        return JSONResponse(
+            content={"detail": "ADW models not available"},
+            status_code=503
+        )
+
+    try:
+        db_manager = get_db_manager()
+
+        # Check if ADW exists
+        existing = db_manager.execute_query(
+            "SELECT * FROM adw_states WHERE adw_id = ? AND deleted_at IS NULL",
+            (adw_id,)
+        )
+        if not existing:
+            return JSONResponse(
+                content={"detail": f"ADW {adw_id} not found"},
+                status_code=404
+            )
+
+        # Build update query dynamically
+        update_fields = []
+        params = []
+
+        if update_data.current_stage is not None:
+            update_fields.append("current_stage = ?")
+            params.append(update_data.current_stage)
+
+        if update_data.status is not None:
+            update_fields.append("status = ?")
+            params.append(update_data.status)
+
+        if update_data.is_stuck is not None:
+            update_fields.append("is_stuck = ?")
+            params.append(1 if update_data.is_stuck else 0)
+
+        if update_data.issue_title is not None:
+            update_fields.append("issue_title = ?")
+            params.append(update_data.issue_title)
+
+        if update_data.issue_body is not None:
+            update_fields.append("issue_body = ?")
+            params.append(update_data.issue_body)
+
+        if update_data.issue_class is not None:
+            update_fields.append("issue_class = ?")
+            params.append(update_data.issue_class)
+
+        if update_data.branch_name is not None:
+            update_fields.append("branch_name = ?")
+            params.append(update_data.branch_name)
+
+        if update_data.worktree_path is not None:
+            update_fields.append("worktree_path = ?")
+            params.append(update_data.worktree_path)
+
+        if update_data.workflow_name is not None:
+            update_fields.append("workflow_name = ?")
+            params.append(update_data.workflow_name)
+
+        if update_data.orchestrator_state is not None:
+            update_fields.append("orchestrator_state = ?")
+            params.append(json.dumps(update_data.orchestrator_state))
+
+        if update_data.patch_file is not None:
+            update_fields.append("patch_file = ?")
+            params.append(update_data.patch_file)
+
+        if update_data.patch_history is not None:
+            update_fields.append("patch_history = ?")
+            params.append(json.dumps(update_data.patch_history))
+
+        if update_data.completed_at is not None:
+            update_fields.append("completed_at = ?")
+            params.append(update_data.completed_at.isoformat())
+            # Also set status to completed if completed_at is set
+            if "status = ?" not in update_fields:
+                update_fields.append("status = ?")
+                params.append("completed")
+
+        if not update_fields:
+            # No fields to update, return current state
+            adw_record = existing[0]
+            return JSONResponse(content={
+                "id": adw_record.get('id'),
+                "adw_id": adw_record.get('adw_id'),
+                "issue_number": adw_record.get('issue_number'),
+                "issue_title": adw_record.get('issue_title'),
+                "issue_class": adw_record.get('issue_class'),
+                "current_stage": adw_record.get('current_stage'),
+                "status": adw_record.get('status'),
+                "is_stuck": bool(adw_record.get('is_stuck', 0)),
+                "workflow_name": adw_record.get('workflow_name'),
+                "model_set": adw_record.get('model_set', 'base'),
+                "data_source": adw_record.get('data_source', 'kanban'),
+                "created_at": adw_record.get('created_at'),
+                "updated_at": adw_record.get('updated_at'),
+                "completed_at": adw_record.get('completed_at'),
+            })
+
+        # Add updated_at timestamp
+        update_fields.append("updated_at = CURRENT_TIMESTAMP")
+
+        # Execute update
+        query = f"UPDATE adw_states SET {', '.join(update_fields)} WHERE adw_id = ?"
+        params.append(adw_id)
+
+        db_manager.execute_update(query, tuple(params))
+
+        # Fetch updated ADW
+        updated = db_manager.execute_query(
+            "SELECT * FROM adw_states WHERE adw_id = ?",
+            (adw_id,)
+        )
+
+        if not updated:
+            return JSONResponse(
+                content={"detail": "Failed to retrieve updated ADW"},
+                status_code=500
+            )
+
+        adw_record = updated[0]
+        logger.info(f"Updated ADW {adw_id} in database")
+
+        return JSONResponse(content={
+            "id": adw_record.get('id'),
+            "adw_id": adw_record.get('adw_id'),
+            "issue_number": adw_record.get('issue_number'),
+            "issue_title": adw_record.get('issue_title'),
+            "issue_class": adw_record.get('issue_class'),
+            "branch_name": adw_record.get('branch_name'),
+            "worktree_path": adw_record.get('worktree_path'),
+            "current_stage": adw_record.get('current_stage'),
+            "status": adw_record.get('status'),
+            "is_stuck": bool(adw_record.get('is_stuck', 0)),
+            "workflow_name": adw_record.get('workflow_name'),
+            "model_set": adw_record.get('model_set', 'base'),
+            "data_source": adw_record.get('data_source', 'kanban'),
+            "issue_json": json.loads(adw_record['issue_json']) if adw_record.get('issue_json') else None,
+            "orchestrator_state": json.loads(adw_record['orchestrator_state']) if adw_record.get('orchestrator_state') else None,
+            "created_at": adw_record.get('created_at'),
+            "updated_at": adw_record.get('updated_at'),
+            "completed_at": adw_record.get('completed_at'),
+        })
+
+    except Exception as e:
+        print(f"Error updating ADW {adw_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            content={"detail": f"Failed to update ADW: {str(e)}"},
             status_code=500
         )
 

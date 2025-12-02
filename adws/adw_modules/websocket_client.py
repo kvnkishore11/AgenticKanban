@@ -921,3 +921,12 @@ class WebSocketNotifier:
         except Exception as e:
             self.logger.error(f"Error checking for spec: {str(e)}")
             return None
+
+    def close(self) -> None:
+        """
+        Close the notifier and clean up resources.
+
+        This is a no-op for HTTP-based notifications but provided for
+        interface compatibility with async/WebSocket-based clients.
+        """
+        self.logger.debug("WebSocketNotifier closed")
