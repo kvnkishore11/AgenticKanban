@@ -71,3 +71,5 @@ videos/
 # Bun lock files
 bun.lock
 bun.lockb
+# Playwright MCP screenshots
+.playwright-mcp/
