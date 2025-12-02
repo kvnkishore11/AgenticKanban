@@ -138,6 +138,7 @@ const initialState = {
 
   // ADW deletion state
   deletingAdws: {}, // Map of adw_id -> { loading: boolean, error: string | null } for tracking deletion state
+  processedDeletions: new Set(), // Set of adw_ids that have been processed (deduplication)
 
   // Notifications state
   notifications: [], // Array of { id, type, message, timestamp }
@@ -2501,6 +2502,18 @@ export const useKanbanStore = create()(
             const adw_id = context.adw_id;
             console.log(`[KanbanStore] Processing worktree_deleted event for ${adw_id}`);
 
+            // Check if we've already processed this deletion (deduplication)
+            const { processedDeletions } = get();
+            if (processedDeletions && processedDeletions.has(adw_id)) {
+              console.log(`[KanbanStore] Skipping duplicate worktree_deleted event for ${adw_id}`);
+              return;
+            }
+
+            // Mark this deletion as processed
+            set((state) => ({
+              processedDeletions: new Set([...(state.processedDeletions || []), adw_id])
+            }), false, 'markDeletionProcessed');
+
             // Find the task associated with this ADW
             const task = get().getTaskByAdwId(adw_id);
 
@@ -2520,6 +2533,15 @@ export const useKanbanStore = create()(
               // Show success notification
               get().addNotification('success', message || `ADW ${adw_id} deleted successfully`, 5000);
               console.log(`✅ ${message || `ADW ${adw_id} deleted successfully`}`);
+
+              // Clear from processedDeletions after a delay to allow cleanup
+              setTimeout(() => {
+                set((state) => {
+                  const newSet = new Set(state.processedDeletions || []);
+                  newSet.delete(adw_id);
+                  return { processedDeletions: newSet };
+                }, false, 'clearProcessedDeletion');
+              }, 5000);
             } else {
               console.warn(`[KanbanStore] No task found for ADW ${adw_id}`);
             }

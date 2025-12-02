@@ -631,14 +631,21 @@ async def delete_adw(adw_id: str, request: Request):
     3. Kills any processes running on the worktree's allocated ports
     4. Removes the git worktree
     5. Deletes the agents/{adw_id} directory
-    6. Broadcasts WebSocket notification on success/failure
+    6. Soft-deletes the database record (sets deleted_at timestamp)
+    7. Broadcasts WebSocket notification on success/failure
 
     Args:
         adw_id: The ADW identifier (8-character alphanumeric string)
         request: FastAPI request object to access app state
 
     Returns:
-        JSON response confirming deletion
+        JSON response confirming deletion with fields:
+        - success: bool
+        - adw_id: str
+        - worktree_removed: bool
+        - killed_ports: list
+        - db_updated: bool (whether database soft-delete was successful)
+        - message: str
     """
     # Validate ADW ID format
     if len(adw_id) != 8 or not adw_id.isalnum():
@@ -725,7 +732,34 @@ async def delete_adw(adw_id: str, request: Request):
                 detail=error_msg
             )
 
-        # Step 4: Broadcast WebSocket notification
+        # Step 4: Update database to soft-delete the ADW record
+        db_updated = False
+        db_path = _get_db_path()
+        if db_path and DB_AVAILABLE:
+            try:
+                conn = sqlite3.connect(str(db_path), timeout=5.0)
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE adw_states
+                    SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                    WHERE adw_id = ? AND deleted_at IS NULL
+                """, (adw_id,))
+                rows_affected = cursor.rowcount
+                conn.commit()
+                conn.close()
+
+                if rows_affected > 0:
+                    logger.info(f"Successfully soft-deleted ADW {adw_id} in database")
+                    db_updated = True
+                else:
+                    logger.warning(f"No database record found for ADW {adw_id} (may already be deleted)")
+            except Exception as db_error:
+                logger.error(f"Failed to update database for ADW {adw_id}: {db_error}")
+                # Continue with deletion - filesystem cleanup was successful
+        else:
+            logger.warning(f"Database not available, skipping soft-delete for ADW {adw_id}")
+
+        # Step 5: Broadcast WebSocket notification
         ws_manager = getattr(request.app.state, "ws_manager", None)
         if ws_manager:
             try:
@@ -736,6 +770,7 @@ async def delete_adw(adw_id: str, request: Request):
                         "adw_id": adw_id,
                         "worktree_removed": worktree_removed,
                         "killed_ports": killed_ports,
+                        "db_updated": db_updated,
                         "event_type": "worktree_deleted"
                     }
                 )
@@ -743,13 +778,14 @@ async def delete_adw(adw_id: str, request: Request):
             except Exception as e:
                 logger.error(f"Error broadcasting WebSocket notification: {e}")
 
-        logger.info(f"Successfully deleted ADW {adw_id}")
+        logger.info(f"Successfully deleted ADW {adw_id} (db_updated={db_updated})")
 
         return {
             "success": True,
             "adw_id": adw_id,
             "worktree_removed": worktree_removed,
             "killed_ports": killed_ports,
+            "db_updated": db_updated,
             "message": f"ADW {adw_id} deleted successfully"
         }
 

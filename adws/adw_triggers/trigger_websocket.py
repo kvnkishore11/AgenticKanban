@@ -2229,14 +2229,16 @@ async def delete_adw(adw_id: str):
 
     This endpoint performs a complete cleanup:
     1. Removes the agents directory for this ADW
-    2. Removes the git worktree
-    3. Broadcasts a worktree_deleted event via WebSocket
+    2. Kills any running processes for this ADW
+    3. Removes the git worktree
+    4. Soft-deletes the database record (sets deleted_at timestamp)
+    5. Broadcasts a worktree_deleted event via WebSocket
 
     Args:
         adw_id: The ADW ID to delete
 
     Returns:
-        JSON object with success status and message
+        JSON object with success status, message, and db_updated flag
     """
     import shutil
     import signal
@@ -2321,11 +2323,37 @@ async def delete_adw(adw_id: str):
             logger.info(f"No worktree found for ADW {adw_id}")
             deletion_results["worktree_deleted"] = True  # Nothing to delete is success
 
-        # Step 4: Broadcast worktree_deleted event via WebSocket
+        # Step 4: Soft-delete the database record
+        deletion_results["db_updated"] = False
+        try:
+            db_manager = get_db_manager()
+            if db_manager:
+                rows_affected = db_manager.execute_update(
+                    """
+                    UPDATE adw_states
+                    SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                    WHERE adw_id = ? AND deleted_at IS NULL
+                    """,
+                    (adw_id,)
+                )
+                if rows_affected > 0:
+                    deletion_results["db_updated"] = True
+                    logger.info(f"Soft-deleted ADW {adw_id} in database")
+                else:
+                    logger.warning(f"No database record found for ADW {adw_id} (may already be deleted)")
+        except Exception as db_error:
+            error_msg = f"Failed to update database: {db_error}"
+            deletion_results["errors"].append(error_msg)
+            logger.error(error_msg)
+            # Continue - filesystem deletion was successful
+
+        # Step 5: Broadcast worktree_deleted event via WebSocket
         success = deletion_results["agents_deleted"] and deletion_results["worktree_deleted"]
 
         if success:
             try:
+                # Use deduplicate_by_session to avoid duplicate notifications
+                # when multiple browser tabs or reconnections create multiple connections
                 await manager.broadcast({
                     "type": "system_log",
                     "data": {
@@ -2333,10 +2361,11 @@ async def delete_adw(adw_id: str):
                         "message": f"ADW {adw_id} deleted successfully",
                         "context": {
                             "event_type": "worktree_deleted",
-                            "adw_id": adw_id
+                            "adw_id": adw_id,
+                            "db_updated": deletion_results.get("db_updated", False)
                         }
                     }
-                })
+                }, deduplicate_by_session=True)
                 logger.info(f"Broadcasted worktree_deleted event for {adw_id}")
             except Exception as e:
                 logger.warning(f"Failed to broadcast deletion event: {e}")
