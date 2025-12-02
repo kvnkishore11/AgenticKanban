@@ -417,10 +417,43 @@ def build_plan(
         by_alias=True, include={"number", "title", "body"}
     )
 
+    # Build args list
+    args = [str(issue.number), adw_id, minimal_issue_json]
+
+    # Add clarification context if available from state
+    # Note: Clarification data is nested inside issue_json.metadata (from frontend via kanban)
+    if state:
+        # Get the metadata object where clarification data lives
+        issue_json = state.get("issue_json", {})
+        metadata = issue_json.get("metadata", {}) if isinstance(issue_json, dict) else {}
+
+        # Check if clarification is approved (check both camelCase and snake_case keys)
+        clarification_status = metadata.get("clarification_status", metadata.get("clarificationStatus"))
+        is_approved = clarification_status == "approved"
+
+        # Check both snake_case and camelCase keys for history
+        clarification_history = metadata.get("clarificationHistory", metadata.get("clarification_history", []))
+
+        # Also get the current clarification result if available
+        clarification_result = metadata.get("clarificationResult", metadata.get("clarification_result"))
+
+        if is_approved and clarification_history:
+            # Get the latest clarification result
+            latest = clarification_history[-1]
+            if latest.get("result"):
+                clarification_json = json.dumps(latest["result"])
+                args.append(clarification_json)
+                logger.info("Including approved clarification context in planning")
+        elif is_approved and clarification_result:
+            # Fallback to current clarification result if no history but approved
+            clarification_json = json.dumps(clarification_result)
+            args.append(clarification_json)
+            logger.info("Including approved clarification result in planning")
+
     issue_plan_template_request = AgentTemplateRequest(
         agent_name=AGENT_PLANNER,
         slash_command=command,
-        args=[str(issue.number), adw_id, minimal_issue_json],
+        args=args,
         adw_id=adw_id,
         working_dir=working_dir,
     )

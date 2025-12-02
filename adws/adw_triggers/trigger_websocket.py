@@ -41,7 +41,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from adw_modules.utils import make_adw_id, setup_logger, get_safe_subprocess_env
 from adw_modules.workflow_ops import AVAILABLE_ADW_WORKFLOWS
-from adw_modules.slash_command_executor import SlashCommandExecutor, SlashCommandRequest
+# from adw_modules.slash_command_executor import SlashCommandExecutor, SlashCommandRequest  # TODO: Module not implemented
 from adw_modules.state import ADWState
 from adw_modules.discovery import discover_all_adws, get_adw_metadata
 from adw_modules import worktree_ops
@@ -57,6 +57,8 @@ from adw_triggers.websocket_models import (
     HealthCheckResponse,
     TicketNotification,
     TicketNotificationResponse,
+    ClarificationRequest,
+    ClarificationResult,
 )
 
 # Load environment variables from current working directory
@@ -538,31 +540,6 @@ def validate_workflow_request(request_data: dict) -> tuple[Optional[WorkflowTrig
                 f"For dependent workflows, you can also provide an existing adw_id to use issue info from state. "
                 f"Please provide either a valid issue_number, issue_type, issue_json, or adw_id (for dependent workflows) in your request."
             )
-
-        # Validate that patch issue_type is only used with patch-compatible workflows
-        # Patch tasks require adw_patch_iso, not plan-based workflows
-        issue_type = request.issue_type
-        if not issue_type and request.issue_json:
-            issue_type = request.issue_json.get("workItemType")
-
-        if issue_type == "patch":
-            # List of workflows that are NOT compatible with patch issue_type
-            plan_based_workflows = [
-                "adw_plan_iso",
-                "adw_plan_build_iso",
-                "adw_plan_build_test_iso",
-                "adw_plan_build_test_review_iso",
-                "adw_plan_build_document_iso",
-                "adw_plan_build_review_iso",
-                "adw_sdlc_iso",
-                "adw_sdlc_zte_iso",
-            ]
-            if request.workflow_type in plan_based_workflows:
-                return None, (
-                    f"Workflow '{request.workflow_type}' is not compatible with 'patch' work item type. "
-                    f"Patch tasks require the 'adw_patch_iso' workflow instead. "
-                    f"Please select 'Patch (Isolated)' workflow or change the work item type to feature/bug/chore."
-                )
 
         return request, None
 
@@ -1670,6 +1647,93 @@ async def health():
         return JSONResponse(content=response.model_dump())
 
 
+def get_adws_directory() -> Path:
+    """Get the path to the adws directory for clarification analyzer."""
+    current_file = Path(__file__).resolve()
+    current_root = current_file.parent.parent  # Go up from adw_triggers to adws
+    return current_root
+
+
+def generate_simple_clarification(description: str, feedback: Optional[str] = None) -> ClarificationResult:
+    """
+    Generate a simple clarification without AI.
+    Used as fallback when the analyzer is not available.
+    """
+    lines = description.strip().split('\n')
+
+    # First line or sentence as summary
+    summary = lines[0] if lines else description[:100]
+    if len(summary) > 150:
+        summary = summary[:147] + "..."
+
+    # Include feedback context if provided
+    if feedback:
+        summary = f"{summary} (Additional context: {feedback[:100]})"
+
+    # Generate conversational understanding
+    understanding = f"I understand you want to: {summary}. I'll need to analyze this request further to provide a detailed plan."
+
+    return ClarificationResult(
+        understanding=understanding,
+        confidence="low",  # Low confidence for fallback
+        questions=["Can you provide more details about the expected behavior?"],
+        status="awaiting_approval"
+    )
+
+
+@app.post("/api/clarify", response_model=ClarificationResult)
+async def clarify_task(request: ClarificationRequest):
+    """
+    Analyze a task description and return conversational understanding.
+
+    This endpoint uses the clarification analyzer to extract:
+    - Understanding: Conversational explanation of what will be done
+    - Confidence: How confident the AI is (high/medium/low)
+    - Questions: Clarifying questions if needed
+    """
+    logger.info(f"Clarification request for task {request.task_id}, ADW: {request.adw_id}")
+
+    try:
+        # Try to import and use the clarification analyzer
+        adws_dir = get_adws_directory()
+
+        try:
+            # Import the clarification analyzer from utils/clarify
+            clarify_module_path = adws_dir / "utils" / "clarify"
+            if str(clarify_module_path.parent) not in sys.path:
+                sys.path.insert(0, str(adws_dir))
+
+            from utils.clarify.clarification_analyzer import analyze_task_description
+
+            result = analyze_task_description(
+                description=request.description,
+                user_feedback=request.feedback,
+                adw_id=request.adw_id,
+            )
+
+            return ClarificationResult(
+                understanding=result.understanding,
+                confidence=result.confidence.value,
+                questions=result.questions,
+                status="awaiting_approval"
+            )
+        except ImportError as e:
+            logger.warning(f"Could not import clarification analyzer: {e}")
+            # Fallback to simple extraction
+            return generate_simple_clarification(request.description, request.feedback)
+        finally:
+            # Clean up sys.path
+            if str(adws_dir) in sys.path:
+                sys.path.remove(str(adws_dir))
+
+    except Exception as e:
+        logger.error(f"Clarification failed: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Clarification failed: {str(e)}"}
+        )
+
+
 @app.post("/api/workflow-updates")
 async def receive_workflow_update(request_data: dict):
     """
@@ -2661,7 +2725,8 @@ async def get_stage_logs(adw_id: str, stage: str):
 
 
 # Initialize slash command executor
-slash_command_executor = SlashCommandExecutor()
+# TODO: SlashCommandExecutor module not implemented yet
+# slash_command_executor = SlashCommandExecutor()
 
 
 @app.post("/api/slash-command")
@@ -2669,30 +2734,21 @@ async def execute_slash_command(request_data: dict):
     """
     Execute a Claude Code slash command.
 
-    This is the simple, powerful way to trigger complex operations from the UI.
-    Instead of scripting every edge case, we let Claude handle the complexity.
-
-    Request format:
-    {
-        "command": "merge_worktree",  // or alias like "merge"
-        "arguments": ["8250f1e2", "rebase"],  // optional
-        "context": {  // optional metadata
-            "adw_id": "8250f1e2",
-            "task_id": "task-123"
-        }
-    }
-
-    Response format:
-    {
-        "success": true,
-        "command": "merge_worktree",
-        "message": "Command execution started",
-        "execution_id": "...",
-        // When complete:
-        "output": "...",
-        "exit_code": 0
-    }
+    TODO: SlashCommandExecutor module not implemented yet.
+    This endpoint is temporarily disabled until the module is created.
     """
+    return JSONResponse(
+        status_code=501,
+        content={
+            "success": False,
+            "error": "Slash command executor not implemented yet. Please create adw_modules/slash_command_executor.py to enable this feature."
+        }
+    )
+
+# TODO: Original implementation commented out until SlashCommandExecutor is implemented
+"""
+@app.post("/api/slash-command")
+async def execute_slash_command(request_data: dict):
     try:
         command = request_data.get("command")
         arguments = request_data.get("arguments", [])
@@ -2730,7 +2786,6 @@ async def execute_slash_command(request_data: dict):
 
         # Execute the command asynchronously
         async def on_output(line: str):
-            """Stream output lines to WebSocket clients."""
             if adw_id:
                 await manager.broadcast(json.dumps({
                     "type": "slash_command_output",
@@ -2778,11 +2833,31 @@ async def execute_slash_command(request_data: dict):
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+"""
 
 
 @app.get("/api/slash-commands")
 async def list_slash_commands():
-    """List all available slash commands."""
+    """
+    List all available slash commands.
+
+    TODO: SlashCommandExecutor module not implemented yet.
+    This endpoint is temporarily disabled until the module is created.
+    """
+    return JSONResponse(
+        status_code=501,
+        content={
+            "success": False,
+            "error": "Slash command executor not implemented yet. Please create adw_modules/slash_command_executor.py to enable this feature.",
+            "commands": [],
+            "count": 0
+        }
+    )
+
+# TODO: Original implementation commented out until SlashCommandExecutor is implemented
+"""
+@app.get("/api/slash-commands")
+async def list_slash_commands():
     try:
         commands = slash_command_executor.list_available_commands()
         return JSONResponse(content={
@@ -2796,225 +2871,7 @@ async def list_slash_commands():
             status_code=500,
             content={"success": False, "error": str(e)}
         )
-
-
-@app.post("/api/codebase/open/{adw_id}")
-async def open_codebase_terminal(adw_id: str):
-    """Open neovim in the worktree's tmux session.
-
-    Creates a tmux session named after the branch (or attaches if exists),
-    adds a 'code' window, and launches neovim. Each worktree gets its own
-    session with 'logs' and 'code' windows.
-
-    Args:
-        adw_id: The ADW ID (8-character alphanumeric)
-
-    Returns:
-        JSON response with success status, branch_name, and session details
-    """
-    from adw_modules.terminal_ops import open_codebase_in_terminal
-
-    # Validate ADW ID format
-    if not adw_id or len(adw_id) != 8 or not adw_id.isalnum():
-        return JSONResponse(
-            status_code=400,
-            content={
-                "success": False,
-                "error": f"Invalid ADW ID format: {adw_id}. Must be 8 alphanumeric characters."
-            }
-        )
-
-    # Calculate project root (go up from adws/adw_triggers to project root)
-    current_file = Path(__file__).resolve()
-    project_root = current_file.parent.parent.parent
-
-    # Find worktree path
-    worktree_path = os.path.join(project_root, "trees", adw_id)
-
-    if not os.path.isdir(worktree_path):
-        return JSONResponse(
-            status_code=404,
-            content={
-                "success": False,
-                "error": f"Worktree not found: trees/{adw_id}"
-            }
-        )
-
-    # Open the codebase in neovim
-    result = open_codebase_in_terminal(
-        adw_id=adw_id,
-        worktree_path=worktree_path
-    )
-
-    if result.success:
-        return JSONResponse(
-            content={
-                "success": True,
-                "message": result.message,
-                "session_name": result.session_name,
-                "window_name": result.window_name,
-                "branch_name": result.branch_name,
-                "adw_id": adw_id,
-                "worktree_path": worktree_path
-            }
-        )
-    else:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "success": False,
-                "message": result.message,
-                "error": result.error,
-                "adw_id": adw_id
-            }
-        )
-
-
-@app.post("/api/worktree/open/{adw_id}")
-async def open_worktree_terminal(adw_id: str):
-    """Start a worktree with its own tmux session.
-
-    Creates a tmux session named after the branch with a 'logs' window
-    containing split panes for frontend and backend scripts. Each worktree
-    gets its own session that can be killed when merging.
-
-    Args:
-        adw_id: The ADW ID (8-character alphanumeric)
-
-    Returns:
-        JSON response with success status, branch_name, and session details
-    """
-    from adw_modules.terminal_ops import open_worktree_in_terminal
-
-    # Validate ADW ID format
-    if not adw_id or len(adw_id) != 8 or not adw_id.isalnum():
-        return JSONResponse(
-            status_code=400,
-            content={
-                "success": False,
-                "error": f"Invalid ADW ID format: {adw_id}. Must be 8 alphanumeric characters."
-            }
-        )
-
-    # Calculate project root (go up from adws/adw_triggers to project root)
-    current_file = Path(__file__).resolve()
-    project_root = current_file.parent.parent.parent
-
-    # Find worktree path
-    worktree_path = os.path.join(project_root, "trees", adw_id)
-
-    if not os.path.isdir(worktree_path):
-        return JSONResponse(
-            status_code=404,
-            content={
-                "success": False,
-                "error": f"Worktree not found: trees/{adw_id}"
-            }
-        )
-
-    # Try to read port config from worktree
-    frontend_port = 5173  # Default
-    ports_env = os.path.join(worktree_path, ".ports.env")
-    if os.path.exists(ports_env):
-        try:
-            with open(ports_env, 'r') as f:
-                for line in f:
-                    if line.startswith('FRONTEND_PORT='):
-                        frontend_port = int(line.split('=')[1].strip())
-                        break
-        except Exception as e:
-            logger.warning(f"Failed to read ports.env: {e}")
-
-    # Open the worktree in terminal
-    result = open_worktree_in_terminal(
-        adw_id=adw_id,
-        worktree_path=worktree_path,
-        frontend_port=frontend_port
-    )
-
-    if result.success:
-        return JSONResponse(
-            content={
-                "success": True,
-                "message": result.message,
-                "session_name": result.session_name,
-                "window_name": result.window_name,
-                "branch_name": result.branch_name,
-                "adw_id": adw_id,
-                "worktree_path": worktree_path,
-                "frontend_url": f"http://localhost:{frontend_port}"
-            }
-        )
-    else:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "success": False,
-                "message": result.message,
-                "error": result.error,
-                "adw_id": adw_id
-            }
-        )
-
-
-@app.post("/api/session/kill/{adw_id}")
-async def kill_worktree_session(adw_id: str):
-    """Kill the tmux session for a worktree.
-
-    Useful for cleanup when merging or deleting a worktree.
-    The session is named after the branch.
-
-    Args:
-        adw_id: The ADW ID (8-character alphanumeric)
-
-    Returns:
-        JSON response with success status
-    """
-    from adw_modules.terminal_ops import kill_worktree_session as kill_session
-
-    # Validate ADW ID format
-    if not adw_id or len(adw_id) != 8 or not adw_id.isalnum():
-        return JSONResponse(
-            status_code=400,
-            content={
-                "success": False,
-                "error": f"Invalid ADW ID format: {adw_id}. Must be 8 alphanumeric characters."
-            }
-        )
-
-    # Calculate project root (go up from adws/adw_triggers to project root)
-    current_file = Path(__file__).resolve()
-    project_root = current_file.parent.parent.parent
-
-    # Find worktree path
-    worktree_path = os.path.join(project_root, "trees", adw_id)
-
-    # Kill the session
-    result = kill_session(
-        adw_id=adw_id,
-        worktree_path=worktree_path if os.path.isdir(worktree_path) else None
-    )
-
-    if result.success:
-        return JSONResponse(
-            content={
-                "success": True,
-                "message": result.message,
-                "session_name": result.session_name,
-                "branch_name": result.branch_name,
-                "adw_id": adw_id
-            }
-        )
-    else:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "success": False,
-                "message": result.message,
-                "error": result.error,
-                "adw_id": adw_id
-            }
-        )
+"""
 
 
 def signal_handler(signum, frame):

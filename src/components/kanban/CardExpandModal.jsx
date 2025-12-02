@@ -37,6 +37,7 @@ import StageTabsPanel from './StageTabsPanel';
 import ContentTypeTabs from './ContentTypeTabs';
 import ExecutionLogsViewer from './ExecutionLogsViewer';
 import ResultViewer from './ResultViewer';
+import ClarificationPanel from './ClarificationPanel';
 import adwDiscoveryService from '../../services/api/adwDiscoveryService';
 import fileOperationsService from '../../services/api/fileOperationsService';
 import PatchRequestModal from './PatchRequestModal';
@@ -861,78 +862,96 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
               )}
             </div>
 
-            {/* RIGHT PANEL - Two-Level Tab Navigation */}
+            {/* RIGHT PANEL - Clarification or Stage Logs */}
             <div className="brutalist-modal-right-panel">
-              {/* PRIMARY TABS: Stage Selection */}
-              <StageTabsPanel
-                stages={stageNames}
-                activeStage={effectiveStage}
-                currentRunningStage={currentRunningStage}
-                onStageSelect={handleStageSelect}
-                autoFollow={autoFollowStage}
-                onAutoFollowToggle={handleAutoFollowToggle}
-                stageStatuses={stageStatuses}
-              />
+              {task.stage === 'backlog' && (task.metadata?.clarificationStatus || task.metadata?.clarification_status) !== 'approved' ? (
+                /* CLARIFICATION PANEL - Shown when task is in backlog and not yet clarified */
+                <ClarificationPanel
+                  task={task}
+                  onApprove={onClose}
+                  onEdit={() => {
+                    if (onEdit) {
+                      onEdit(task);
+                      onClose();
+                    }
+                  }}
+                  onClose={onClose}
+                />
+              ) : (
+                /* NORMAL STAGE LOGS VIEW */
+                <>
+                  {/* PRIMARY TABS: Stage Selection */}
+                  <StageTabsPanel
+                    stages={stageNames}
+                    activeStage={effectiveStage}
+                    currentRunningStage={currentRunningStage}
+                    onStageSelect={handleStageSelect}
+                    autoFollow={autoFollowStage}
+                    onAutoFollowToggle={handleAutoFollowToggle}
+                    stageStatuses={stageStatuses}
+                  />
 
-              {/* SECONDARY TABS: Content Type Selection */}
-              <ContentTypeTabs
-                activeContentType={activeContentType}
-                onContentTypeChange={setActiveContentType}
-                executionLogCount={executionLogCount}
-                thinkingLogCount={thinkingLogCount}
-                hasResult={!!stageResult}
-              />
+                  {/* SECONDARY TABS: Content Type Selection */}
+                  <ContentTypeTabs
+                    activeContentType={activeContentType}
+                    onContentTypeChange={setActiveContentType}
+                    executionLogCount={executionLogCount}
+                    thinkingLogCount={thinkingLogCount}
+                    hasResult={!!stageResult}
+                  />
 
-              {/* CONTENT PANEL */}
-              <div className="logs-panel stage-content-panel">
-                <div className="logs-container">
-                  {activeContentType === 'execution' ? (
-                    (task.metadata?.adw_id || workflowMetadata?.adw_id) && effectiveStage ? (
-                      <ExecutionLogsViewer
-                        adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
-                        stage={effectiveStage}
-                        autoScroll={true}
-                        maxHeight="100%"
-                        onLogCountChange={setExecutionLogCount}
-                      />
-                    ) : (
-                      <div className="empty-logs">
-                        <div className="empty-logs-icon">📊</div>
-                        <div className="empty-logs-text">No Execution Logs</div>
-                        <div className="empty-logs-subtext">
-                          Trigger a workflow to see stage execution logs
-                        </div>
-                      </div>
-                    )
-                  ) : activeContentType === 'thinking' ? (
-                    (task.metadata?.adw_id || workflowMetadata?.adw_id) && effectiveStage ? (
-                      <AgentLogsPanel
-                        taskId={task.id}
-                        adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
-                        stage={effectiveStage}
-                        maxHeight="100%"
-                        autoScrollDefault={true}
-                        onLogCountChange={setThinkingLogCount}
-                      />
-                    ) : (
-                      <div className="empty-logs">
-                        <div className="empty-logs-icon">🧠</div>
-                        <div className="empty-logs-text">No Agent Logs</div>
-                        <div className="empty-logs-subtext">
-                          Trigger a workflow to see agent thinking and tool usage
-                        </div>
-                      </div>
-                    )
-                  ) : activeContentType === 'result' ? (
-                    <ResultViewer
-                      result={stageResult}
-                      loading={resultLoading}
-                      error={null}
-                      maxHeight="100%"
-                    />
-                  ) : null}
-                </div>
-              </div>
+                  {/* CONTENT PANEL */}
+                  <div className="logs-panel stage-content-panel">
+                    <div className="logs-container">
+                      {activeContentType === 'execution' ? (
+                        (task.metadata?.adw_id || workflowMetadata?.adw_id) && effectiveStage ? (
+                          <ExecutionLogsViewer
+                            adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
+                            stage={effectiveStage}
+                            autoScroll={true}
+                            maxHeight="100%"
+                            onLogCountChange={setExecutionLogCount}
+                          />
+                        ) : (
+                          <div className="empty-logs">
+                            <div className="empty-logs-icon">📊</div>
+                            <div className="empty-logs-text">No Execution Logs</div>
+                            <div className="empty-logs-subtext">
+                              Trigger a workflow to see stage execution logs
+                            </div>
+                          </div>
+                        )
+                      ) : activeContentType === 'thinking' ? (
+                        (task.metadata?.adw_id || workflowMetadata?.adw_id) && effectiveStage ? (
+                          <AgentLogsPanel
+                            taskId={task.id}
+                            adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
+                            stage={effectiveStage}
+                            maxHeight="100%"
+                            autoScrollDefault={true}
+                            onLogCountChange={setThinkingLogCount}
+                          />
+                        ) : (
+                          <div className="empty-logs">
+                            <div className="empty-logs-icon">🧠</div>
+                            <div className="empty-logs-text">No Agent Logs</div>
+                            <div className="empty-logs-subtext">
+                              Trigger a workflow to see agent thinking and tool usage
+                            </div>
+                          </div>
+                        )
+                      ) : activeContentType === 'result' ? (
+                        <ResultViewer
+                          result={stageResult}
+                          loading={resultLoading}
+                          error={null}
+                          maxHeight="100%"
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

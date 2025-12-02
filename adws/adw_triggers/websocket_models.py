@@ -121,3 +121,25 @@ class HealthCheckResponse(BaseModel):
     uptime_seconds: float = 0.0  # Server uptime in seconds
     health_check: Optional[dict] = None  # Detailed health check results
     error: Optional[str] = None  # Error message if unhealthy
+
+
+class ClarificationRequest(BaseModel):
+    """Request model for clarification endpoint."""
+    task_id: int  # Task ID from kanban
+    description: str  # Task description to analyze
+    adw_id: str  # ADW ID for the task
+    feedback: Optional[str] = None  # Optional user feedback for refinement
+
+
+class ClarificationResult(BaseModel):
+    """Response model for clarification endpoint.
+
+    Conversational format:
+    - understanding: "Got it! You want me to..." explanation
+    - questions: Only genuine questions (can be empty)
+    - confidence: high/medium/low
+    """
+    understanding: str  # Conversational "Got it! You want me to..." explanation
+    confidence: str  # How confident the AI is (high/medium/low)
+    questions: List[str] = []  # Clarifying questions (can be empty)
+    status: str = "awaiting_approval"  # Status of clarification

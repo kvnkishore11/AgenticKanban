@@ -219,7 +219,7 @@ describe('Kanban Store', () => {
       expect(task).toBeDefined();
       expect(task.id).toBe(1);
       expect(task.title).toBe('Test Task');
-      expect(task.stage).toBe('backlog');
+      expect(task.stage).toBe('backlog');  // New tasks go to backlog stage (clarification happens inline)
       expect(useKanbanStore.getState().tasks).toHaveLength(1);
     });
 

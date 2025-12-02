@@ -52,7 +52,7 @@ def build_plan(
         state
     )
 
-    plan_response = workflow_build_plan(issue, issue_command, adw_id, logger, working_dir=worktree_path)
+    plan_response = workflow_build_plan(issue, issue_command, adw_id, logger, working_dir=worktree_path, state=state)
 
     if not plan_response.success:
         logger.error(f"Error building plan: {plan_response.output}")

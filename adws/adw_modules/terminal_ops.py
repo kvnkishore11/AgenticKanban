@@ -40,9 +40,26 @@ class TerminalOperations:
     def _get_project_root(self) -> str:
         """Get the main project root directory.
 
-        Handles both main codebase and worktree locations by detecting
-        if we're in a 'trees/' subdirectory and navigating accordingly.
+        Handles both normal repo and git worktrees by finding the common git directory.
         """
+        try:
+            # Use git to find the main repository root
+            # --git-common-dir returns the shared .git directory (main repo)
+            result = subprocess.run(
+                ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                cwd=os.path.dirname(__file__)
+            )
+            if result.returncode == 0:
+                git_common_dir = result.stdout.strip()
+                # The common dir is the .git folder, parent is the project root
+                return os.path.dirname(git_common_dir)
+        except Exception:
+            pass
+
+        # Fallback: calculate from file path (works for non-worktree scenarios)
         current_file = os.path.abspath(__file__)
         # Go up 3 levels: terminal_ops.py -> adw_modules -> adws -> worktree_root
         worktree_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))

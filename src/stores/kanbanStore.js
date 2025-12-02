@@ -572,6 +572,10 @@ export const useKanbanStore = create()(
                 outputs: adwConfig.outputs,
                 // Legacy metadata
                 autoProgress: false,
+                // Clarification metadata
+                clarificationStatus: 'pending',
+                clarificationResult: null,
+                clarificationHistory: [],
               },
               images: taskData.images || [], // Support for uploaded images
             };
@@ -683,6 +687,90 @@ export const useKanbanStore = create()(
               tasksByAdwId: newTasksByAdwId,
             };
           }, false, 'deleteTask');
+        },
+
+        // Clarification Methods
+        approveClarification: (taskId) => {
+          set((state) => ({
+            tasks: state.tasks.map(task =>
+              task.id === taskId
+                ? {
+                    ...task,
+                    stage: 'plan', // Move directly to plan after approval (skip backlog)
+                    metadata: {
+                      ...task.metadata,
+                      clarificationStatus: 'approved',
+                      clarificationApprovedAt: new Date().toISOString(),
+                    },
+                    updatedAt: new Date().toISOString(),
+                  }
+                : task
+            ),
+          }), false, 'approveClarification');
+        },
+
+        // Trigger clarification workflow via backend API
+        triggerClarification: async (taskId, description, feedback = null) => {
+          const state = get();
+          const task = state.tasks.find(t => t.id === taskId);
+          if (!task) return;
+
+          const adwId = task.metadata?.adw_id;
+          if (!adwId) {
+            console.error('No ADW ID found for task', taskId);
+            return;
+          }
+
+          try {
+            const wsPort = import.meta.env.VITE_ADW_PORT || 8500;
+            const response = await fetch(`http://localhost:${wsPort}/api/clarify`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                task_id: taskId,
+                description: description,
+                adw_id: adwId,
+                feedback: feedback
+              })
+            });
+
+            if (!response.ok) {
+              throw new Error('Failed to trigger clarification');
+            }
+
+            const result = await response.json();
+
+            // Update task with clarification result
+            get().updateClarificationResult(taskId, result);
+          } catch (error) {
+            console.error('Clarification failed:', error);
+            throw error;
+          }
+        },
+
+        updateClarificationResult: (taskId, clarificationResult) => {
+          set((state) => ({
+            tasks: state.tasks.map(task =>
+              task.id === taskId
+                ? {
+                    ...task,
+                    metadata: {
+                      ...task.metadata,
+                      clarificationResult,
+                      clarificationHistory: [
+                        ...(task.metadata.clarificationHistory || []),
+                        {
+                          timestamp: new Date().toISOString(),
+                          result: clarificationResult,
+                          status: clarificationResult.status,
+                        },
+                      ],
+                    },
+                    updatedAt: new Date().toISOString(),
+                  }
+                : task
+            ),
+          }), false, 'updateClarificationResult');
         },
 
         moveTaskToStage: (taskId, newStage) => {

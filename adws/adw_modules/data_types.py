@@ -51,6 +51,8 @@ SlashCommand = Literal[
     "/chore",
     "/bug",
     "/feature",
+    # Clarification command
+    "/clarify",
     # ADW workflow commands
     "/classify_issue",
     "/classify_adw",
@@ -288,12 +290,51 @@ class DocumentationResult(BaseModel):
 
 class ADWExtractionResult(BaseModel):
     """Result from extracting ADW information from text."""
-    
+
     workflow_command: Optional[str] = None  # e.g., "adw_plan_iso" (without slash)
     adw_id: Optional[str] = None  # 8-character ADW ID
     model_set: Optional[ModelSet] = "base"  # Model set to use, defaults to "base"
-    
+
     @property
     def has_workflow(self) -> bool:
         """Check if a workflow command was extracted."""
         return self.workflow_command is not None
+
+
+class ClarificationStatus(str, Enum):
+    """Status of task clarification."""
+    PENDING = "pending"
+    APPROVED = "approved"
+    NEEDS_REVISION = "needs_revision"
+
+
+class ClarificationConfidence(str, Enum):
+    """Confidence level in understanding the task."""
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class ClarificationResult(BaseModel):
+    """Result from analyzing a task description for clarification.
+
+    Conversational format:
+    - understanding: "Got it! You want me to..." explanation
+    - questions: Only genuine questions (can be empty)
+    - confidence: high/medium/low
+    """
+
+    understanding: str  # Conversational "Got it! You want me to..." explanation
+    confidence: ClarificationConfidence  # How confident the AI is (high/medium/low)
+    questions: List[str] = Field(default_factory=list)  # Clarifying questions (can be empty)
+    status: ClarificationStatus = ClarificationStatus.PENDING
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
+class ClarificationHistoryEntry(BaseModel):
+    """Single entry in clarification history."""
+
+    timestamp: datetime
+    result: ClarificationResult
+    user_feedback: Optional[str] = None  # User feedback if requesting refinement
+    status: ClarificationStatus

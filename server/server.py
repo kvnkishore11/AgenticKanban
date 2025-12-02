@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Import API routes
-from api import adws, stage_logs, merge, file_operations, agent_state_stream
+from api import adws, stage_logs, merge, file_operations, agent_state_stream, clarification
 
 # Import WebSocket manager
 from core.websocket_manager import WebSocketManager
@@ -58,6 +58,7 @@ app.include_router(stage_logs.router)
 app.include_router(merge.router, prefix="/api")
 app.include_router(file_operations.router)
 app.include_router(agent_state_stream.router, prefix="/api")
+app.include_router(clarification.router, prefix="/api")
 
 @app.get("/")
 async def root():

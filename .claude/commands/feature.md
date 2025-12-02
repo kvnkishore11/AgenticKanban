@@ -6,9 +6,18 @@ Create a new plan to implement the `Feature` using the exact specified markdown
 
 ## Variables
 
-issue_number: $1 adw_id: $2 issue_json: $3
+issue_number: $1 adw_id: $2 issue_json: $3 clarification_context: $4
 
 ## Instructions
+
+- IMPORTANT: If `clarification_context` is provided (not empty), use it to inform
+  your planning. The clarification uses v2 format with these fields:
+  - `understanding`: A conversational summary of what the user wants - this is the
+    confirmed understanding you should base your plan on
+  - `confidence`: Level of confidence (high/medium/low) - if low/medium, pay extra
+    attention to the questions that need clarification
+  - `questions`: Any clarifying questions that were raised - address these in your
+    plan or make reasonable assumptions based on the context
 
 - IMPORTANT: You're writing a plan to implement a net new feature based on the
   `Feature` that will add value to the application.

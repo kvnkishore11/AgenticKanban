@@ -353,6 +353,21 @@ const KanbanCard = memo(({ task, onEdit }) => {
           {(task.metadata?.summary || task.title || '').toUpperCase()}
         </div>
 
+        {/* Clarification Status Badge - shown for backlog tasks pending clarification */}
+        {task.stage === 'backlog' && (task.metadata?.clarificationStatus || task.metadata?.clarification_status) !== 'approved' && (
+          <div className="brutalist-clarification-badge">
+            {task.metadata?.clarificationStatus === 'pending' && (
+              <span className="brutalist-badge brutalist-badge-orange">⏳ AWAITING CLARIFICATION</span>
+            )}
+            {task.metadata?.clarificationStatus === 'approved' && (
+              <span className="brutalist-badge brutalist-badge-green">✓ CLARIFIED</span>
+            )}
+            {task.metadata?.clarificationStatus === 'needs_revision' && (
+              <span className="brutalist-badge brutalist-badge-yellow">⚠ NEEDS REVISION</span>
+            )}
+          </div>
+        )}
+
         {/* Pipeline Stage Indicator (P B T R D) */}
         <div className="brutalist-pipeline-indicator">
           {pipelineStages.map((stage, i) => (

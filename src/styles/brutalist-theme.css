@@ -398,6 +398,7 @@ h1, h2, h3, h4, h5, h6,
 }
 
 /* Column left stripe indicator */
+.brutalist-column.clarify { border-left: 6px solid #f97316; }
 .brutalist-column.backlog { border-left: 6px solid #6b7280; }
 .brutalist-column.plan { border-left: 6px solid #3b82f6; }
 .brutalist-column.build { border-left: 6px solid #f59e0b; }
@@ -408,6 +409,10 @@ h1, h2, h3, h4, h5, h6,
 .brutalist-column.errored { border-left: 6px solid #ef4444; }
 
 /* Column-specific colors */
+.brutalist-column.clarify .brutalist-column-header {
+  background: #f97316;
+}
+
 .brutalist-column.backlog .brutalist-column-header {
   background: #6b7280;
 }
@@ -645,6 +650,37 @@ h1, h2, h3, h4, h5, h6,
   border-color: #ef4444;
 }
 
+/* Clarification Badge */
+.brutalist-clarification-badge {
+  margin: 8px 0;
+}
+
+.brutalist-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: bold;
+  border: var(--border-thin) solid var(--color-brutalist-black);
+  text-transform: uppercase;
+}
+
+.brutalist-badge-orange {
+  background: #fed7aa;
+  color: #9a3412;
+  border-color: #f97316;
+}
+
+.brutalist-badge-green {
+  background: #d1fae5;
+  color: #065f46;
+  border-color: #10b981;
+}
+
+.brutalist-badge-yellow {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #f59e0b;
+}
 /* Compact Log Preview - Two rows */
 .brutalist-log-preview-compact {
   margin-top: 10px;
