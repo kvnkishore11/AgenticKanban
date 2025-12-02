@@ -1620,9 +1620,13 @@ export const useKanbanStore = create()(
               tasks: state.tasks.map(t => {
                 if (t.id !== taskId) return t;
 
-                // Update the latest patch entry in history to in_progress
+                // Update the latest patch entry in history to in_progress and add adw_id
                 const updatedHistory = (t.metadata?.patch_history || []).map((entry, idx, arr) =>
-                  idx === arr.length - 1 ? { ...entry, status: 'in_progress' } : entry
+                  idx === arr.length - 1 ? {
+                    ...entry,
+                    status: 'in_progress',
+                    adw_id: response.adw_id || response.workflow_id
+                  } : entry
                 );
 
                 return {
@@ -2781,9 +2785,8 @@ export const useKanbanStore = create()(
             return;
           }
 
-          // Update task metadata with merge completion info AND move to completed stage
+          // Update task metadata with merge completion info - keep task in ready-to-merge stage
           get().updateTask(task.id, {
-            stage: 'completed',  // Move to completed stage
             metadata: {
               ...task.metadata,
               merge_completed: true,
@@ -2806,7 +2809,7 @@ export const useKanbanStore = create()(
             }
           }), false, 'handleMergeCompletion');
 
-          console.log(`Task ${task.id} merge completed - moved to 'completed' stage`);
+          console.log(`Task ${task.id} merge completed - staying in 'ready-to-merge' stage`);
         },
 
         // Handle merge failure - called by WebSocket listener when merge workflow fails

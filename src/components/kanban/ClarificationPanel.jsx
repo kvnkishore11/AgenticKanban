@@ -24,14 +24,14 @@ const ClarificationPanel = ({ task: taskProp, onApprove, onEdit, onClose }) => {
   const { updateTask, triggerClarification, tasks } = useKanbanStore();
 
   // Subscribe to the store for fresh task data (props might be stale)
-  const task = tasks.find(t => t.id === taskProp.id) || taskProp;
+  const task = tasks?.find(t => t.id === taskProp.id) || taskProp;
 
   // Debug logging
   console.log('[ClarificationPanel] Render:', {
     taskPropId: taskProp.id,
     tasksPropHasResult: !!taskProp.metadata?.clarificationResult,
-    tasksFromStore: tasks.length,
-    storeTaskHasResult: tasks.find(t => t.id === taskProp.id)?.metadata?.clarificationResult ? 'yes' : 'no',
+    tasksFromStore: tasks?.length || 0,
+    storeTaskHasResult: tasks?.find(t => t.id === taskProp.id)?.metadata?.clarificationResult ? 'yes' : 'no',
     finalTaskHasResult: !!task.metadata?.clarificationResult
   });
 

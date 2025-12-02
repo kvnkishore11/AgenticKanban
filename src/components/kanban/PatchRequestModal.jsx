@@ -114,6 +114,26 @@ const PatchRequestModal = ({ task, isOpen, onClose, onSubmit, isSubmitting = fal
 
         {/* Body */}
         <div className="p-6 flex-1 overflow-y-auto">
+          {/* Patch Running Indicator */}
+          {isSubmitting && (
+            <div className="bg-amber-100 border-[4px] border-amber-500 p-5 mb-5 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-amber-200 via-amber-300 to-amber-200 animate-pulse"></div>
+              <div className="relative z-10 flex items-center gap-3">
+                <div className="w-12 h-12 bg-amber-500 border-[3px] border-black flex items-center justify-center animate-spin">
+                  <Wrench size={24} className="text-black" />
+                </div>
+                <div>
+                  <div className="text-[12px] font-bold uppercase tracking-[2px] text-amber-900">
+                    Patch Running
+                  </div>
+                  <div className="text-[10px] text-amber-700 mt-1 uppercase tracking-[1px]">
+                    Applying your changes... Please wait
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Task Info */}
           <div className="bg-gray-100 border-[3px] border-black p-4 mb-5">
             <div className="text-[10px] font-bold uppercase tracking-[2px] text-gray-500 mb-2">

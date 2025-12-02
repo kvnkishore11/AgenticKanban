@@ -81,6 +81,25 @@ vi.mock('../StageTabsPanel', () => ({
   )
 }));
 
+vi.mock('../PatchTabsPanel', () => ({
+  default: ({ patches, activePatch, onPatchSelect }) => {
+    if (!patches || patches.length === 0) return null;
+    return (
+      <div data-testid="patch-tabs-panel">
+        {patches.map(patch => (
+          <button
+            key={patch.patch_number}
+            className={`patch-tab ${activePatch?.patch_number === patch.patch_number ? 'selected' : ''}`}
+            onClick={() => onPatchSelect(patch)}
+          >
+            PATCH {patch.patch_number} {patch.status}
+          </button>
+        ))}
+      </div>
+    );
+  }
+}));
+
 vi.mock('../ContentTypeTabs', () => ({
   default: ({ activeContentType, onContentTypeChange, executionLogCount, thinkingLogCount, hasResult }) => (
     <div data-testid="content-type-tabs">
@@ -599,7 +618,10 @@ describe('CardExpandModal Component', () => {
         id: 999,
         title: 'Task without workflow',
         stage: 'backlog',
-        queuedStages: ['plan', 'build']
+        queuedStages: ['plan', 'build'],
+        metadata: {
+          clarificationStatus: 'approved'  // Need this to show tabs instead of ClarificationPanel
+        }
         // No metadata.adw_id
       };
       // Mock store to return no workflow metadata

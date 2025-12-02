@@ -689,7 +689,7 @@ describe('KanbanCard Component', () => {
   });
 
   describe('Patch Indicator', () => {
-    it('should display patch badge when patch_status is in_progress', () => {
+    it('should display PATCHED badge when patch_status is in_progress', () => {
       const taskWithPatch = {
         ...MOCK_TASK,
         metadata: {
@@ -702,10 +702,10 @@ describe('KanbanCard Component', () => {
 
       render(<KanbanCard task={taskWithPatch} />);
 
-      expect(screen.getByText(/PATCH #1/)).toBeInTheDocument();
+      expect(screen.getByText(/🔧 PATCHED/)).toBeInTheDocument();
     });
 
-    it('should display patch count badge when patch_history has entries', () => {
+    it('should display PATCHED badge when patch_history has entries', () => {
       const taskWithPatchHistory = {
         ...MOCK_TASK,
         metadata: {
@@ -719,10 +719,10 @@ describe('KanbanCard Component', () => {
 
       render(<KanbanCard task={taskWithPatchHistory} />);
 
-      expect(screen.getByText(/2 PATCHES/)).toBeInTheDocument();
+      expect(screen.getByText(/🔧 PATCHED/)).toBeInTheDocument();
     });
 
-    it('should display singular PATCH when only 1 patch in history', () => {
+    it('should display PATCHED badge when only 1 patch in history', () => {
       const taskWithOnePatch = {
         ...MOCK_TASK,
         metadata: {
@@ -735,13 +735,13 @@ describe('KanbanCard Component', () => {
 
       render(<KanbanCard task={taskWithOnePatch} />);
 
-      expect(screen.getByText(/1 PATCH(?!ES)/)).toBeInTheDocument();
+      expect(screen.getByText(/🔧 PATCHED/)).toBeInTheDocument();
     });
 
     it('should not display patch badge when no patch info exists', () => {
       render(<KanbanCard task={MOCK_TASK} />);
 
-      expect(screen.queryByText(/PATCH/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/PATCHED/)).not.toBeInTheDocument();
     });
 
     it('should apply correct status class to patch badge', () => {

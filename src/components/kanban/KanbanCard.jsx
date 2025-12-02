@@ -452,7 +452,7 @@ const KanbanCard = memo(({ task, onEdit }) => {
           )}
           {hasPatch && (
             <span className={`brutalist-label patch ${patchStatus || ''}`}>
-              🔧 {patchStatus === 'in_progress' ? `PATCH #${currentPatchNumber}` : patchCount > 0 ? `${patchCount} PATCH${patchCount !== 1 ? 'ES' : ''}` : 'PATCH'}
+              🔧 PATCHED
             </span>
           )}
         </div>

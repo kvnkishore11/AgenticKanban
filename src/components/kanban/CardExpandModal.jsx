@@ -34,6 +34,7 @@ import StageLogsViewer from './StageLogsViewer';
 import LiveLogsPanel from './LiveLogsPanel';
 import AgentLogsPanel from './AgentLogsPanel';
 import StageTabsPanel from './StageTabsPanel';
+import PatchTabsPanel from './PatchTabsPanel';
 import ContentTypeTabs from './ContentTypeTabs';
 import ExecutionLogsViewer from './ExecutionLogsViewer';
 import ResultViewer from './ResultViewer';
@@ -100,6 +101,10 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   // Patch modal state
   const [showPatchModal, setShowPatchModal] = useState(false);
   const [isPatchSubmitting, setIsPatchSubmitting] = useState(false);
+
+  // Patch selection state
+  const [selectedPatch, setSelectedPatch] = useState(null);
+  const [viewingPatch, setViewingPatch] = useState(false); // Toggle between stage and patch view
 
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
@@ -357,6 +362,12 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
     if (newAutoFollow && currentRunningStage) {
       setSelectedLogStage(currentRunningStage);
     }
+  };
+
+  // Handle patch selection
+  const handlePatchSelect = (patch) => {
+    setSelectedPatch(patch);
+    setViewingPatch(true);
   };
 
   const formatTimeAgo = (dateString) => {
@@ -842,51 +853,6 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                   </button>
                 </div>
               )}
-
-              {/* PATCH HISTORY SECTION */}
-              {(task.metadata?.patch_history?.length > 0 || task.metadata?.patch_status) && (
-                <div className="brutalist-section patch-history-section">
-                  <div className="brutalist-section-header">
-                    <div className="brutalist-section-icon icon-gradient-yellow">
-                      🔧
-                    </div>
-                    <div className="brutalist-section-title">PATCH HISTORY</div>
-                    {task.metadata?.patch_number && (
-                      <div className={`patch-status-badge ${task.metadata?.patch_status || 'pending'}`}>
-                        #{task.metadata.patch_number} {task.metadata?.patch_status?.toUpperCase() || 'PENDING'}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Current Patch Request */}
-                  {task.metadata?.patch_status === 'in_progress' && task.metadata?.patch_request && (
-                    <div className="current-patch-info">
-                      <div className="current-patch-label">CURRENT PATCH:</div>
-                      <div className="current-patch-request">{task.metadata.patch_request}</div>
-                    </div>
-                  )}
-
-                  {/* Patch History List */}
-                  {task.metadata?.patch_history?.length > 0 && (
-                    <div className="patch-history-list">
-                      {[...task.metadata.patch_history].reverse().map((patch, idx) => (
-                        <div key={idx} className={`patch-history-item ${patch.status || 'pending'}`}>
-                          <div className="patch-history-header">
-                            <span className="patch-history-number">Patch #{patch.patch_number}</span>
-                            <span className={`patch-history-status ${patch.status || 'pending'}`}>
-                              {patch.status === 'completed' ? '✓' : patch.status === 'failed' ? '✗' : patch.status === 'in_progress' ? '⟳' : '○'}
-                            </span>
-                          </div>
-                          <div className="patch-history-reason">{patch.patch_reason}</div>
-                          {patch.timestamp && (
-                            <div className="patch-history-time">{formatTimeAgo(patch.timestamp)}</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* RIGHT PANEL - Clarification or Stage Logs */}
@@ -910,13 +876,26 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                   {/* PRIMARY TABS: Stage Selection */}
                   <StageTabsPanel
                     stages={stageNames}
-                    activeStage={effectiveStage}
+                    activeStage={viewingPatch ? null : effectiveStage}
                     currentRunningStage={currentRunningStage}
-                    onStageSelect={handleStageSelect}
+                    onStageSelect={(stage) => {
+                      handleStageSelect(stage);
+                      setViewingPatch(false);
+                      setSelectedPatch(null);
+                    }}
                     autoFollow={autoFollowStage}
                     onAutoFollowToggle={handleAutoFollowToggle}
                     stageStatuses={stageStatuses}
                   />
+
+                  {/* PATCH TABS: Patch Selection - shown below stage tabs */}
+                  {task.metadata?.patch_history?.length > 0 && (
+                    <PatchTabsPanel
+                      patches={task.metadata.patch_history}
+                      activePatch={viewingPatch ? selectedPatch : null}
+                      onPatchSelect={handlePatchSelect}
+                    />
+                  )}
 
                   {/* SECONDARY TABS: Content Type Selection */}
                   <ContentTypeTabs
@@ -930,51 +909,101 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                   {/* CONTENT PANEL */}
                   <div className="logs-panel stage-content-panel">
                     <div className="logs-container">
-                      {activeContentType === 'execution' ? (
-                        (task.metadata?.adw_id || workflowMetadata?.adw_id) && effectiveStage ? (
-                          <ExecutionLogsViewer
-                            adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
-                            stage={effectiveStage}
-                            autoScroll={true}
-                            maxHeight="100%"
-                            onLogCountChange={setExecutionLogCount}
-                          />
-                        ) : (
-                          <div className="empty-logs">
-                            <div className="empty-logs-icon">📊</div>
-                            <div className="empty-logs-text">No Execution Logs</div>
-                            <div className="empty-logs-subtext">
-                              Trigger a workflow to see stage execution logs
+                      {viewingPatch && selectedPatch ? (
+                        // PATCH VIEW: Show logs for the selected patch
+                        activeContentType === 'execution' ? (
+                          selectedPatch.adw_id ? (
+                            <ExecutionLogsViewer
+                              adwId={selectedPatch.adw_id}
+                              stage="implement"
+                              autoScroll={true}
+                              maxHeight="100%"
+                              onLogCountChange={setExecutionLogCount}
+                            />
+                          ) : (
+                            <div className="empty-logs">
+                              <div className="empty-logs-icon">📊</div>
+                              <div className="empty-logs-text">No Execution Logs</div>
+                              <div className="empty-logs-subtext">
+                                Patch #{selectedPatch.patch_number} has no execution logs available
+                              </div>
                             </div>
-                          </div>
-                        )
-                      ) : activeContentType === 'thinking' ? (
-                        (task.metadata?.adw_id || workflowMetadata?.adw_id) && effectiveStage ? (
-                          <AgentLogsPanel
-                            taskId={task.id}
-                            adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
-                            stage={effectiveStage}
-                            maxHeight="100%"
-                            autoScrollDefault={true}
-                            onLogCountChange={setThinkingLogCount}
-                          />
-                        ) : (
-                          <div className="empty-logs">
-                            <div className="empty-logs-icon">🧠</div>
-                            <div className="empty-logs-text">No Agent Logs</div>
-                            <div className="empty-logs-subtext">
-                              Trigger a workflow to see agent thinking and tool usage
+                          )
+                        ) : activeContentType === 'thinking' ? (
+                          selectedPatch.adw_id ? (
+                            <AgentLogsPanel
+                              taskId={task.id}
+                              adwId={selectedPatch.adw_id}
+                              stage="implement"
+                              maxHeight="100%"
+                              autoScrollDefault={true}
+                              onLogCountChange={setThinkingLogCount}
+                            />
+                          ) : (
+                            <div className="empty-logs">
+                              <div className="empty-logs-icon">🧠</div>
+                              <div className="empty-logs-text">No Agent Logs</div>
+                              <div className="empty-logs-subtext">
+                                Patch #{selectedPatch.patch_number} has no agent logs available
+                              </div>
                             </div>
-                          </div>
-                        )
-                      ) : activeContentType === 'result' ? (
-                        <ResultViewer
-                          result={stageResult}
-                          loading={resultLoading}
-                          error={null}
-                          maxHeight="100%"
-                        />
-                      ) : null}
+                          )
+                        ) : activeContentType === 'result' ? (
+                          <ResultViewer
+                            result={stageResult}
+                            loading={resultLoading}
+                            error={null}
+                            maxHeight="100%"
+                          />
+                        ) : null
+                      ) : (
+                        // STAGE VIEW: Show logs for the selected stage
+                        activeContentType === 'execution' ? (
+                          (task.metadata?.adw_id || workflowMetadata?.adw_id) && effectiveStage ? (
+                            <ExecutionLogsViewer
+                              adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
+                              stage={effectiveStage}
+                              autoScroll={true}
+                              maxHeight="100%"
+                              onLogCountChange={setExecutionLogCount}
+                            />
+                          ) : (
+                            <div className="empty-logs">
+                              <div className="empty-logs-icon">📊</div>
+                              <div className="empty-logs-text">No Execution Logs</div>
+                              <div className="empty-logs-subtext">
+                                Trigger a workflow to see stage execution logs
+                              </div>
+                            </div>
+                          )
+                        ) : activeContentType === 'thinking' ? (
+                          (task.metadata?.adw_id || workflowMetadata?.adw_id) && effectiveStage ? (
+                            <AgentLogsPanel
+                              taskId={task.id}
+                              adwId={task.metadata?.adw_id || workflowMetadata?.adw_id}
+                              stage={effectiveStage}
+                              maxHeight="100%"
+                              autoScrollDefault={true}
+                              onLogCountChange={setThinkingLogCount}
+                            />
+                          ) : (
+                            <div className="empty-logs">
+                              <div className="empty-logs-icon">🧠</div>
+                              <div className="empty-logs-text">No Agent Logs</div>
+                              <div className="empty-logs-subtext">
+                                Trigger a workflow to see agent thinking and tool usage
+                              </div>
+                            </div>
+                          )
+                        ) : activeContentType === 'result' ? (
+                          <ResultViewer
+                            result={stageResult}
+                            loading={resultLoading}
+                            error={null}
+                            maxHeight="100%"
+                          />
+                        ) : null
+                      )}
                     </div>
                   </div>
                 </>
