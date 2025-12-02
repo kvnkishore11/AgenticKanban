@@ -229,6 +229,58 @@ class ProjectPersistenceService {
   }
 
   /**
+   * Update project access time without modifying other fields
+   * This is a lightweight operation specifically for tracking recent access
+   * @param {string} projectId - Project ID to update
+   * @returns {Object} Result with success status
+   */
+  updateProjectAccessTime(projectId) {
+    try {
+      const projects = this.getAllProjects();
+      const projectIndex = projects.findIndex(p => p.id === projectId);
+
+      if (projectIndex === -1) {
+        return {
+          success: false,
+          errors: ['Project not found'],
+          project: null
+        };
+      }
+
+      // Only update lastAccessedAt, preserving all other fields
+      const updatedProject = {
+        ...projects[projectIndex],
+        lastAccessedAt: new Date().toISOString()
+      };
+
+      projects[projectIndex] = updatedProject;
+      const success = this.saveProjects(projects);
+
+      if (success) {
+        return {
+          success: true,
+          errors: [],
+          project: updatedProject
+        };
+      } else {
+        return {
+          success: false,
+          errors: ['Failed to save project access time'],
+          project: null
+        };
+      }
+
+    } catch (error) {
+      console.error('Error updating project access time:', error);
+      return {
+        success: false,
+        errors: [error.message],
+        project: null
+      };
+    }
+  }
+
+  /**
    * Remove a project by ID
    * @param {string} projectId - Project ID to remove
    * @returns {boolean} Success status

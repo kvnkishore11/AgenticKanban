@@ -1,0 +1,328 @@
+# E2E Test: Browse Path Selection and Recent Projects
+
+**Issue**: #1
+**ADW ID**: 96b29c89
+**Feature**: Fix Browse Path Selection and Add Recent Projects Storage
+**Date**: 2025-12-01
+
+## Test Overview
+
+This E2E test validates the complete user flow for:
+1. Browsing and selecting project directories without lag
+2. Auto-population of project name and path fields
+3. Adding projects to the system
+4. Viewing and accessing recent projects
+5. Selecting from the recent projects list
+
+## Prerequisites
+
+- Application running on `http://localhost:5173`
+- Backend WebSocket service running (if applicable)
+- Browser with support for HTML5 `webkitdirectory` attribute
+- Test project directories available on the file system
+
+## Test Cases
+
+### Test Case 1: Browse and Select Directory
+
+**Objective**: Verify that browsing for a project directory works without lag and auto-populates fields
+
+**Steps**:
+1. Navigate to `http://localhost:5173`
+2. If a project is already selected, click the logo/header to return to project selection
+3. Click the "Browse" button in the "Add New Project" section
+4. Verify the "Add New Project" form appears
+5. The native OS directory picker should open automatically
+6. Select a project directory from your file system (e.g., `~/Documents/TestProject`)
+7. Click "Select" or "Open" in the directory picker
+
+**Expected Results**:
+- The directory picker opens immediately without delay
+- After selection, both the "Project Name" and "Project Path" fields are auto-populated
+- Project Name field shows: `TestProject` (the directory name)
+- Project Path field shows: `TestProject` (the directory name)
+- No lag or delay occurs during the selection process
+- The file input is cleared, allowing re-selection if needed
+
+**Performance Criteria**:
+- Directory selection completes in < 500ms
+- No UI freezing or lag when selecting large directories
+- No file contents are read during selection
+
+---
+
+### Test Case 2: Add Project via Browse
+
+**Objective**: Verify that a project can be added using the browse functionality
+
+**Steps**:
+1. Complete Test Case 1 (browse and select directory)
+2. Verify both "Project Name" and "Project Path" fields are populated
+3. Optionally modify the "Project Name" to a custom name
+4. Click the "Add Project" button
+
+**Expected Results**:
+- The project is successfully added to the system
+- The user is automatically navigated to the newly added project's kanban board
+- No validation errors appear
+- The project appears in the "All Projects" section when returning to project selection
+
+**Validation**:
+- Return to project selection (click logo/header)
+- Verify the newly added project appears in the "All Projects" list
+- Verify project card shows correct name and path
+
+---
+
+### Test Case 3: Recent Projects Display
+
+**Objective**: Verify that recently accessed projects appear in the "Recent Projects" section
+
+**Steps**:
+1. Add or select 3-5 different projects (using browse or manual entry)
+2. Return to the project selection page
+3. Observe the "Recent Projects" section
+
+**Expected Results**:
+- A "Recent Projects" section appears at the top (if recent projects exist)
+- Recent projects are displayed with a visual distinction (light blue background, "Recent" badge)
+- Up to 5 most recently accessed projects are shown
+- Each recent project card shows:
+  - Project name
+  - Project description
+  - Project path
+  - "Recent" badge
+  - Relative time (e.g., "Just now", "5m ago", "2h ago", "3d ago")
+  - ADW Compatible indicator
+
+**Visual Validation**:
+- Recent project cards have a light background color (bg-primary-50/50)
+- Recent project cards have a "Recent" badge in the top-right
+- Time is displayed in primary color (text-primary-600) and is formatted as relative time
+
+---
+
+### Test Case 4: Recent Projects Ordering
+
+**Objective**: Verify that recent projects are sorted by most recent access
+
+**Steps**:
+1. Ensure you have at least 3 projects in the system
+2. Click on "Project A" - note the time
+3. Wait 5 seconds
+4. Return to project selection
+5. Click on "Project B" - note the time
+6. Wait 5 seconds
+7. Return to project selection
+8. Click on "Project C" - note the time
+9. Return to project selection
+10. Observe the "Recent Projects" section
+
+**Expected Results**:
+- Recent projects appear in order: Project C, Project B, Project A
+- The most recently accessed project (Project C) appears first
+- Relative timestamps reflect the correct access order
+- Accessing the same project multiple times updates its position to the top
+
+---
+
+### Test Case 5: Recent Projects Limit
+
+**Objective**: Verify that only the 5 most recent projects are displayed
+
+**Steps**:
+1. Access 6 or more different projects sequentially
+2. Note the order of access
+3. Return to project selection
+4. Observe the "Recent Projects" section
+
+**Expected Results**:
+- Only 5 projects are shown in the "Recent Projects" section
+- The 5 most recently accessed projects are displayed
+- The 6th (or older) accessed project is not in the recent list
+- The 6th project still appears in the "All Projects" section
+
+---
+
+### Test Case 6: Select from Recent Projects
+
+**Objective**: Verify that clicking a recent project navigates to it
+
+**Steps**:
+1. Navigate to project selection page with recent projects visible
+2. Click on a project card in the "Recent Projects" section
+
+**Expected Results**:
+- User is immediately navigated to the selected project's kanban board
+- No validation errors occur
+- The project's lastAccessedAt timestamp is updated
+- After returning to project selection, the clicked project should be at the top of recent projects
+
+---
+
+### Test Case 7: Manual Entry Still Works
+
+**Objective**: Verify that manual project entry (without browse) still functions
+
+**Steps**:
+1. Click the "Browse" button to show the form
+2. Manually type a project name: "Manual Test Project"
+3. Manually type a project path: "/Users/test/manual-project"
+4. Click "Add Project"
+
+**Expected Results**:
+- The project is added successfully
+- The user is navigated to the new project
+- The manually entered project appears in "All Projects" section
+- After accessing other projects and returning, this project appears in "Recent Projects"
+
+---
+
+### Test Case 8: Edge Cases - Large Directory
+
+**Objective**: Verify no lag occurs when selecting large directories
+
+**Steps**:
+1. Prepare a test directory with 1000+ files (e.g., node_modules)
+2. Click "Browse"
+3. Select the large directory
+4. Observe the selection process
+
+**Expected Results**:
+- No lag or UI freezing occurs
+- Fields are populated instantly (< 1 second)
+- Only the directory name is extracted, not file contents
+- The browser doesn't attempt to read all files
+
+**Performance Criteria**:
+- Selection completes in < 1 second even for large directories
+- No "page unresponsive" warnings from the browser
+
+---
+
+### Test Case 9: Edge Cases - Special Characters in Path
+
+**Objective**: Verify handling of directories with special characters
+
+**Steps**:
+1. Create or select a directory with special characters (e.g., "My-Project_2024 (v1.0)")
+2. Use browse to select this directory
+3. Verify auto-population and add the project
+
+**Expected Results**:
+- Directory name with special characters is correctly extracted
+- Both fields are populated with the directory name including special characters
+- Project can be added without errors
+- Special characters are preserved in the project name and path
+
+---
+
+### Test Case 10: Edge Cases - Empty Recent Projects
+
+**Objective**: Verify behavior when no recent projects exist
+
+**Steps**:
+1. Clear browser localStorage (or use incognito mode)
+2. Navigate to project selection page
+3. Observe the UI
+
+**Expected Results**:
+- "Recent Projects" section does NOT appear
+- Only "All Projects" section is visible
+- If no projects exist at all, "No projects available" message is shown
+- No errors in console
+
+---
+
+### Test Case 11: Recent Projects Persistence
+
+**Objective**: Verify recent projects persist across browser sessions
+
+**Steps**:
+1. Access 3 different projects
+2. Note their order in "Recent Projects"
+3. Close the browser tab
+4. Reopen the application
+5. Navigate to project selection
+
+**Expected Results**:
+- Recent projects are still displayed
+- The order is preserved from the previous session
+- Relative timestamps are recalculated based on current time
+- No data loss occurs
+
+---
+
+### Test Case 12: All Projects Section
+
+**Objective**: Verify the "All Projects" section displays all projects
+
+**Steps**:
+1. Ensure you have several projects (some recent, some not recent)
+2. Navigate to project selection
+3. Observe both "Recent Projects" and "All Projects" sections
+
+**Expected Results**:
+- "All Projects" section appears below "Recent Projects" (if recent exist)
+- All projects are listed in "All Projects", including recent ones
+- Recent projects appear in BOTH sections
+- Non-recent projects appear only in "All Projects"
+- Each section is clearly labeled
+
+---
+
+## Test Data Setup
+
+### Sample Projects for Testing
+
+```
+Project 1: TestProject1
+Path: ~/Documents/TestProject1
+
+Project 2: TestProject2
+Path: ~/Documents/TestProject2
+
+Project 3: LargeProject
+Path: ~/Documents/LargeProject (1000+ files)
+
+Project 4: Special-Chars_2024 (v1.0)
+Path: ~/Documents/Special-Chars_2024 (v1.0)
+
+Project 5: ManualProject
+Path: /Users/test/manual-entry
+```
+
+## Success Criteria
+
+All test cases must pass with:
+- ✅ No lag during directory selection
+- ✅ Correct auto-population of fields
+- ✅ Recent projects display correctly
+- ✅ Correct sorting by access time
+- ✅ Maximum 5 recent projects shown
+- ✅ Navigation works from recent projects
+- ✅ Manual entry still functions
+- ✅ Large directories handle without lag
+- ✅ Special characters handled correctly
+- ✅ Empty state handled gracefully
+- ✅ Data persists across sessions
+- ✅ All projects section displays all projects
+
+## Known Limitations
+
+1. **Browser Security**: Due to browser security restrictions, only the directory name (not full absolute path) can be extracted from the file input
+2. **Browser Compatibility**: `webkitdirectory` attribute is not supported in all browsers (works in Chrome, Edge, Safari, Firefox)
+
+## Cleanup
+
+After testing:
+1. Remove test projects from localStorage if needed
+2. Delete temporary test directories created during testing
+
+## Notes
+
+- Test in multiple browsers (Chrome, Firefox, Safari, Edge) to ensure compatibility
+- Test with both small and large directories to verify performance
+- Test with various path formats and special characters
+- Verify console has no errors during any test case
+- Check network tab to ensure no unnecessary file uploads occur during browse

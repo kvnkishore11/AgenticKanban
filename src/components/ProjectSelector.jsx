@@ -9,9 +9,11 @@
  * @module components/ProjectSelector
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useKanbanStore } from '../stores/kanbanStore';
-import { Folder, FolderOpen, Plus, FileText } from 'lucide-react';
+import { Folder, FolderOpen, Plus, FileText, Clock } from 'lucide-react';
+import recentProjectsService from '../services/storage/recentProjectsService';
+import fileOperationsService from '../services/api/fileOperationsService';
 
 const ProjectSelector = () => {
   const {
@@ -20,43 +22,58 @@ const ProjectSelector = () => {
     addProject,
     refreshProjects,
     setError,
-    setLoading,
   } = useKanbanStore();
 
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjectPath, setNewProjectPath] = useState('');
   const [newProjectName, setNewProjectName] = useState('');
-  const fileInputRef = useRef(null);
+  const [recentProjects, setRecentProjects] = useState([]);
+  const [isBrowsing, setIsBrowsing] = useState(false);
 
   // Refresh projects when component mounts to ensure clean data
   useEffect(() => {
     refreshProjects();
   }, [refreshProjects]);
 
-  const handleDirectorySelect = (event) => {
-    const files = event.target.files;
-    if (files.length > 0) {
-      // Extract directory path from the first file
-      const fullPath = files[0].webkitRelativePath || files[0].name;
-      const dirName = fullPath.split('/')[0];
+  // Load recent projects on mount and when availableProjects changes
+  useEffect(() => {
+    const loadRecentProjects = () => {
+      const recent = recentProjectsService.getRecentProjects();
+      setRecentProjects(recent);
+    };
 
-      setNewProjectPath(dirName);
-      setNewProjectName(dirName);
-    }
+    loadRecentProjects();
+  }, [availableProjects]);
+
+  const handleAddNewProjectClick = () => {
+    setShowNewProject(true);
   };
 
-  const handleBrowseClick = () => {
-    setShowNewProject(true);
-    // Trigger the file input click
-    setTimeout(() => {
-      if (fileInputRef.current) {
-        fileInputRef.current.click();
+  const handleBrowseClick = async () => {
+    try {
+      setError(''); // Clear previous errors
+      setIsBrowsing(true);
+
+      const result = await fileOperationsService.selectDirectory();
+
+      if (result.path) {
+        setNewProjectPath(result.path);
+        setNewProjectName(result.name);
       }
-    }, 100);
+      // If user cancelled, result will be empty - no action needed
+    } catch (error) {
+      setError('Failed to open directory picker: ' + error.message);
+    } finally {
+      setIsBrowsing(false);
+    }
   };
 
   const handleSelectProject = (project) => {
     selectProject(project);
+
+    // Refresh recent projects list after selection
+    const recent = recentProjectsService.getRecentProjects();
+    setRecentProjects(recent);
   };
 
   const handleAddNewProject = () => {
@@ -98,6 +115,21 @@ const ProjectSelector = () => {
     return new Date(dateString).toLocaleDateString();
   };
 
+  const formatRelativeTime = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return formatDate(dateString);
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="text-center mb-8">
@@ -111,8 +143,55 @@ const ProjectSelector = () => {
       </div>
 
       {/* Recent Projects */}
+      {recentProjects.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center space-x-2 mb-4">
+            <Clock className="h-5 w-5 text-primary-600" />
+            <h2 className="text-xl font-semibold text-gray-900">Recent Projects</h2>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {recentProjects.map((project) => (
+              <div
+                key={project.id}
+                className="card cursor-pointer transition-all hover:shadow-md hover:border-primary-300 bg-primary-50/50"
+                onClick={() => handleSelectProject(project)}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <Folder className="h-5 w-5 text-primary-600" />
+                    <h3 className="font-medium text-gray-900">{project.name}</h3>
+                  </div>
+                  <span className="px-2 py-1 text-xs font-medium bg-primary-100 text-primary-700 rounded">
+                    Recent
+                  </span>
+                </div>
+
+                <p className="text-sm text-gray-600 mb-3">{project.description || 'Project ready for ADW workflows'}</p>
+
+                <div className="space-y-2">
+                  <div className="text-xs text-gray-500">
+                    {project.path}
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-green-600">
+                      <span>✓ ADW Compatible</span>
+                    </div>
+
+                    <span className="text-xs text-primary-600 font-medium">
+                      {formatRelativeTime(project.lastAccessedAt)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* All Projects */}
       <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Projects</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">All Projects</h2>
         {availableProjects.length === 0 && (
           <div className="text-center py-12 text-gray-500">
             <FolderOpen className="h-12 w-12 mx-auto mb-4 text-gray-300" />
@@ -161,23 +240,13 @@ const ProjectSelector = () => {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900">Add New Project</h2>
           <button
-            onClick={handleBrowseClick}
+            onClick={handleAddNewProjectClick}
             className="btn-secondary flex items-center space-x-2"
           >
             <Plus className="h-4 w-4" />
-            <span>Browse</span>
+            <span>Add New Project</span>
           </button>
         </div>
-
-        {/* Hidden directory picker input */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleDirectorySelect}
-          style={{ display: 'none' }}
-          webkitdirectory=""
-          directory=""
-        />
 
         {showNewProject && (
           <div className="card max-w-2xl">
@@ -202,15 +271,25 @@ const ProjectSelector = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Project Path
                 </label>
-                <input
-                  type="text"
-                  value={newProjectPath}
-                  onChange={(e) => setNewProjectPath(e.target.value)}
-                  placeholder="/path/to/your/project"
-                  className="input-field"
-                />
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={newProjectPath}
+                    onChange={(e) => setNewProjectPath(e.target.value)}
+                    placeholder="/Users/username/projects/myproject"
+                    className="input-field flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleBrowseClick}
+                    disabled={isBrowsing}
+                    className="btn-secondary px-4 py-2 whitespace-nowrap"
+                  >
+                    {isBrowsing ? 'Selecting...' : 'Browse'}
+                  </button>
+                </div>
                 <p className="mt-1 text-xs text-gray-500">
-                  Enter the full path to your project directory (or select via Browse)
+                  Click Browse to open a native directory picker and select your project folder. The full absolute path will be populated automatically.
                 </p>
               </div>
 

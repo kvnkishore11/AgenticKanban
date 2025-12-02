@@ -4,9 +4,11 @@ import { vi } from 'vitest'
 // Define environment variables for vitest
 // This needs to happen before any module imports
 process.env.VITE_BACKEND_URL = 'http://localhost:8500'
+process.env.VITE_ADW_PORT = '8500'
 
-// Mock VITE_BACKEND_URL environment variable for tests using Vitest's API
+// Mock VITE_BACKEND_URL and VITE_ADW_PORT environment variables for tests using Vitest's API
 vi.stubEnv('VITE_BACKEND_URL', 'http://localhost:8500')
+vi.stubEnv('VITE_ADW_PORT', '8500')
 
 // Mock window.matchMedia for components that use it
 Object.defineProperty(window, 'matchMedia', {

@@ -57,15 +57,15 @@ class TestTerminalOperations:
         assert code == 1
         assert stderr == "error message"
 
-    @patch("subprocess.run")
-    def test_run_command_timeout(self, mock_run):
+    def test_run_command_timeout(self):
         """Test _run_command handles timeout."""
         import subprocess
-        mock_run.side_effect = subprocess.TimeoutExpired(cmd="test", timeout=30)
         ops = TerminalOperations()
-        code, stdout, stderr = ops._run_command(["sleep", "100"])
-        assert code == -1
-        assert stderr == "Command timed out"
+        # Mock subprocess.run to raise TimeoutExpired
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="test", timeout=30)):
+            code, stdout, stderr = ops._run_command(["sleep", "100"])
+            assert code == -1
+            assert stderr == "Command timed out"
 
     @patch("subprocess.run")
     def test_get_branch_name_success(self, mock_run):

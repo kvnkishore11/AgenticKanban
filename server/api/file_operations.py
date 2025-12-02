@@ -235,3 +235,79 @@ async def validate_file_path(file_path: str):
         "is_readable": is_readable,
         "absolute_path": os.path.abspath(file_path) if exists else None
     }
+
+
+class SelectDirectoryResponse(BaseModel):
+    """Response model for directory selection"""
+    path: Optional[str] = Field(None, description="Absolute path to selected directory")
+    name: Optional[str] = Field(None, description="Name of selected directory")
+
+
+@router.post("/api/select-directory", response_model=SelectDirectoryResponse)
+async def select_directory():
+    """
+    Open a native directory picker dialog and return the selected directory.
+
+    This endpoint uses tkinter to show a native OS directory picker dialog
+    with a "Select" button (not "Upload"). Returns the absolute path and
+    directory name for populating the project form.
+
+    Returns:
+        SelectDirectoryResponse with path and name, or empty if cancelled
+
+    Raises:
+        HTTPException: If there's an error showing the dialog
+    """
+    try:
+        # Import tkinter for native directory picker
+        # We import here to avoid requiring tkinter at module load time
+        import tkinter as tk
+        from tkinter import filedialog
+
+        logger.info("Opening native directory picker dialog")
+
+        # Create root window (hidden)
+        root = tk.Tk()
+        root.withdraw()  # Hide the main window
+        root.attributes('-topmost', True)  # Bring dialog to front
+
+        # Show directory picker dialog
+        selected_path = filedialog.askdirectory(
+            title="Select Project Directory",
+            mustexist=True
+        )
+
+        # Clean up tkinter
+        root.destroy()
+
+        # User cancelled
+        if not selected_path:
+            logger.info("Directory selection cancelled by user")
+            return SelectDirectoryResponse(path=None, name=None)
+
+        # Extract directory name from path
+        dir_name = os.path.basename(selected_path)
+
+        logger.info(f"Directory selected: {selected_path} (name: {dir_name})")
+
+        return SelectDirectoryResponse(
+            path=selected_path,
+            name=dir_name
+        )
+
+    except ImportError as e:
+        logger.error(f"tkinter not available: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Native directory picker not available. "
+                "Please ensure tkinter is installed (python3-tk on Linux, "
+                "included by default on macOS/Windows)."
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error opening directory picker: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error opening directory picker: {str(e)}"
+        )

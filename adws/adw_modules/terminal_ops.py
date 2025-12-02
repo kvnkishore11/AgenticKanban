@@ -40,38 +40,25 @@ class TerminalOperations:
     def _get_project_root(self) -> str:
         """Get the main project root directory.
 
-        Handles both normal repo and git worktrees by finding the common git directory.
+        Uses git to find the common directory, which works correctly
+        both in the main repo and in worktrees.
         """
         try:
-            # Use git to find the main repository root
-            # --git-common-dir returns the shared .git directory (main repo)
+            # Get the git common directory (works in worktrees)
             result = subprocess.run(
-                ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                ["git", "rev-parse", "--git-common-dir"],
                 capture_output=True,
                 text=True,
-                timeout=5,
+                check=True,
                 cwd=os.path.dirname(__file__)
             )
-            if result.returncode == 0:
-                git_common_dir = result.stdout.strip()
-                # The common dir is the .git folder, parent is the project root
-                return os.path.dirname(git_common_dir)
-        except Exception:
-            pass
-
-        # Fallback: calculate from file path (works for non-worktree scenarios)
-        current_file = os.path.abspath(__file__)
-        # Go up 3 levels: terminal_ops.py -> adw_modules -> adws -> worktree_root
-        worktree_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
-
-        # Check if we're in a worktree (trees/xxx structure)
-        parent_dir = os.path.dirname(worktree_root)
-        if os.path.basename(parent_dir) == "trees":
-            # We're in a worktree, go up 2 more levels to reach main project root
-            return os.path.dirname(parent_dir)
-
-        # We're in the main codebase
-        return worktree_root
+            git_dir = result.stdout.strip()
+            # The parent of .git is the project root
+            return os.path.dirname(os.path.abspath(git_dir))
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Fallback to file-based navigation if git fails
+            current_file = os.path.abspath(__file__)
+            return os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
 
     def _run_command(
         self,

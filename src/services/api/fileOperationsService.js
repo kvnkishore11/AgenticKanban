@@ -130,6 +130,54 @@ class FileOperationsService {
       throw error;
     }
   }
+
+  /**
+   * Open a native directory picker dialog and return the selected directory
+   * @returns {Promise<Object>} Object with path and name properties, or { path: null, name: null } if cancelled
+   * @throws {Error} If the directory picker fails to open or encounters an error
+   */
+  async selectDirectory() {
+    try {
+      const url = `${this.getApiBaseUrl()}/api/select-directory`;
+      console.log('Opening native directory picker...');
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        // Try to extract error details from response
+        let errorDetail = `${response.status} ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.detail) {
+            errorDetail = errorData.detail;
+          }
+        } catch {
+          // Failed to parse error response, use default
+        }
+
+        throw new Error(`Failed to open directory picker: ${errorDetail}`);
+      }
+
+      const data = await response.json();
+
+      // User cancelled selection
+      if (!data.path) {
+        console.log('Directory selection cancelled by user');
+        return { path: null, name: null };
+      }
+
+      console.log(`Directory selected: ${data.path} (name: ${data.name})`);
+      return data;
+    } catch (error) {
+      console.error('Error selecting directory:', error);
+      throw error;
+    }
+  }
 }
 
 // Create and export singleton instance

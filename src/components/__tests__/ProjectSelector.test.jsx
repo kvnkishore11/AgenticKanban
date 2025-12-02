@@ -7,9 +7,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ProjectSelector from '../ProjectSelector';
 import { useKanbanStore } from '../../stores/kanbanStore';
+import fileOperationsService from '../../services/api/fileOperationsService';
 
 // Mock the kanban store
 vi.mock('../../stores/kanbanStore');
+
+// Mock the file operations service
+vi.mock('../../services/api/fileOperationsService');
 
 describe('ProjectSelector Component', () => {
   let mockStore;
@@ -167,33 +171,35 @@ describe('ProjectSelector Component', () => {
     it('should render "Add New Project" section', () => {
       render(<ProjectSelector />);
 
-      expect(screen.getByText('Add New Project')).toBeInTheDocument();
+      const addNewProjectElements = screen.getAllByText('Add New Project');
+      expect(addNewProjectElements.length).toBeGreaterThan(0);
     });
 
-    it('should render Browse button', () => {
+    it('should render Add New Project button', () => {
       render(<ProjectSelector />);
 
-      expect(screen.getByText('Browse')).toBeInTheDocument();
+      const buttons = screen.getAllByText('Add New Project');
+      expect(buttons.length).toBeGreaterThan(0);
     });
 
-    it('should show new project form when Browse is clicked', () => {
+    it('should show new project form when Add New Project is clicked', () => {
       render(<ProjectSelector />);
 
-      const browseButton = screen.getByText('Browse');
-      fireEvent.click(browseButton);
+      const addButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addButton);
 
       expect(screen.getByPlaceholderText('My Awesome Project')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('/path/to/your/project')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('/Users/username/projects/myproject')).toBeInTheDocument();
     });
 
     it('should allow entering project name and path', () => {
       render(<ProjectSelector />);
 
-      const browseButton = screen.getByText('Browse');
-      fireEvent.click(browseButton);
+      const addButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addButton);
 
       const nameInput = screen.getByPlaceholderText('My Awesome Project');
-      const pathInput = screen.getByPlaceholderText('/path/to/your/project');
+      const pathInput = screen.getByPlaceholderText('/Users/username/projects/myproject');
 
       fireEvent.change(nameInput, { target: { value: 'New Project' } });
       fireEvent.change(pathInput, { target: { value: '/new/path' } });
@@ -205,8 +211,8 @@ describe('ProjectSelector Component', () => {
     it('should disable "Add Project" button when fields are empty', () => {
       render(<ProjectSelector />);
 
-      const browseButton = screen.getByText('Browse');
-      fireEvent.click(browseButton);
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
 
       const addButton = screen.getByText('Add Project');
       expect(addButton).toBeDisabled();
@@ -215,11 +221,11 @@ describe('ProjectSelector Component', () => {
     it('should enable "Add Project" button when fields are filled', () => {
       render(<ProjectSelector />);
 
-      const browseButton = screen.getByText('Browse');
-      fireEvent.click(browseButton);
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
 
       const nameInput = screen.getByPlaceholderText('My Awesome Project');
-      const pathInput = screen.getByPlaceholderText('/path/to/your/project');
+      const pathInput = screen.getByPlaceholderText('/Users/username/projects/myproject');
 
       fireEvent.change(nameInput, { target: { value: 'New Project' } });
       fireEvent.change(pathInput, { target: { value: '/new/path' } });
@@ -241,11 +247,11 @@ describe('ProjectSelector Component', () => {
 
       render(<ProjectSelector />);
 
-      const browseButton = screen.getByText('Browse');
-      fireEvent.click(browseButton);
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
 
       const nameInput = screen.getByPlaceholderText('My Awesome Project');
-      const pathInput = screen.getByPlaceholderText('/path/to/your/project');
+      const pathInput = screen.getByPlaceholderText('/Users/username/projects/myproject');
 
       fireEvent.change(nameInput, { target: { value: 'New Project' } });
       fireEvent.change(pathInput, { target: { value: '/new/path' } });
@@ -275,11 +281,11 @@ describe('ProjectSelector Component', () => {
 
       render(<ProjectSelector />);
 
-      const browseButton = screen.getByText('Browse');
-      fireEvent.click(browseButton);
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
 
       const nameInput = screen.getByPlaceholderText('My Awesome Project');
-      const pathInput = screen.getByPlaceholderText('/path/to/your/project');
+      const pathInput = screen.getByPlaceholderText('/Users/username/projects/myproject');
 
       fireEvent.change(nameInput, { target: { value: 'New Project' } });
       fireEvent.change(pathInput, { target: { value: '/new/path' } });
@@ -299,11 +305,11 @@ describe('ProjectSelector Component', () => {
 
       render(<ProjectSelector />);
 
-      const browseButton = screen.getByText('Browse');
-      fireEvent.click(browseButton);
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
 
       const nameInput = screen.getByPlaceholderText('My Awesome Project');
-      const pathInput = screen.getByPlaceholderText('/path/to/your/project');
+      const pathInput = screen.getByPlaceholderText('/Users/username/projects/myproject');
 
       fireEvent.change(nameInput, { target: { value: 'New Project' } });
       fireEvent.change(pathInput, { target: { value: '/new/path' } });
@@ -319,10 +325,10 @@ describe('ProjectSelector Component', () => {
       // SKIPPED: Validation behavior may differ from test expectations
       render(<ProjectSelector />);
 
-      const browseButton = screen.getByText('Browse');
-      fireEvent.click(browseButton);
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
 
-      const pathInput = screen.getByPlaceholderText('/path/to/your/project');
+      const pathInput = screen.getByPlaceholderText('/Users/username/projects/myproject');
       fireEvent.change(pathInput, { target: { value: '/new/path' } });
 
       const addButton = screen.getByText('Add Project');
@@ -335,8 +341,8 @@ describe('ProjectSelector Component', () => {
       // SKIPPED: Validation behavior may differ from test expectations
       render(<ProjectSelector />);
 
-      const browseButton = screen.getByText('Browse');
-      fireEvent.click(browseButton);
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
 
       const nameInput = screen.getByPlaceholderText('My Awesome Project');
       fireEvent.change(nameInput, { target: { value: 'New Project' } });
@@ -355,11 +361,11 @@ describe('ProjectSelector Component', () => {
 
       render(<ProjectSelector />);
 
-      const browseButton = screen.getByText('Browse');
-      fireEvent.click(browseButton);
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
 
       const nameInput = screen.getByPlaceholderText('My Awesome Project');
-      const pathInput = screen.getByPlaceholderText('/path/to/your/project');
+      const pathInput = screen.getByPlaceholderText('/Users/username/projects/myproject');
 
       fireEvent.change(nameInput, { target: { value: 'New Project' } });
       fireEvent.change(pathInput, { target: { value: '/invalid/path' } });
@@ -378,11 +384,11 @@ describe('ProjectSelector Component', () => {
 
       render(<ProjectSelector />);
 
-      const browseButton = screen.getByText('Browse');
-      fireEvent.click(browseButton);
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
 
       const nameInput = screen.getByPlaceholderText('My Awesome Project');
-      const pathInput = screen.getByPlaceholderText('/path/to/your/project');
+      const pathInput = screen.getByPlaceholderText('/Users/username/projects/myproject');
 
       fireEvent.change(nameInput, { target: { value: '  New Project  ' } });
       fireEvent.change(pathInput, { target: { value: '  /new/path  ' } });
@@ -446,11 +452,11 @@ describe('ProjectSelector Component', () => {
       expect(mainIcon).toBeInTheDocument();
     });
 
-    it('should render Plus icon on Browse button', () => {
+    it('should render Plus icon on Add New Project button', () => {
       render(<ProjectSelector />);
 
-      const browseButton = screen.getByText('Browse').closest('button');
-      expect(browseButton).toBeInTheDocument();
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      expect(addNewButton).toBeInTheDocument();
     });
   });
 
@@ -461,17 +467,23 @@ describe('ProjectSelector Component', () => {
       const mainHeading = screen.getByText('Select a Project');
       expect(mainHeading.tagName).toBe('H1');
 
-      const sectionHeadings = screen.getAllByText(/Recent Projects|Add New Project/);
-      sectionHeadings.forEach(heading => {
-        expect(heading.tagName).toBe('H2');
-      });
+      // Check for section headings by role
+      const headings = screen.getAllByRole('heading', { level: 2 });
+      expect(headings.length).toBeGreaterThan(0);
+
+      // Verify specific section headings exist
+      const allProjectsHeading = headings.find(h => h.textContent === 'All Projects');
+      expect(allProjectsHeading).toBeTruthy();
+
+      const addNewProjectHeading = headings.find(h => h.textContent === 'Add New Project');
+      expect(addNewProjectHeading).toBeTruthy();
     });
 
     it('should have descriptive labels for form inputs', () => {
       render(<ProjectSelector />);
 
-      const browseButton = screen.getByText('Browse');
-      fireEvent.click(browseButton);
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
 
       expect(screen.getByText('Project Name')).toBeInTheDocument();
       expect(screen.getByText('Project Path')).toBeInTheDocument();
@@ -480,21 +492,253 @@ describe('ProjectSelector Component', () => {
     it('should have helpful placeholder text', () => {
       render(<ProjectSelector />);
 
-      const browseButton = screen.getByText('Browse');
-      fireEvent.click(browseButton);
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
 
       expect(screen.getByPlaceholderText('My Awesome Project')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('/path/to/your/project')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('/Users/username/projects/myproject')).toBeInTheDocument();
     });
 
     it('should have helper text for inputs', () => {
       render(<ProjectSelector />);
 
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
+
+      expect(screen.getByText('Enter a descriptive name for your project')).toBeInTheDocument();
+      expect(screen.getByText(/Click Browse to open a native directory picker/)).toBeInTheDocument();
+    });
+  });
+
+  describe('Browse Directory Functionality', () => {
+    beforeEach(() => {
+      // Reset the mock before each test
+      vi.clearAllMocks();
+      fileOperationsService.selectDirectory = vi.fn();
+    });
+
+    it('should render Browse button', () => {
+      render(<ProjectSelector />);
+
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
+
+      expect(screen.getByText('Browse')).toBeInTheDocument();
+    });
+
+    it('should call selectDirectory API when Browse button is clicked', async () => {
+      fileOperationsService.selectDirectory.mockResolvedValue({
+        path: '/Users/username/projects/MyProject',
+        name: 'MyProject'
+      });
+
+      render(<ProjectSelector />);
+
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
+
       const browseButton = screen.getByText('Browse');
       fireEvent.click(browseButton);
 
-      expect(screen.getByText('Enter a descriptive name for your project')).toBeInTheDocument();
-      expect(screen.getByText(/Enter the full path to your project directory/)).toBeInTheDocument();
+      await waitFor(() => {
+        expect(fileOperationsService.selectDirectory).toHaveBeenCalled();
+      });
+    });
+
+    it('should populate both name and path on successful directory selection', async () => {
+      fileOperationsService.selectDirectory.mockResolvedValue({
+        path: '/Users/username/projects/MyProject',
+        name: 'MyProject'
+      });
+
+      render(<ProjectSelector />);
+
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
+
+      const browseButton = screen.getByText('Browse');
+      fireEvent.click(browseButton);
+
+      await waitFor(() => {
+        const nameInput = screen.getByPlaceholderText('My Awesome Project');
+        const pathInput = screen.getByPlaceholderText('/Users/username/projects/myproject');
+
+        expect(nameInput).toHaveValue('MyProject');
+        expect(pathInput).toHaveValue('/Users/username/projects/MyProject');
+      });
+    });
+
+    it('should handle user cancellation (no path selected)', async () => {
+      fileOperationsService.selectDirectory.mockResolvedValue({
+        path: null,
+        name: null
+      });
+
+      render(<ProjectSelector />);
+
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
+
+      const browseButton = screen.getByText('Browse');
+      fireEvent.click(browseButton);
+
+      await waitFor(() => {
+        expect(fileOperationsService.selectDirectory).toHaveBeenCalled();
+      });
+
+      const nameInput = screen.getByPlaceholderText('My Awesome Project');
+      const pathInput = screen.getByPlaceholderText('/Users/username/projects/myproject');
+
+      expect(nameInput).toHaveValue('');
+      expect(pathInput).toHaveValue('');
+    });
+
+    it('should show loading state while directory picker is open', async () => {
+      let resolvePromise;
+      const promise = new Promise(resolve => {
+        resolvePromise = resolve;
+      });
+
+      fileOperationsService.selectDirectory.mockReturnValue(promise);
+
+      render(<ProjectSelector />);
+
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
+
+      const browseButton = screen.getByText('Browse');
+      fireEvent.click(browseButton);
+
+      // Should show loading state
+      await waitFor(() => {
+        expect(screen.getByText('Selecting...')).toBeInTheDocument();
+      });
+
+      // Resolve the promise
+      resolvePromise({ path: '/Users/username/projects/MyProject', name: 'MyProject' });
+
+      // Should return to normal state
+      await waitFor(() => {
+        expect(screen.getByText('Browse')).toBeInTheDocument();
+      });
+    });
+
+    it('should handle API errors gracefully', async () => {
+      fileOperationsService.selectDirectory.mockRejectedValue(
+        new Error('Failed to open directory picker')
+      );
+
+      render(<ProjectSelector />);
+
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
+
+      const browseButton = screen.getByText('Browse');
+      fireEvent.click(browseButton);
+
+      await waitFor(() => {
+        expect(mockStore.setError).toHaveBeenCalledWith(
+          'Failed to open directory picker: Failed to open directory picker'
+        );
+      });
+    });
+
+    it('should clear previous errors when Browse is clicked', async () => {
+      fileOperationsService.selectDirectory.mockResolvedValue({
+        path: '/Users/username/projects/MyProject',
+        name: 'MyProject'
+      });
+
+      render(<ProjectSelector />);
+
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
+
+      const browseButton = screen.getByText('Browse');
+      fireEvent.click(browseButton);
+
+      await waitFor(() => {
+        expect(mockStore.setError).toHaveBeenCalledWith('');
+      });
+    });
+
+    it('should handle special characters in directory names', async () => {
+      fileOperationsService.selectDirectory.mockResolvedValue({
+        path: '/Users/username/projects/my-project_2024',
+        name: 'my-project_2024'
+      });
+
+      render(<ProjectSelector />);
+
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
+
+      const browseButton = screen.getByText('Browse');
+      fireEvent.click(browseButton);
+
+      await waitFor(() => {
+        const nameInput = screen.getByPlaceholderText('My Awesome Project');
+        expect(nameInput).toHaveValue('my-project_2024');
+      });
+    });
+
+    it('should allow manual editing of auto-populated path', async () => {
+      fileOperationsService.selectDirectory.mockResolvedValue({
+        path: '/Users/username/projects/MyProject',
+        name: 'MyProject'
+      });
+
+      render(<ProjectSelector />);
+
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
+
+      const browseButton = screen.getByText('Browse');
+      fireEvent.click(browseButton);
+
+      await waitFor(() => {
+        const pathInput = screen.getByPlaceholderText('/Users/username/projects/myproject');
+        expect(pathInput).toHaveValue('/Users/username/projects/MyProject');
+      });
+
+      const pathInput = screen.getByPlaceholderText('/Users/username/projects/myproject');
+
+      // Manually edit the path
+      fireEvent.change(pathInput, { target: { value: '/Users/username/projects/MyProject/subfolder' } });
+
+      expect(pathInput).toHaveValue('/Users/username/projects/MyProject/subfolder');
+    });
+
+    it('should disable Browse button while selecting', async () => {
+      let resolvePromise;
+      const promise = new Promise(resolve => {
+        resolvePromise = resolve;
+      });
+
+      fileOperationsService.selectDirectory.mockReturnValue(promise);
+
+      render(<ProjectSelector />);
+
+      const addNewButton = screen.getAllByText('Add New Project').find(el => el.closest('button'));
+      fireEvent.click(addNewButton);
+
+      const browseButton = screen.getByText('Browse');
+      fireEvent.click(browseButton);
+
+      // Button should be disabled during selection
+      await waitFor(() => {
+        const selectingButton = screen.getByText('Selecting...');
+        expect(selectingButton).toBeDisabled();
+      });
+
+      // Resolve the promise
+      resolvePromise({ path: '/Users/username/projects/MyProject', name: 'MyProject' });
+
+      // Button should be enabled again
+      await waitFor(() => {
+        const browseButton = screen.getByText('Browse');
+        expect(browseButton).not.toBeDisabled();
+      });
     });
   });
 

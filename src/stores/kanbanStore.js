@@ -10,6 +10,7 @@ import adwService from '../services/api/adwService';
 import adwCreationService from '../services/adwCreationService';
 import localStorageService from '../services/storage/localStorage';
 import projectPersistenceService from '../services/storage/projectPersistenceService';
+import recentProjectsService from '../services/storage/recentProjectsService';
 import stageProgressionService from '../services/websocket/stageProgressionService';
 import websocketService from '../services/websocket/websocketService';
 import projectNotificationService from '../services/storage/projectNotificationService';
@@ -329,6 +330,16 @@ export const useKanbanStore = create()(
 
         // Project actions
         selectProject: (project) => {
+          // Track project access time for recent projects feature
+          if (project && project.id) {
+            try {
+              recentProjectsService.trackProjectAccess(project.id);
+            } catch (error) {
+              console.error('Failed to track project access:', error);
+              // Don't block project selection if tracking fails
+            }
+          }
+
           set({ selectedProject: project }, false, 'selectProject');
         },
 
