@@ -596,3 +596,258 @@ async def delete_adw(adw_id: str, request: Request):
             status_code=500,
             detail=f"Internal server error while deleting ADW: {str(e)}"
         )
+
+
+def get_main_project_root() -> Path:
+    """
+    Get the path to the main project root directory.
+    Handles both main project and worktree environments.
+    """
+    current_file = Path(__file__).resolve()
+    current_root = current_file.parent.parent.parent
+
+    path_parts = current_root.parts
+    if 'trees' in path_parts:
+        trees_index = path_parts.index('trees')
+        main_project_root = Path(*path_parts[:trees_index])
+        return main_project_root
+    else:
+        return current_root
+
+
+@router.post("/codebase/open/{adw_id}")
+async def open_codebase(adw_id: str):
+    """
+    Open the codebase in neovim within a tmux session.
+
+    Creates or attaches to an AgenticKanban tmux session and opens neovim
+    at the worktree path for the specified ADW.
+
+    Args:
+        adw_id: The ADW identifier (8-character alphanumeric string)
+
+    Returns:
+        JSON response with success status and details
+    """
+    # Validate ADW ID format
+    if len(adw_id) != 8 or not adw_id.isalnum():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid ADW ID format: {adw_id}. Must be 8 alphanumeric characters."
+        )
+
+    try:
+        agents_dir = get_agents_directory()
+        adw_dir = agents_dir / adw_id
+
+        if not adw_dir.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"ADW ID '{adw_id}' not found"
+            )
+
+        state_data = read_adw_state(adw_dir)
+        if state_data is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"adw_state.json not found or invalid for ADW ID '{adw_id}'"
+            )
+
+        worktree_path = state_data.get("worktree_path")
+        if not worktree_path:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Worktree path not found for ADW ID '{adw_id}'"
+            )
+
+        if not os.path.exists(worktree_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Worktree not found at path: {worktree_path}"
+            )
+
+        logger.info(f"Opening codebase for ADW {adw_id} at {worktree_path}")
+
+        # Tmux session name for AgenticKanban
+        tmux_session = "AgenticKanban"
+        window_name = f"nvim-{adw_id}"
+
+        # Check if tmux session exists
+        check_session = subprocess.run(
+            ["tmux", "has-session", "-t", tmux_session],
+            capture_output=True
+        )
+
+        if check_session.returncode != 0:
+            # Create new tmux session with neovim
+            result = subprocess.run(
+                ["tmux", "new-session", "-d", "-s", tmux_session, "-n", window_name,
+                 "-c", worktree_path, "nvim", "."],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode != 0:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to create tmux session: {result.stderr}"
+                )
+            logger.info(f"Created new tmux session '{tmux_session}' with neovim")
+        else:
+            # Session exists, create new window with neovim
+            result = subprocess.run(
+                ["tmux", "new-window", "-t", tmux_session, "-n", window_name,
+                 "-c", worktree_path, "nvim", "."],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode != 0:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to create tmux window: {result.stderr}"
+                )
+            logger.info(f"Created new window '{window_name}' in session '{tmux_session}'")
+
+        return {
+            "success": True,
+            "adw_id": adw_id,
+            "worktree_path": worktree_path,
+            "tmux_session": tmux_session,
+            "window_name": window_name,
+            "message": f"Opened neovim in tmux session '{tmux_session}' window '{window_name}'"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error opening codebase for {adw_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to open codebase: {str(e)}"
+        )
+
+
+@router.post("/worktree/open/{adw_id}")
+async def open_worktree(adw_id: str):
+    """
+    Open the worktree in WezTerm with a tmux session.
+
+    Creates or attaches to an AgenticKanban tmux session and opens a terminal
+    at the worktree path for the specified ADW.
+
+    Args:
+        adw_id: The ADW identifier (8-character alphanumeric string)
+
+    Returns:
+        JSON response with success status and details
+    """
+    # Validate ADW ID format
+    if len(adw_id) != 8 or not adw_id.isalnum():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid ADW ID format: {adw_id}. Must be 8 alphanumeric characters."
+        )
+
+    try:
+        agents_dir = get_agents_directory()
+        adw_dir = agents_dir / adw_id
+
+        if not adw_dir.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"ADW ID '{adw_id}' not found"
+            )
+
+        state_data = read_adw_state(adw_dir)
+        if state_data is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"adw_state.json not found or invalid for ADW ID '{adw_id}'"
+            )
+
+        worktree_path = state_data.get("worktree_path")
+        if not worktree_path:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Worktree path not found for ADW ID '{adw_id}'"
+            )
+
+        if not os.path.exists(worktree_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Worktree not found at path: {worktree_path}"
+            )
+
+        logger.info(f"Opening worktree for ADW {adw_id} at {worktree_path}")
+
+        # Tmux session name for AgenticKanban
+        tmux_session = "AgenticKanban"
+        window_name = f"term-{adw_id}"
+
+        # Check if tmux session exists
+        check_session = subprocess.run(
+            ["tmux", "has-session", "-t", tmux_session],
+            capture_output=True
+        )
+
+        if check_session.returncode != 0:
+            # Create new tmux session with shell at worktree path
+            result = subprocess.run(
+                ["tmux", "new-session", "-d", "-s", tmux_session, "-n", window_name,
+                 "-c", worktree_path],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode != 0:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to create tmux session: {result.stderr}"
+                )
+            logger.info(f"Created new tmux session '{tmux_session}' at {worktree_path}")
+        else:
+            # Session exists, create new window
+            result = subprocess.run(
+                ["tmux", "new-window", "-t", tmux_session, "-n", window_name,
+                 "-c", worktree_path],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode != 0:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to create tmux window: {result.stderr}"
+                )
+            logger.info(f"Created new window '{window_name}' in session '{tmux_session}'")
+
+        # Open WezTerm and attach to the tmux session
+        try:
+            # Use WezTerm to attach to the tmux session
+            # The 'wezterm start' command opens a new WezTerm window
+            result = subprocess.Popen(
+                ["wezterm", "start", "--", "tmux", "attach-session", "-t", tmux_session],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
+            logger.info(f"Started WezTerm attached to tmux session '{tmux_session}'")
+        except FileNotFoundError:
+            # WezTerm not found, log warning but don't fail
+            # The tmux session is still created
+            logger.warning("WezTerm not found, tmux session created but terminal not opened")
+
+        return {
+            "success": True,
+            "adw_id": adw_id,
+            "worktree_path": worktree_path,
+            "tmux_session": tmux_session,
+            "window_name": window_name,
+            "message": f"Opened terminal in tmux session '{tmux_session}' window '{window_name}'"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error opening worktree for {adw_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to open worktree: {str(e)}"
+        )

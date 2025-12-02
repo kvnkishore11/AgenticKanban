@@ -1,14 +1,8 @@
 """Tests for ADW deletion endpoint."""
 
 import pytest
-from fastapi.testclient import TestClient
-from server import app
 
-
-@pytest.fixture
-def client():
-    """Create a test client."""
-    return TestClient(app)
+# Note: client fixture is provided by conftest.py
 
 
 class TestDeleteADWEndpoint:

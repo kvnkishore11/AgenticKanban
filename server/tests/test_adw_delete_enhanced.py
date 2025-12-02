@@ -7,14 +7,8 @@ import tempfile
 import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, AsyncMock, patch
-from fastapi.testclient import TestClient
-from server import app
 
-
-@pytest.fixture
-def client():
-    """Create a test client."""
-    return TestClient(app)
+# Note: client fixture is provided by conftest.py
 
 
 @pytest.fixture
