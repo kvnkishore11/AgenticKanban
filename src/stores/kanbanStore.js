@@ -2781,11 +2781,9 @@ export const useKanbanStore = create()(
             return;
           }
 
-          // DO NOT move task to completed stage - keep it in ready-to-merge with merged status
-          // This allows user to see the task is merged before it's cleaned up
-
-          // Update task metadata with merge completion info
+          // Update task metadata with merge completion info AND move to completed stage
           get().updateTask(task.id, {
+            stage: 'completed',  // Move to completed stage
             metadata: {
               ...task.metadata,
               merge_completed: true,
@@ -2808,7 +2806,7 @@ export const useKanbanStore = create()(
             }
           }), false, 'handleMergeCompletion');
 
-          console.log(`Task ${task.id} merge completed - staying in ready-to-merge with merged status`);
+          console.log(`Task ${task.id} merge completed - moved to 'completed' stage`);
         },
 
         // Handle merge failure - called by WebSocket listener when merge workflow fails

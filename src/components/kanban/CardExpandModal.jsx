@@ -50,7 +50,8 @@ const STAGE_CONFIG = {
   test: { id: 'test', name: 'TEST', icon: '✏️', abbrev: 'T' },
   review: { id: 'review', name: 'REV', icon: '👀', abbrev: 'R' },
   document: { id: 'document', name: 'DOC', icon: '📄', abbrev: 'D' },
-  pr: { id: 'pr', name: 'PR', icon: '🔀', abbrev: 'PR' }
+  pr: { id: 'pr', name: 'PR', icon: '🔀', abbrev: 'PR' },
+  merger: { id: 'merger', name: 'MERGE', icon: '🔀', abbrev: 'M' }
 };
 
 // Issue type badge configuration
@@ -330,7 +331,16 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   }, [activeContentType, effectiveStage, task.metadata?.adw_id, workflowMetadata?.adw_id]);
 
   // Get stages as array of stage names for StageTabsPanel
-  const stageNames = pipelineStages.map(s => s.stage);
+  // Include 'merger' stage when task is past build stage or has merge activity
+  const baseStageName = pipelineStages.map(s => s.stage);
+  const stagesAllowingMerge = ['build', 'implement', 'test', 'review', 'document', 'pr', 'ready-to-merge', 'completed'];
+  const shouldShowMergeStage = stagesAllowingMerge.includes(task.stage?.toLowerCase()) ||
+                                task.metadata?.merge_completed ||
+                                task.metadata?.merge_in_progress ||
+                                mergeState;
+  const stageNames = shouldShowMergeStage
+    ? [...baseStageName, 'merger']
+    : baseStageName;
 
   // Handle stage selection (disables auto-follow)
   const handleStageSelect = (stage) => {
@@ -384,6 +394,19 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
     acc[s.stage] = getStageStatus(s.id);
     return acc;
   }, {});
+
+  // Add merger stage status if shown
+  if (shouldShowMergeStage) {
+    if (mergeState?.status === 'success' || task.metadata?.merge_completed) {
+      stageStatuses['merger'] = 'completed';
+    } else if (mergeState?.status === 'in_progress' || mergeState?.status === 'running') {
+      stageStatuses['merger'] = 'active';
+    } else if (mergeState?.status === 'error') {
+      stageStatuses['merger'] = 'error';
+    } else {
+      stageStatuses['merger'] = task.stage === 'ready-to-merge' ? 'active' : 'pending';
+    }
+  }
 
   const calculateProgress = () => {
     // Build stage order from pipeline stages

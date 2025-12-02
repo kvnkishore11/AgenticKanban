@@ -35,6 +35,9 @@ const KanbanCard = memo(({ task, onEdit }) => {
   // Use deletingAdws (the actual state key in the store)
   const deletionState = useKanbanStore(state => adwId ? state.deletingAdws?.[adwId] : null);
   const websocketConnected = useKanbanStore(state => state.websocketConnected);
+  // Merge workflow state
+  const triggerMergeWorkflow = useKanbanStore(state => state.triggerMergeWorkflow);
+  const mergeState = useKanbanStore(state => state.mergingTasks?.[task.id] || null);
 
   const [showMenu, setShowMenu] = useState(false);
   const [showExpandModal, setShowExpandModal] = useState(false);
@@ -47,6 +50,13 @@ const KanbanCard = memo(({ task, onEdit }) => {
   // Derived state for backwards compatibility
   const isOpeningWorktree = openWorktreeStatus === 'opening';
   const isOpeningCodebase = openCodebaseStatus === 'opening';
+  // Merge state derived
+  const isMerging = mergeState?.status === 'in_progress' || mergeState?.status === 'running';
+  const mergeSuccess = mergeState?.status === 'success';
+  const mergeError = mergeState?.status === 'error';
+  // Allow merge from build stage onwards (user can fix things manually and merge)
+  const stagesAllowingMerge = ['build', 'implement', 'test', 'review', 'document', 'pr', 'ready-to-merge'];
+  const canMerge = stagesAllowingMerge.includes(task.stage?.toLowerCase());
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -234,6 +244,22 @@ const KanbanCard = memo(({ task, onEdit }) => {
     }
   };
 
+  const handleMergeClick = async () => {
+    setShowMenu(false);
+
+    if (!adwId) {
+      console.error('Cannot merge: No ADW ID found');
+      return;
+    }
+
+    try {
+      console.log(`Initiating merge for task ${task.id}, ADW ${adwId}`);
+      await triggerMergeWorkflow(task.id);
+    } catch (error) {
+      console.error('Failed to trigger merge workflow:', error);
+    }
+  };
+
   // Check if this is a completed task
   const isCompleted = task.stage === 'completed';
 
@@ -296,6 +322,21 @@ const KanbanCard = memo(({ task, onEdit }) => {
           <span className="brutalist-worktree-text">{openCodebaseMessage}</span>
         </div>
       )}
+      {/* Merge overlay */}
+      {(isMerging || mergeSuccess || mergeError) && (
+        <div className={`brutalist-merge-overlay ${mergeSuccess ? 'success' : mergeError ? 'error' : 'merging'}`}>
+          <span className="brutalist-merge-icon">
+            {isMerging && '🔀'}
+            {mergeSuccess && '✅'}
+            {mergeError && '❌'}
+          </span>
+          <span className="brutalist-merge-text">
+            {isMerging && 'MERGING...'}
+            {mergeSuccess && 'MERGED!'}
+            {mergeError && (mergeState?.message || 'MERGE FAILED')}
+          </span>
+        </div>
+      )}
       {/* Card Header with Issue Number and Task ID */}
       <div className="brutalist-task-card-header">
         <div className="brutalist-task-number">
@@ -335,6 +376,15 @@ const KanbanCard = memo(({ task, onEdit }) => {
               >
                 {isOpeningCodebase ? '⏳ OPENING...' : '📝 OPEN CODEBASE'}
               </div>
+              {/* Merge option - available from build stage onwards */}
+              {canMerge && (
+                <div
+                  className={`brutalist-card-dropdown-item merge ${isMerging ? 'disabled' : ''}`}
+                  onClick={(e) => { e.stopPropagation(); if (!isMerging) handleMergeClick(); }}
+                >
+                  {isMerging ? '⏳ MERGING...' : '🔀 MERGE TO MAIN'}
+                </div>
+              )}
               <div
                 className={`brutalist-card-dropdown-item danger ${isDeleting ? 'disabled' : ''}`}
                 onClick={(e) => { e.stopPropagation(); if (!isDeleting) handleDeleteClick(); }}
