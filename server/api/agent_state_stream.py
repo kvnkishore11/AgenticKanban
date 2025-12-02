@@ -13,7 +13,10 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from api.adws import get_agents_directory, read_adw_state
+try:
+    from .adws import get_agents_directory, read_adw_state
+except ImportError:
+    from adws import get_agents_directory, read_adw_state
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

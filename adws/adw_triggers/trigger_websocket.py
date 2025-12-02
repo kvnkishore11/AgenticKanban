@@ -61,6 +61,19 @@ from adw_triggers.websocket_models import (
     ClarificationResult,
 )
 
+# Database imports (for database-backed API)
+try:
+    import sqlite3
+    # Add server directory to path for database imports
+    _server_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "server")
+    if _server_path not in sys.path:
+        sys.path.insert(0, _server_path)
+    from core.database import get_db_manager
+    DB_AVAILABLE = True
+except ImportError as e:
+    DB_AVAILABLE = False
+    print(f"Database module not available: {e}")
+
 # Load environment variables from current working directory
 # This ensures we load from the worktree's .env when running in worktree mode
 load_dotenv(dotenv_path=os.path.join(os.getcwd(), '.env'), override=False)
@@ -2037,6 +2050,147 @@ async def list_adws():
         print(f"Error listing ADWs: {e}")
         return JSONResponse(
             content={"error": f"Failed to list ADWs: {str(e)}"},
+            status_code=500
+        )
+
+
+@app.get("/api/adws")
+async def list_adws_database(
+    status: Optional[str] = None,
+    stage: Optional[str] = None,
+    is_stuck: Optional[bool] = None,
+    include_deleted: bool = False
+):
+    """List all ADWs from database with optional filtering.
+
+    This endpoint provides database-backed ADW state management.
+    Falls back to filesystem discovery if database is not available.
+
+    Args:
+        status: Filter by status (pending, in_progress, completed, errored)
+        stage: Filter by current stage
+        is_stuck: Filter by stuck status
+        include_deleted: Include soft-deleted ADWs
+
+    Returns:
+        JSON object with adws array and total_count
+    """
+    if not DB_AVAILABLE:
+        # Fallback to filesystem discovery
+        try:
+            adws = discover_all_adws()
+            # Transform to match expected database response format
+            transformed = []
+            for adw in adws:
+                transformed.append({
+                    "id": 0,  # No database ID for filesystem-based ADWs
+                    "adw_id": adw.get("adw_id"),
+                    "issue_number": adw.get("issue_number"),
+                    "issue_title": adw.get("issue_json", {}).get("title") if adw.get("issue_json") else None,
+                    "issue_body": adw.get("issue_json", {}).get("body") if adw.get("issue_json") else None,
+                    "issue_class": adw.get("issue_class"),
+                    "branch_name": adw.get("branch_name"),
+                    "worktree_path": adw.get("worktree_path"),
+                    "current_stage": adw.get("current_stage", "backlog"),
+                    "status": "completed" if adw.get("completed") else "in_progress",
+                    "is_stuck": False,
+                    "workflow_name": adw.get("workflow_name"),
+                    "model_set": adw.get("model_set", "base"),
+                    "data_source": adw.get("data_source", "kanban"),
+                    "issue_json": adw.get("issue_json"),
+                    "orchestrator_state": adw.get("orchestrator"),
+                    "backend_port": adw.get("backend_port"),
+                    "websocket_port": adw.get("websocket_port"),
+                    "frontend_port": adw.get("frontend_port"),
+                    "created_at": None,
+                    "updated_at": None,
+                    "completed_at": None,
+                })
+            return JSONResponse(content={"adws": transformed, "total_count": len(transformed)})
+        except Exception as e:
+            print(f"Error listing ADWs from filesystem: {e}")
+            return JSONResponse(
+                content={"detail": f"Failed to list ADWs: {str(e)}"},
+                status_code=500
+            )
+
+    try:
+        db_manager = get_db_manager()
+
+        # Build query with filters
+        query = "SELECT * FROM adw_states WHERE 1=1"
+        params = []
+
+        if not include_deleted:
+            query += " AND deleted_at IS NULL"
+
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+
+        if stage:
+            query += " AND current_stage = ?"
+            params.append(stage)
+
+        if is_stuck is not None:
+            query += " AND is_stuck = ?"
+            params.append(1 if is_stuck else 0)
+
+        query += " ORDER BY created_at DESC"
+
+        results = db_manager.execute_query(query, tuple(params))
+
+        # Transform results to match expected format
+        adws = []
+        for row in results:
+            # Parse JSON fields
+            issue_json = None
+            if row.get('issue_json'):
+                try:
+                    issue_json = json.loads(row['issue_json']) if isinstance(row['issue_json'], str) else row['issue_json']
+                except json.JSONDecodeError:
+                    pass
+
+            orchestrator_state = None
+            if row.get('orchestrator_state'):
+                try:
+                    orchestrator_state = json.loads(row['orchestrator_state']) if isinstance(row['orchestrator_state'], str) else row['orchestrator_state']
+                except json.JSONDecodeError:
+                    pass
+
+            adws.append({
+                "id": row['id'],
+                "adw_id": row['adw_id'],
+                "issue_number": row.get('issue_number'),
+                "issue_title": row.get('issue_title'),
+                "issue_body": row.get('issue_body'),
+                "issue_class": row.get('issue_class'),
+                "branch_name": row.get('branch_name'),
+                "worktree_path": row.get('worktree_path'),
+                "current_stage": row['current_stage'],
+                "status": row['status'],
+                "is_stuck": bool(row['is_stuck']),
+                "workflow_name": row.get('workflow_name'),
+                "model_set": row.get('model_set', 'base'),
+                "data_source": row.get('data_source', 'kanban'),
+                "issue_json": issue_json,
+                "orchestrator_state": orchestrator_state,
+                "backend_port": row.get('backend_port'),
+                "websocket_port": row.get('websocket_port'),
+                "frontend_port": row.get('frontend_port'),
+                "created_at": row.get('created_at'),
+                "updated_at": row.get('updated_at'),
+                "completed_at": row.get('completed_at'),
+            })
+
+        return JSONResponse(content={"adws": adws, "total_count": len(adws)})
+
+    except Exception as e:
+        print(f"Error listing ADWs from database: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            content={"detail": f"Failed to list ADWs: {str(e)}"},
             status_code=500
         )
 

@@ -18,10 +18,16 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Import API routes
-from api import adws, stage_logs, merge, file_operations, agent_state_stream, clarification
-
-# Import WebSocket manager
-from core.websocket_manager import WebSocketManager
+try:
+    # Try relative imports first (when imported as a module)
+    from .api import adws, stage_logs, merge, file_operations, agent_state_stream, clarification, adw_db, issue_tracker
+    from .core.websocket_manager import WebSocketManager
+    from .core.database import get_db_manager
+except ImportError:
+    # Fall back to absolute imports (when run as a script from server directory)
+    from api import adws, stage_logs, merge, file_operations, agent_state_stream, clarification, adw_db, issue_tracker
+    from core.websocket_manager import WebSocketManager
+    from core.database import get_db_manager
 
 app = FastAPI(
     title="ADW Management API",
@@ -34,6 +40,14 @@ ws_manager = WebSocketManager()
 
 # Store ws_manager in app state for access from routes
 app.state.ws_manager = ws_manager
+
+# Initialize database manager
+try:
+    db_manager = get_db_manager()
+    logger.info("Database manager initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize database manager: {e}")
+    # Continue without database - backward compatibility with JSON-only mode
 
 # Configure CORS to allow requests from frontend
 app.add_middleware(
@@ -59,6 +73,8 @@ app.include_router(merge.router, prefix="/api")
 app.include_router(file_operations.router)
 app.include_router(agent_state_stream.router, prefix="/api")
 app.include_router(clarification.router, prefix="/api")
+app.include_router(adw_db.router, prefix="/api")
+app.include_router(issue_tracker.router, prefix="/api")
 
 @app.get("/")
 async def root():

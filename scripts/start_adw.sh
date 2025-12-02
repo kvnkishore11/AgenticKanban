@@ -53,6 +53,22 @@ cd "$PROJECT_ROOT"
 # Export ADW_PORT for the WebSocket server
 export ADW_PORT=$ADW_PORT
 
+# Run JSON to database migration (idempotent - skips already imported ADWs)
+# This ensures any existing agents/{adw_id}/ JSON files are synced to the database
+if [ "${SKIP_MIGRATION:-false}" != "true" ]; then
+    echo -e "${BLUE}Checking for JSON files to migrate...${NC}"
+    migration_output=$(uv run server/scripts/migrate_json_to_db.py 2>&1)
+
+    # Extract newly imported count from output (changed from "Successfully imported")
+    imported=$(echo "$migration_output" | grep -o "Newly imported:.*[0-9]*" | grep -o "[0-9]*" | tail -1 || echo "0")
+
+    if [ "$imported" -gt 0 ] 2>/dev/null; then
+        echo -e "${GREEN}✓ Migrated $imported ADW(s) from JSON to database${NC}"
+    else
+        echo -e "${GREEN}✓ Database is up to date (no new JSON files to migrate)${NC}"
+    fi
+fi
+
 # Start the ADW WebSocket trigger server
 echo -e "${BLUE}Starting ADW WebSocket server...${NC}"
 echo -e "${BLUE}WebSocket endpoint:    ws://localhost:$ADW_PORT/ws/trigger${NC}"

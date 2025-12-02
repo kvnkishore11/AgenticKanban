@@ -207,14 +207,14 @@ describe('Kanban Store', () => {
   });
 
   describe('Task Management', () => {
-    it('should create task', () => {
+    it('should create task', async () => {
       const taskData = {
         title: 'Test Task',
         description: 'Description',
         queuedStages: ['plan', 'build']
       };
 
-      const task = useKanbanStore.getState().createTask(taskData);
+      const task = await useKanbanStore.getState().createTask(taskData);
 
       expect(task).toBeDefined();
       expect(task.id).toBe(1);
@@ -223,39 +223,39 @@ describe('Kanban Store', () => {
       expect(useKanbanStore.getState().tasks).toHaveLength(1);
     });
 
-    it('should update task', () => {
+    it('should update task', async () => {
       // Create initial task
       useKanbanStore.setState({
         tasks: [{ id: 1, title: 'Original', stage: 'backlog' }]
       });
 
-      act(() => {
-        useKanbanStore.getState().updateTask(1, { title: 'Updated' });
+      await act(async () => {
+        await useKanbanStore.getState().updateTask(1, { title: 'Updated' });
       });
 
       const task = useKanbanStore.getState().tasks[0];
       expect(task.title).toBe('Updated');
     });
 
-    it('should delete task', () => {
+    it('should delete task', async () => {
       useKanbanStore.setState({
         tasks: [{ id: 1, title: 'To Delete' }]
       });
 
-      act(() => {
-        useKanbanStore.getState().deleteTask(1);
+      await act(async () => {
+        await useKanbanStore.getState().deleteTask(1);
       });
 
       expect(useKanbanStore.getState().tasks).toHaveLength(0);
     });
 
-    it('should move task to stage', () => {
+    it('should move task to stage', async () => {
       useKanbanStore.setState({
         tasks: [{ id: 1, stage: 'backlog' }]
       });
 
-      act(() => {
-        useKanbanStore.getState().moveTaskToStage(1, 'plan');
+      await act(async () => {
+        await useKanbanStore.getState().moveTaskToStage(1, 'plan');
       });
 
       const task = useKanbanStore.getState().tasks[0];

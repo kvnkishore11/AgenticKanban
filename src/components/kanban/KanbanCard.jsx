@@ -28,6 +28,7 @@ const KanbanCard = memo(({ task, onEdit }) => {
   const triggerWorkflowForTask = useKanbanStore(state => state.triggerWorkflowForTask);
 
   // Subscribe only to data relevant to this specific task
+  // IMPORTANT: Use stable empty references to prevent infinite re-renders when data is undefined
   const adwId = task.metadata?.adw_id;
   // Use stable EMPTY_LOGS reference to prevent infinite re-renders when logs don't exist
   const taskWorkflowLogs = useKanbanStore(state => state.taskWorkflowLogs?.[task.id] || EMPTY_LOGS);
@@ -116,20 +117,52 @@ const KanbanCard = memo(({ task, onEdit }) => {
     return abbreviations[stage.toLowerCase()] || stage.charAt(0).toUpperCase();
   };
 
-  // Get pipeline stages from queuedStages or pipelineId
+  // Get pipeline stages from workflow_stages, orchestrator_state, queuedStages, or pipelineId
   const getPipelineStages = () => {
-    // Priority 1: Use queuedStages if available (most accurate)
+    // Priority 1: Use workflow_stages from task or metadata (from API/database)
+    // Check both top-level and metadata since API returns it at different levels
+    const workflowStages = task.workflow_stages || task.metadata?.workflow_stages;
+    if (workflowStages && Array.isArray(workflowStages) && workflowStages.length > 0) {
+      return workflowStages.map(s => {
+        const stageName = typeof s === 'string' ? s : s.stage_name;
+        return getStageAbbreviation(stageName);
+      });
+    }
+
+    // Priority 2: Use stages from orchestrator_state (from list API response)
+    const orchestratorStages = task.metadata?.orchestrator_state?.stages;
+    if (orchestratorStages && Array.isArray(orchestratorStages) && orchestratorStages.length > 0) {
+      return orchestratorStages.map(s => getStageAbbreviation(s));
+    }
+
+    // Priority 3: Parse from workflow_name in task or metadata (e.g., 'adw_plan_build_test_iso')
+    const workflowName = task.workflow_name || task.metadata?.workflow_name ||
+                         task.metadata?.orchestrator_state?.workflow_name;
+    if (workflowName && workflowName.startsWith('adw_')) {
+      // Remove 'adw_' prefix and 'iso' suffix, then split by '_'
+      const stagesStr = workflowName.replace('adw_', '').replace(/_iso$/, '');
+      const stages = stagesStr.split('_').filter(s => s && s !== 'iso');
+      if (stages.length > 0) {
+        return stages.map(s => getStageAbbreviation(s));
+      }
+    }
+
+    // Priority 4: Use queuedStages if available
     if (task.queuedStages && task.queuedStages.length > 0) {
       return task.queuedStages.map(s => getStageAbbreviation(s));
     }
 
-    // Priority 2: Parse from pipelineId if it starts with 'adw_'
-    if (task.pipelineId && task.pipelineId.startsWith('adw_')) {
-      const stages = task.pipelineId.replace('adw_', '').split('_');
-      return stages.map(s => getStageAbbreviation(s));
+    // Priority 5: Parse from pipelineId if it starts with 'adw_' (but not 'adw_unknown')
+    if (task.pipelineId && task.pipelineId.startsWith('adw_') && task.pipelineId !== 'adw_unknown') {
+      const stages = task.pipelineId.replace('adw_', '').split('_')
+        .filter(s => s && s !== 'unknown' && s !== 'iso'); // Filter out 'unknown' and 'iso'
+      if (stages.length > 0) {
+        return stages.map(s => getStageAbbreviation(s));
+      }
     }
 
-    // Fallback: Default 2 stages
+    // Fallback: Default stages based on issue_class (feature = P,B,T,R,D, bug = B,T,R)
+    // For most cases, show a reasonable default pipeline
     return ['P', 'B'];
   };
 

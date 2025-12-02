@@ -1,5 +1,13 @@
 """
 ADW (Agent-Driven Workflow) management API endpoints.
+
+Database-Only Mode (ADW_DB_ONLY=true, default):
+- List and get operations use SQLite database
+- No JSON file scanning for state
+
+File Operations (always):
+- Plan file reading from specs/
+- Worktree deletion
 """
 import os
 import json
@@ -8,8 +16,15 @@ import shutil
 import subprocess
 import signal
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Request
+
+# Database imports
+try:
+    import sqlite3
+    DB_AVAILABLE = True
+except ImportError:
+    DB_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -61,6 +76,136 @@ def get_agents_directory() -> Path:
         logger.info(f"Agents directory exists and is accessible")
 
     return agents_dir
+
+def _get_db_path() -> Optional[Path]:
+    """Get path to the database file."""
+    if not DB_AVAILABLE:
+        return None
+
+    try:
+        current_file = Path(__file__).resolve()
+        current_root = current_file.parent.parent.parent
+
+        # Check if we're in a worktree
+        path_parts = current_root.parts
+        if 'trees' in path_parts:
+            trees_index = path_parts.index('trees')
+            main_project_root = Path(*path_parts[:trees_index])
+            db_path = main_project_root / "adws" / "database" / "agentickanban.db"
+        else:
+            db_path = current_root / "adws" / "database" / "agentickanban.db"
+
+        return db_path if db_path.exists() else None
+    except Exception as e:
+        logger.debug(f"Error getting database path: {e}")
+        return None
+
+
+def _list_adws_from_database() -> List[Dict[str, Any]]:
+    """List all ADWs from database."""
+    db_path = _get_db_path()
+    if not db_path:
+        return []
+
+    try:
+        conn = sqlite3.connect(str(db_path), timeout=5.0)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT adw_id, issue_number, issue_class, issue_title,
+                   branch_name, status, current_stage, workflow_name,
+                   CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END as completed
+            FROM adw_states
+            WHERE deleted_at IS NULL
+            ORDER BY created_at DESC
+        """)
+        rows = cursor.fetchall()
+        conn.close()
+
+        adws = []
+        for row in rows:
+            row_dict = dict(row)
+            # Format issue_class without leading slash
+            issue_class = row_dict.get("issue_class", "")
+            if issue_class and issue_class.startswith("/"):
+                issue_class = issue_class[1:]
+
+            adws.append({
+                "adw_id": row_dict.get("adw_id", ""),
+                "issue_class": issue_class,
+                "issue_number": row_dict.get("issue_number"),
+                "issue_title": row_dict.get("issue_title", ""),
+                "branch_name": row_dict.get("branch_name", ""),
+                "workflow_name": row_dict.get("workflow_name"),
+                "current_stage": row_dict.get("current_stage"),
+                "completed": bool(row_dict.get("completed", 0))
+            })
+
+        return adws
+
+    except Exception as e:
+        logger.error(f"Error listing ADWs from database: {e}")
+        return []
+
+
+def _get_adw_from_database(adw_id: str) -> Optional[Dict[str, Any]]:
+    """Get single ADW from database."""
+    db_path = _get_db_path()
+    if not db_path:
+        return None
+
+    try:
+        conn = sqlite3.connect(str(db_path), timeout=5.0)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT * FROM adw_states
+            WHERE adw_id = ? AND deleted_at IS NULL
+        """, (adw_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return None
+
+        row_dict = dict(row)
+
+        # Parse JSON fields
+        issue_json = None
+        if row_dict.get("issue_json"):
+            try:
+                issue_json = json.loads(row_dict["issue_json"])
+            except json.JSONDecodeError:
+                pass
+
+        # Build response similar to file-based state
+        return {
+            "adw_id": row_dict.get("adw_id"),
+            "issue_number": row_dict.get("issue_number"),
+            "issue_title": row_dict.get("issue_title"),
+            "issue_body": row_dict.get("issue_body"),
+            "issue_class": row_dict.get("issue_class"),
+            "branch_name": row_dict.get("branch_name"),
+            "worktree_path": row_dict.get("worktree_path"),
+            "plan_file": row_dict.get("plan_file"),
+            "model_set": row_dict.get("model_set", "base"),
+            "data_source": row_dict.get("data_source", "kanban"),
+            "backend_port": row_dict.get("backend_port"),
+            "websocket_port": row_dict.get("websocket_port"),
+            "frontend_port": row_dict.get("frontend_port"),
+            "completed": row_dict.get("completed_at") is not None,
+            "issue_json": issue_json,
+            "current_stage": row_dict.get("current_stage"),
+            "status": row_dict.get("status"),
+            "workflow_name": row_dict.get("workflow_name"),
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting ADW {adw_id} from database: {e}")
+        return None
+
 
 def get_specs_directory() -> Path:
     """
@@ -204,6 +349,9 @@ async def list_adws():
     """
     Get list of all available ADW IDs with metadata.
 
+    Uses database as primary source (ADW_DB_ONLY=true, default).
+    Falls back to filesystem scanning if database unavailable.
+
     Returns:
         JSON response with array of ADW objects containing:
         - adw_id: The ADW identifier
@@ -212,7 +360,22 @@ async def list_adws():
         - issue_title: Title of the issue
         - branch_name: Git branch name for this ADW
     """
+    db_only_mode = os.getenv("ADW_DB_ONLY", "true").lower() == "true" and DB_AVAILABLE
+
     try:
+        # Try database first (primary source)
+        adws = _list_adws_from_database()
+        if adws:
+            logger.info(f"Listed {len(adws)} ADWs from database")
+            return {"adws": adws}
+
+        # In database-only mode, return empty if database fails
+        if db_only_mode:
+            logger.warning("Database listing failed in db-only mode")
+            return {"adws": []}
+
+        # Fallback to filesystem (dual-write mode only)
+        logger.info("Falling back to filesystem scanning")
         adws = scan_adw_directories()
         return {"adws": adws}
     except Exception as e:
@@ -227,6 +390,9 @@ async def get_adw_details(adw_id: str):
     """
     Get detailed information for a specific ADW ID.
 
+    Uses database as primary source (ADW_DB_ONLY=true, default).
+    Falls back to filesystem if database unavailable.
+
     Args:
         adw_id: The ADW identifier (8-character alphanumeric string)
 
@@ -240,7 +406,24 @@ async def get_adw_details(adw_id: str):
             detail=f"Invalid ADW ID format: {adw_id}. Must be 8 alphanumeric characters."
         )
 
+    db_only_mode = os.getenv("ADW_DB_ONLY", "true").lower() == "true" and DB_AVAILABLE
+
     try:
+        # Try database first (primary source)
+        state_data = _get_adw_from_database(adw_id)
+        if state_data:
+            logger.info(f"Got ADW {adw_id} from database")
+            return state_data
+
+        # In database-only mode, return 404 if not in database
+        if db_only_mode:
+            raise HTTPException(
+                status_code=404,
+                detail=f"ADW ID '{adw_id}' not found in database"
+            )
+
+        # Fallback to filesystem (dual-write mode only)
+        logger.info(f"Falling back to filesystem for ADW {adw_id}")
         agents_dir = get_agents_directory()
         adw_dir = agents_dir / adw_id
 

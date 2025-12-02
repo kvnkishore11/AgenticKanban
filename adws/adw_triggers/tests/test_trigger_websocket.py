@@ -94,6 +94,7 @@ class TestPatchWorkflowValidation:
             assert result is not None
 
 
+
 class TestMergeWorkflowCommandBuilding:
     """Tests for adw_merge_iso command building."""
 

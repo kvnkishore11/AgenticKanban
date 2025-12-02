@@ -31,7 +31,7 @@ function App() {
     initializeWebSocket,
     deselectProject,
     tasks,
-    getWebSocketStatus
+    websocketConnected
   } = useKanbanStore();
 
   const [showCommandsPalette, setShowCommandsPalette] = useState(false);
@@ -41,8 +41,8 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const wsInitialized = useRef(false);
 
-  // Get WebSocket status
-  const wsStatus = getWebSocketStatus();
+  // WebSocket connection status - use primitive selector to avoid infinite loop
+  const wsStatus = { connected: websocketConnected };
 
   // Calculate task stats
   const activeTasks = tasks.filter(t => t.stage !== 'completed' && t.stage !== 'backlog').length;

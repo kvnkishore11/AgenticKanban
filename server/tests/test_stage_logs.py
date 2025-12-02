@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from api.stage_logs import (
+from server.api.stage_logs import (
     parse_execution_log,
     parse_jsonl_logs,
     parse_result_json,

@@ -160,3 +160,24 @@ This prompt helps you determine what documentation you should read based on the 
     - When styling agent result displays with prose or formatted content
     - When working with agent workflow result data structures from raw_output.json
     - When implementing intelligent content extraction from agent messages
+
+- app_docs/feature-5e58ab68-database-state-management.md
+  - Conditions:
+    - When working with ADW state persistence or storage mechanisms
+    - When implementing or troubleshooting database-backed ADW state
+    - When working with SQLite database schema, tables, or migrations
+    - When implementing issue number allocation or sequential numbering
+    - When troubleshooting duplicate issue numbers or issue tracking
+    - When working with activity logging or audit trails
+    - When implementing stuck workflow detection or "Action Required" indicators
+    - When working with StatusIndicator component or status visualization
+    - When troubleshooting database connection, pooling, or transactions
+    - When migrating from JSON-based state to database state
+    - When working with server/core/database.py or database manager
+    - When implementing or debugging adwDbService.js API calls
+    - When working with real-time state synchronization between database and UI
+    - When implementing ADW deletion with complete cleanup (worktree + database)
+    - When troubleshooting foreign key constraints or referential integrity
+    - When working with database triggers for automatic logging
+    - When implementing concurrent ADW operations or race condition handling
+    - When working with the kanbanStore database integration (loadAdwsFromDatabase)

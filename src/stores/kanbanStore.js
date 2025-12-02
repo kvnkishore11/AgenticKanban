@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import adwService from '../services/api/adwService';
+import adwDbService from '../services/api/adwDbService';
 import adwCreationService from '../services/adwCreationService';
 import localStorageService from '../services/storage/localStorage';
 import projectPersistenceService from '../services/storage/projectPersistenceService';
@@ -111,6 +112,8 @@ const initialState = {
   websocketConnected: false,
   websocketConnecting: false,
   websocketError: null,
+  // Cached websocket status object to prevent infinite re-renders
+  websocketStatus: { connected: false, connecting: false, error: null, serverStatus: null },
   activeWorkflows: new Map(), // Map of adw_id -> workflow info
   workflowStatusUpdates: [], // Array of recent status updates
   taskWorkflowLogs: {}, // Map of taskId -> Array<logEntry> for real-time logs
@@ -154,7 +157,7 @@ export const useKanbanStore = create()(
         ...initialState,
 
         // Initialize data migrations on store creation
-        initializeStore: () => {
+        initializeStore: async () => {
           // Initialize project persistence service first
           const persistenceResult = projectPersistenceService.initialize();
           console.log('Project persistence service initialized:', persistenceResult);
@@ -169,8 +172,106 @@ export const useKanbanStore = create()(
           // Run data migrations
           const migrationResult = get().initializeDataMigrations();
 
+          // Load ADWs from database
+          await get().loadAdwsFromDatabase();
+
           console.log('Store initialization completed', { persistenceResult, migrationResult });
           return { persistenceResult, migrationResult };
+        },
+
+        /**
+         * Load ADWs from the database and populate the Kanban board
+         * Maps database ADW records to task objects
+         */
+        loadAdwsFromDatabase: async () => {
+          try {
+            set({ isLoading: true }, false, 'loadAdwsFromDatabase:start');
+            console.log('Loading ADWs from database...');
+
+            // Fetch all ADWs from the database
+            const response = await adwDbService.listAdws();
+            const { adws = [], total_count = 0 } = response;
+
+            console.log(`Loaded ${total_count} ADWs from database`);
+
+            if (adws.length === 0) {
+              set({ isLoading: false }, false, 'loadAdwsFromDatabase:empty');
+              return;
+            }
+
+            const currentState = get();
+            let taskIdCounter = currentState.taskIdCounter;
+            const newTasks = [];
+            const newTasksByAdwId = { ...currentState.tasksByAdwId };
+
+            // Transform each ADW database record to a task object
+            for (const adw of adws) {
+              const taskId = taskIdCounter++;
+
+              const task = {
+                id: taskId,
+                title: adw.issue_title || `ADW ${adw.adw_id}`,
+                description: adw.issue_body || '',
+                workItemType: adw.issue_class || WORK_ITEM_TYPES.FEATURE,
+                queuedStages: parseWorkflowStages(adw.workflow_name),
+                pipelineId: adw.workflow_name || 'adw_unknown',
+                pipelineIdStatic: adw.workflow_name,
+                stage: adw.current_stage || 'backlog',
+                substage: null,
+                progress: 0,
+                createdAt: adw.created_at || new Date().toISOString(),
+                updatedAt: adw.updated_at || new Date().toISOString(),
+                logs: [],
+                // Include workflow_stages at top level for pipeline indicator (from API)
+                workflow_stages: adw.workflow_stages,
+                workflow_name: adw.workflow_name,
+                metadata: {
+                  adw_id: adw.adw_id,
+                  workflow_name: adw.workflow_name,
+                  workflow_stages: adw.workflow_stages,  // Also include in metadata for consistency
+                  issue_number: adw.issue_number,
+                  branch_name: adw.branch_name,
+                  worktree_path: adw.worktree_path,
+                  backend_port: adw.backend_port,
+                  websocket_port: adw.websocket_port,
+                  frontend_port: adw.frontend_port,
+                  model_set: adw.model_set,
+                  data_source: adw.data_source,
+                  orchestrator_state: adw.orchestrator_state,
+                  patch_file: adw.patch_file,
+                  patch_history: adw.patch_history,
+                  is_stuck: adw.is_stuck,
+                  completed_at: adw.completed_at,
+                  autoProgress: false,
+                },
+                status: adw.status || 'pending',
+                images: [],
+              };
+
+              newTasks.push(task);
+
+              // Update the tasksByAdwId index for O(1) lookups
+              if (adw.adw_id) {
+                newTasksByAdwId[adw.adw_id] = taskId;
+              }
+            }
+
+            // Update the store with all loaded tasks
+            set({
+              tasks: newTasks,
+              taskIdCounter: taskIdCounter,
+              tasksByAdwId: newTasksByAdwId,
+              isLoading: false,
+            }, false, 'loadAdwsFromDatabase:success');
+
+            console.log(`Successfully loaded ${newTasks.length} tasks from database`);
+          } catch (error) {
+            console.error('Failed to load ADWs from database:', error);
+            set({
+              isLoading: false,
+              error: `Failed to load tasks from database: ${error.message}`,
+            }, false, 'loadAdwsFromDatabase:error');
+          }
         },
 
         // ============================================================
@@ -532,7 +633,7 @@ export const useKanbanStore = create()(
         },
 
         // Task actions
-        createTask: (taskData) => {
+        createTask: async (taskData) => {
           const currentState = get();
           const taskId = currentState.taskIdCounter;
 
@@ -591,6 +692,26 @@ export const useKanbanStore = create()(
               },
               images: taskData.images || [], // Support for uploaded images
             };
+
+            // Persist to database
+            try {
+              await adwDbService.createAdw({
+                adw_id: adwConfig.adw_id,
+                issue_title: newTask.title,
+                issue_body: newTask.description,
+                issue_class: newTask.workItemType,
+                current_stage: newTask.stage,
+                status: 'pending',
+                workflow_name: adwConfig.workflow_name,
+                branch_name: adwConfig.worktree?.branch_name,
+                worktree_path: adwConfig.worktree?.path,
+                data_source: 'kanban',
+              });
+              console.log(`Successfully persisted ADW ${adwConfig.adw_id} to database`);
+            } catch (dbError) {
+              console.error('Failed to persist ADW to database:', dbError);
+              // Continue with local task creation even if database persistence fails
+            }
 
             set((state) => {
               const newState = {
@@ -671,7 +792,13 @@ export const useKanbanStore = create()(
           }
         },
 
-        updateTask: (taskId, updates) => {
+        updateTask: async (taskId, updates) => {
+          const task = get().tasks.find(t => t.id === taskId);
+          if (!task) return;
+
+          const adwId = task.metadata?.adw_id;
+
+          // Apply optimistic update to local state
           set((state) => ({
             tasks: state.tasks.map(task =>
               task.id === taskId
@@ -679,18 +806,67 @@ export const useKanbanStore = create()(
                 : task
             ),
           }), false, 'updateTask');
+
+          // Sync to database if task has adw_id
+          if (adwId) {
+            try {
+              const dbUpdateData = {};
+
+              // Map frontend updates to database fields
+              if (updates.stage !== undefined) dbUpdateData.current_stage = updates.stage;
+              if (updates.title !== undefined) dbUpdateData.issue_title = updates.title;
+              if (updates.description !== undefined) dbUpdateData.issue_body = updates.description;
+              if (updates.workItemType !== undefined) dbUpdateData.issue_class = updates.workItemType;
+              if (updates.metadata?.is_stuck !== undefined) dbUpdateData.is_stuck = updates.metadata.is_stuck;
+              if (updates.metadata?.completed_at !== undefined) dbUpdateData.completed_at = updates.metadata.completed_at;
+              if (updates.metadata?.patch_file !== undefined) dbUpdateData.patch_file = updates.metadata.patch_file;
+              if (updates.metadata?.branch_name !== undefined) dbUpdateData.branch_name = updates.metadata.branch_name;
+              if (updates.metadata?.worktree_path !== undefined) dbUpdateData.worktree_path = updates.metadata.worktree_path;
+
+              if (Object.keys(dbUpdateData).length > 0) {
+                await adwDbService.updateAdw(adwId, dbUpdateData);
+                console.log(`Successfully synced task ${taskId} (ADW ${adwId}) to database`);
+              }
+            } catch (error) {
+              console.error(`Failed to sync task ${taskId} to database:`, error);
+              // Revert optimistic update on failure
+              set((state) => ({
+                tasks: state.tasks.map(t =>
+                  t.id === taskId ? task : t
+                ),
+              }), false, 'updateTask:revert');
+            }
+          }
         },
 
-        deleteTask: (taskId) => {
-          set((state) => {
-            // Find the task to get its adw_id for index cleanup
-            const taskToDelete = state.tasks.find(t => t.id === taskId);
-            const adwIdToRemove = taskToDelete?.metadata?.adw_id;
+        deleteTask: async (taskId) => {
+          const task = get().tasks.find(t => t.id === taskId);
+          if (!task) return;
 
+          const adwId = task.metadata?.adw_id;
+
+          // Delete from database first if task has adw_id
+          if (adwId) {
+            try {
+              await adwDbService.deleteAdw(adwId);
+              console.log(`Successfully deleted ADW ${adwId} from database (triggers worktree cleanup)`);
+            } catch (error) {
+              console.error(`Failed to delete ADW ${adwId} from database:`, error);
+              // Show error notification to user
+              get().addNotification({
+                type: 'error',
+                message: `Failed to delete task: ${error.message}`,
+              });
+              return; // Don't delete from local state if database delete fails
+            }
+          }
+
+          // Delete from local state
+          set((state) => {
             // Clean up the tasksByAdwId index
             const newTasksByAdwId = { ...state.tasksByAdwId };
-            if (adwIdToRemove) {
-              delete newTasksByAdwId[adwIdToRemove];
+            if (adwId) {
+              delete newTasksByAdwId[adwId];
             }
 
             return {
@@ -785,7 +961,14 @@ export const useKanbanStore = create()(
           }), false, 'updateClarificationResult');
         },
 
-        moveTaskToStage: (taskId, newStage) => {
+        moveTaskToStage: async (taskId, newStage) => {
+          const task = get().tasks.find(t => t.id === taskId);
+          if (!task) return;
+
+          const adwId = task.metadata?.adw_id;
+          const oldStage = task.stage;
+
+          // Apply optimistic update to local state
           set((state) => ({
             tasks: state.tasks.map(task =>
               task.id === taskId
@@ -799,6 +982,26 @@ export const useKanbanStore = create()(
                 : task
             ),
           }), false, 'moveTaskToStage');
+
+          // Sync to database if task has adw_id
+          if (adwId) {
+            try {
+              await adwDbService.updateAdw(adwId, {
+                current_stage: newStage,
+              });
+              console.log(`Successfully moved task ${taskId} (ADW ${adwId}) from ${oldStage} to ${newStage} in database`);
+            } catch (error) {
+              console.error(`Failed to move task ${taskId} to stage ${newStage} in database:`, error);
+              // Revert to old stage on failure
+              set((state) => ({
+                tasks: state.tasks.map(t =>
+                  t.id === taskId
+                    ? { ...t, stage: oldStage, updatedAt: new Date().toISOString() }
+                    : t
+                ),
+              }), false, 'moveTaskToStage:revert');
+            }
+          }
         },
 
         updateTaskProgress: (taskId, substage, progress) => {
@@ -1237,7 +1440,11 @@ export const useKanbanStore = create()(
               return;
             }
 
-            set({ websocketConnecting: true, websocketError: null }, false, 'initializeWebSocket');
+            set({
+              websocketConnecting: true,
+              websocketError: null,
+              websocketStatus: { connected: false, connecting: true, error: null, serverStatus: websocketService.getStatus() }
+            }, false, 'initializeWebSocket');
 
             // Create listener functions locally
             const onConnect = () => {
@@ -1248,6 +1455,7 @@ export const useKanbanStore = create()(
                 websocketConnected: true,
                 websocketConnecting: false,
                 websocketError: null,
+                websocketStatus: { connected: true, connecting: false, error: null, serverStatus: websocketService.getStatus() },
                 processedMessages: freshMap
               }, false, 'websocketConnected');
               // Exit startup phase on successful connection
@@ -1264,14 +1472,17 @@ export const useKanbanStore = create()(
             const onDisconnect = () => {
               set({
                 websocketConnected: false,
-                websocketConnecting: false
+                websocketConnecting: false,
+                websocketStatus: { connected: false, connecting: false, error: null, serverStatus: websocketService.getStatus() }
               }, false, 'websocketDisconnected');
             };
 
             const onError = (error) => {
+              const errorMsg = error.message || 'WebSocket error';
               set({
-                websocketError: error.message || 'WebSocket error',
-                websocketConnecting: false
+                websocketError: errorMsg,
+                websocketConnecting: false,
+                websocketStatus: { connected: get().websocketConnected, connecting: false, error: errorMsg, serverStatus: websocketService.getStatus() }
               }, false, 'websocketError');
             };
 
@@ -1404,18 +1615,22 @@ export const useKanbanStore = create()(
               // Connection failed but listeners are registered
               // App can still function and will reconnect when backend becomes available
               console.warn('[KanbanStore] Initial connection failed, running in offline mode:', error.message);
+              const offlineError = 'Backend unavailable - will reconnect automatically';
               set({
                 websocketConnected: false,
                 websocketConnecting: false,
-                websocketError: 'Backend unavailable - will reconnect automatically'
+                websocketError: offlineError,
+                websocketStatus: { connected: false, connecting: false, error: offlineError, serverStatus: websocketService.getStatus() }
               }, false, 'websocketOfflineMode');
               // Don't throw - allow app to continue in offline mode
             }
 
           } catch (error) {
+            const initError = error.message || 'Failed to initialize WebSocket';
             set({
-              websocketError: error.message || 'Failed to initialize WebSocket',
-              websocketConnecting: false
+              websocketError: initError,
+              websocketConnecting: false,
+              websocketStatus: { connected: false, connecting: false, error: initError, serverStatus: websocketService.getStatus() }
             }, false, 'initializeWebSocketError');
             console.error('Failed to initialize WebSocket:', error);
           }
@@ -1433,7 +1648,8 @@ export const useKanbanStore = create()(
           set({
             websocketConnected: false,
             websocketConnecting: false,
-            websocketError: null
+            websocketError: null,
+            websocketStatus: { connected: false, connecting: false, error: null, serverStatus: null }
           }, false, 'disconnectWebSocket');
         },
 
@@ -3081,15 +3297,9 @@ export const useKanbanStore = create()(
           return get().activeWorkflows.get(task.metadata.adw_id);
         },
 
-        // WebSocket connection status
+        // WebSocket connection status - returns cached object to prevent infinite re-renders
         getWebSocketStatus: () => {
-          const { websocketConnected, websocketConnecting, websocketError } = get();
-          return {
-            connected: websocketConnected,
-            connecting: websocketConnecting,
-            error: websocketError,
-            serverStatus: websocketService.getStatus(),
-          };
+          return get().websocketStatus;
         },
 
         // Check WebSocket server health

@@ -398,7 +398,7 @@ describe('CardExpandModal Component', () => {
       expect(screen.getByText('REVIEW')).toBeInTheDocument();
     });
 
-    it('should use default stages when no pipeline info available', () => {
+    it('should use current stage when no pipeline info available', () => {
       const taskWithoutPipeline = {
         ...mockTask,
         queuedStages: undefined,
@@ -407,9 +407,11 @@ describe('CardExpandModal Component', () => {
 
       render(<CardExpandModal task={taskWithoutPipeline} isOpen={true} onClose={mockOnClose} />);
 
-      // Default stages are 'plan' and 'build', shown in StageTabsPanel mock as uppercase
+      // When no pipeline info is available, show just the current stage
+      // mockTask.stage is 'plan', so only PLAN should appear
       expect(screen.getByText('PLAN')).toBeInTheDocument();
-      expect(screen.getByText('BUILD')).toBeInTheDocument();
+      // BUILD should NOT appear since there's no pipeline info - we only show current stage
+      expect(screen.queryByText('BUILD')).not.toBeInTheDocument();
     });
 
     it('should render StageTabsPanel', () => {

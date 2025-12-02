@@ -187,6 +187,28 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
 
     // Priority 2: Parse from pipelineId if it starts with 'adw_'
     if (task.pipelineId && task.pipelineId.startsWith('adw_')) {
+      // Handle 'adw_unknown' special case - just show current stage
+      if (task.pipelineId === 'adw_unknown') {
+        const currentStage = task.stage?.toLowerCase() || 'backlog';
+        const config = STAGE_CONFIG[currentStage];
+        if (config) {
+          return [{
+            id: config.id,
+            name: config.name,
+            icon: config.icon,
+            stage: currentStage,
+            abbrev: config.abbrev
+          }];
+        }
+        // Fallback for unknown current stage
+        return [{
+          id: currentStage,
+          name: currentStage.toUpperCase().slice(0, 6),
+          icon: '📥',
+          stage: currentStage,
+          abbrev: currentStage.slice(0, 2).toUpperCase()
+        }];
+      }
       const stages = task.pipelineId.replace('adw_', '').split('_');
       return stages.map(s => {
         const config = STAGE_CONFIG[s.toLowerCase()];
@@ -206,11 +228,26 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
       });
     }
 
-    // Fallback: Default 2 stages (Plan and Build)
-    return [
-      { id: 'plan', name: 'PLAN', icon: '📋', stage: 'plan', abbrev: 'P' },
-      { id: 'implement', name: 'IMPL', icon: '🔨', stage: 'build', abbrev: 'B' }
-    ];
+    // Fallback: Show just the current stage
+    const currentStage = task.stage?.toLowerCase() || 'backlog';
+    const config = STAGE_CONFIG[currentStage];
+    if (config) {
+      return [{
+        id: config.id,
+        name: config.name,
+        icon: config.icon,
+        stage: currentStage,
+        abbrev: config.abbrev
+      }];
+    }
+    // Ultimate fallback for unknown stage
+    return [{
+      id: currentStage,
+      name: currentStage.toUpperCase().slice(0, 6),
+      icon: '📥',
+      stage: currentStage,
+      abbrev: currentStage.slice(0, 2).toUpperCase()
+    }];
   };
 
   const pipelineStages = getPipelineStages();
