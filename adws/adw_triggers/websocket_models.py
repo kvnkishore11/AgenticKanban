@@ -1,7 +1,7 @@
 """WebSocket message models for ADW trigger system."""
 
-from typing import Optional, Literal, List, Dict, Any
-from pydantic import BaseModel, Field, validator, AliasChoices
+from typing import Optional, Literal, List, Dict, Any, Union
+from pydantic import BaseModel, Field, field_validator, validator, AliasChoices
 from adw_modules.data_types import ModelSet, ADWWorkflow
 
 
@@ -124,13 +124,29 @@ class HealthCheckResponse(BaseModel):
 
 
 class ClarificationRequest(BaseModel):
-    """Request model for clarification endpoint."""
-    task_id: int  # Task ID from kanban
-    description: str  # Task description to analyze
-    adw_id: str  # ADW ID for the task
+    """Request model for clarification endpoint.
+
+    Accepts task_id as either int or str (will be coerced to int).
+    adw_id and description have defaults to handle edge cases gracefully.
+    """
+    task_id: Union[int, str]  # Task ID from kanban (accepts string, coerced to int)
+    description: str = ""  # Task description to analyze (default empty)
+    adw_id: str = ""  # ADW ID for the task (default empty)
     feedback: Optional[str] = None  # Optional user feedback for refinement
     previous_understanding: Optional[str] = None  # Previous understanding for fast refinement
     previous_questions: Optional[List[str]] = None  # Previous questions for refinement context
+
+    @field_validator('task_id', mode='before')
+    @classmethod
+    def coerce_task_id(cls, v):
+        """Coerce task_id to int if it's a valid numeric string."""
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError:
+                # Keep as string if not convertible, let endpoint handle gracefully
+                return v
+        return v
 
 
 class ClarificationResult(BaseModel):

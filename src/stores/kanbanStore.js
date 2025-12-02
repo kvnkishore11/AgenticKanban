@@ -223,13 +223,14 @@ export const useKanbanStore = create()(
                 createdAt: adw.created_at || new Date().toISOString(),
                 updatedAt: adw.updated_at || new Date().toISOString(),
                 logs: [],
-                // Include workflow_stages at top level for pipeline indicator (from API)
-                workflow_stages: adw.workflow_stages,
+                // Include workflow_stages at top level for pipeline indicator
+                // Prioritize API data, fall back to parsing from workflow_name
+                workflow_stages: adw.workflow_stages || parseWorkflowStages(adw.workflow_name),
                 workflow_name: adw.workflow_name,
                 metadata: {
                   adw_id: adw.adw_id,
                   workflow_name: adw.workflow_name,
-                  workflow_stages: adw.workflow_stages,  // Also include in metadata for consistency
+                  workflow_stages: adw.workflow_stages || parseWorkflowStages(adw.workflow_name),
                   issue_number: adw.issue_number,
                   branch_name: adw.branch_name,
                   worktree_path: adw.worktree_path,
@@ -675,6 +676,9 @@ export const useKanbanStore = create()(
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
               logs: [],
+              // Set workflow_stages for pipeline indicator display
+              workflow_stages: taskData.queuedStages || [],
+              workflow_name: adwConfig.workflow_name,
               metadata: {
                 // ADW metadata from the new service
                 adw_id: adwConfig.adw_id,
@@ -758,13 +762,14 @@ export const useKanbanStore = create()(
             console.error('Failed to create ADW configuration:', error);
 
             // Fallback to creating task without ADW configuration
+            const fallbackPipelineId = `adw_${(taskData.queuedStages || []).join('_')}_iso`;
             const fallbackTask = {
               id: taskId,
               title: taskData.title || '',
               description: taskData.description,
               workItemType: taskData.workItemType || WORK_ITEM_TYPES.FEATURE,
               queuedStages: taskData.queuedStages || [],
-              pipelineId: `adw_${(taskData.queuedStages || []).join('_')}`,
+              pipelineId: fallbackPipelineId,
               pipelineIdStatic: taskData.pipelineId,
               stage: 'backlog',
               substage: null,
@@ -772,6 +777,9 @@ export const useKanbanStore = create()(
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
               logs: [],
+              // Set workflow_stages for pipeline indicator display
+              workflow_stages: taskData.queuedStages || [],
+              workflow_name: fallbackPipelineId,
               metadata: {
                 autoProgress: false,
                 adw_creation_error: error.message,

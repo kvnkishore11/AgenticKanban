@@ -51,8 +51,9 @@ SlashCommand = Literal[
     "/chore",
     "/bug",
     "/feature",
-    # Clarification command
+    # Clarification commands
     "/clarify",
+    "/clarify-refine",
     # ADW workflow commands
     "/classify_issue",
     "/classify_adw",
