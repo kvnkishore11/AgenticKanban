@@ -2000,6 +2000,36 @@ async def receive_stage_event(request_data: dict):
         # Add timestamp if not provided
         timestamp = request_data.get("timestamp") or datetime.utcnow().isoformat() + "Z"
 
+        # CRITICAL: Persist stage transition to database BEFORE broadcasting
+        # This ensures the database is the source of truth and survives crashes/refreshes
+        db_persisted = False
+        if DB_AVAILABLE:
+            try:
+                db_manager = get_db_manager()
+
+                # Check if ADW exists
+                existing = db_manager.execute_query(
+                    "SELECT adw_id, current_stage FROM adw_states WHERE adw_id = ? AND deleted_at IS NULL",
+                    (adw_id,)
+                )
+
+                if existing:
+                    # Update current_stage in database
+                    db_manager.execute_update(
+                        "UPDATE adw_states SET current_stage = ?, updated_at = CURRENT_TIMESTAMP WHERE adw_id = ?",
+                        (to_stage, adw_id)
+                    )
+                    db_persisted = True
+                    print(f"[Stage Event] Persisted stage transition to database: {adw_id} -> {to_stage}")
+                else:
+                    print(f"[Stage Event] Warning: ADW {adw_id} not found in database, skipping persistence")
+            except Exception as db_error:
+                print(f"[Stage Event] Warning: Failed to persist stage to database: {db_error}")
+                # Continue with broadcast even if database update fails
+                # The frontend will still receive the event and can retry
+        else:
+            print(f"[Stage Event] Warning: Database not available, skipping persistence")
+
         print(f"[Stage Event] Broadcasting transition: adw_id={adw_id}, {from_stage} -> {to_stage}")
 
         # Build stage transition event for frontend
@@ -2027,6 +2057,7 @@ async def receive_stage_event(request_data: dict):
                 "message": f"Stage transition broadcasted: {from_stage} -> {to_stage}",
                 "adw_id": adw_id,
                 "to_stage": to_stage,
+                "db_persisted": db_persisted,
                 "clients_count": len(manager.active_connections)
             }
         )

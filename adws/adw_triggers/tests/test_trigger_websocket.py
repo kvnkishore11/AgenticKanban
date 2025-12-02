@@ -537,3 +537,290 @@ class TestADWPersistenceFlow:
         # Validate ADW ID format
         assert len(create_data["adw_id"]) == 8
         assert create_data["adw_id"].isalnum()
+
+
+class TestStageEventPersistence:
+    """Tests for stage event database persistence.
+
+    This tests the fix for the bug where stage transitions were broadcasted
+    via WebSocket but not persisted to the database. When a crash or page
+    refresh occurred, the task would revert to its previous stage because
+    the database still had the old value.
+    """
+
+    def test_stage_event_persists_to_database(self):
+        """Test that stage transitions are persisted to database.
+
+        The receive_stage_event endpoint should:
+        1. Validate the stage transition
+        2. Persist the new stage to database BEFORE broadcasting
+        3. Broadcast to WebSocket clients
+        4. Return db_persisted=True in the response
+        """
+        import asyncio
+        from unittest.mock import patch, MagicMock, AsyncMock
+
+        from adw_triggers.trigger_websocket import receive_stage_event
+
+        # Mock the database manager
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = [{"adw_id": "test1234", "current_stage": "plan"}]
+        mock_db.execute_update.return_value = None
+
+        # Mock the WebSocket manager
+        mock_manager = MagicMock()
+        mock_manager.broadcast = AsyncMock()
+        mock_manager.active_connections = []
+
+        request_data = {
+            "adw_id": "test1234",
+            "from_stage": "plan",
+            "to_stage": "build",
+            "workflow_name": "adw_patch_iso",
+        }
+
+        with patch('adw_triggers.trigger_websocket.DB_AVAILABLE', True):
+            with patch('adw_triggers.trigger_websocket.get_db_manager', return_value=mock_db):
+                with patch('adw_triggers.trigger_websocket.manager', mock_manager):
+                    result = asyncio.get_event_loop().run_until_complete(
+                        receive_stage_event(request_data)
+                    )
+
+        # Verify database was updated
+        mock_db.execute_update.assert_called_once()
+        update_call_args = mock_db.execute_update.call_args
+        assert "UPDATE adw_states SET current_stage = ?" in update_call_args[0][0]
+        assert update_call_args[0][1][0] == "build"  # to_stage
+        assert update_call_args[0][1][1] == "test1234"  # adw_id
+
+        # Verify response includes db_persisted flag
+        import json
+        response_body = json.loads(result.body.decode())
+        assert response_body.get("db_persisted") is True
+
+    def test_stage_event_handles_missing_adw_gracefully(self):
+        """Test that stage event handles missing ADW in database gracefully.
+
+        If the ADW doesn't exist in the database, the endpoint should:
+        1. Log a warning
+        2. Still broadcast the event (for backwards compatibility)
+        3. Return db_persisted=False
+        """
+        import asyncio
+        from unittest.mock import patch, MagicMock, AsyncMock
+
+        from adw_triggers.trigger_websocket import receive_stage_event
+
+        # Mock the database manager to return no results
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = []  # ADW not found
+
+        # Mock the WebSocket manager
+        mock_manager = MagicMock()
+        mock_manager.broadcast = AsyncMock()
+        mock_manager.active_connections = []
+
+        request_data = {
+            "adw_id": "notexist",
+            "from_stage": "plan",
+            "to_stage": "build",
+            "workflow_name": "adw_patch_iso",
+        }
+
+        with patch('adw_triggers.trigger_websocket.DB_AVAILABLE', True):
+            with patch('adw_triggers.trigger_websocket.get_db_manager', return_value=mock_db):
+                with patch('adw_triggers.trigger_websocket.manager', mock_manager):
+                    result = asyncio.get_event_loop().run_until_complete(
+                        receive_stage_event(request_data)
+                    )
+
+        # Database update should NOT have been called
+        mock_db.execute_update.assert_not_called()
+
+        # Broadcast should still have been called
+        mock_manager.broadcast.assert_called_once()
+
+        # Response should indicate db_persisted=False
+        import json
+        response_body = json.loads(result.body.decode())
+        assert response_body.get("db_persisted") is False
+
+    def test_stage_event_continues_on_db_error(self):
+        """Test that stage event continues broadcasting even if DB update fails.
+
+        If the database update fails, the endpoint should:
+        1. Log the error
+        2. Still broadcast the event
+        3. Return db_persisted=False
+        """
+        import asyncio
+        from unittest.mock import patch, MagicMock, AsyncMock
+
+        from adw_triggers.trigger_websocket import receive_stage_event
+
+        # Mock the database manager to raise an error
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = [{"adw_id": "test1234", "current_stage": "plan"}]
+        mock_db.execute_update.side_effect = Exception("Database error")
+
+        # Mock the WebSocket manager
+        mock_manager = MagicMock()
+        mock_manager.broadcast = AsyncMock()
+        mock_manager.active_connections = []
+
+        request_data = {
+            "adw_id": "test1234",
+            "from_stage": "plan",
+            "to_stage": "build",
+            "workflow_name": "adw_patch_iso",
+        }
+
+        with patch('adw_triggers.trigger_websocket.DB_AVAILABLE', True):
+            with patch('adw_triggers.trigger_websocket.get_db_manager', return_value=mock_db):
+                with patch('adw_triggers.trigger_websocket.manager', mock_manager):
+                    result = asyncio.get_event_loop().run_until_complete(
+                        receive_stage_event(request_data)
+                    )
+
+        # Broadcast should still have been called despite DB error
+        mock_manager.broadcast.assert_called_once()
+
+        # Response should indicate db_persisted=False
+        import json
+        response_body = json.loads(result.body.decode())
+        assert response_body.get("db_persisted") is False
+
+    def test_stage_event_skips_db_when_not_available(self):
+        """Test that stage event works when database is not available.
+
+        This maintains backwards compatibility for environments without DB.
+        """
+        import asyncio
+        from unittest.mock import patch, MagicMock, AsyncMock
+
+        from adw_triggers.trigger_websocket import receive_stage_event
+
+        # Mock the WebSocket manager
+        mock_manager = MagicMock()
+        mock_manager.broadcast = AsyncMock()
+        mock_manager.active_connections = []
+
+        request_data = {
+            "adw_id": "test1234",
+            "from_stage": "plan",
+            "to_stage": "build",
+            "workflow_name": "adw_patch_iso",
+        }
+
+        with patch('adw_triggers.trigger_websocket.DB_AVAILABLE', False):
+            with patch('adw_triggers.trigger_websocket.manager', mock_manager):
+                result = asyncio.get_event_loop().run_until_complete(
+                    receive_stage_event(request_data)
+                )
+
+        # Broadcast should have been called
+        mock_manager.broadcast.assert_called_once()
+
+        # Response should indicate db_persisted=False
+        import json
+        response_body = json.loads(result.body.decode())
+        assert response_body.get("db_persisted") is False
+
+    def test_orchestrator_event_format_persists_stage(self):
+        """Test that orchestrator event format also persists to database.
+
+        The endpoint accepts two formats. This tests the orchestrator format:
+        {
+            "adw_id": "...",
+            "event_type": "stage_completed",
+            "stage_name": "plan",
+            "next_stage": "build",
+            ...
+        }
+        """
+        import asyncio
+        from unittest.mock import patch, MagicMock, AsyncMock
+
+        from adw_triggers.trigger_websocket import receive_stage_event
+
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = [{"adw_id": "test1234", "current_stage": "plan"}]
+        mock_db.execute_update.return_value = None
+
+        mock_manager = MagicMock()
+        mock_manager.broadcast = AsyncMock()
+        mock_manager.active_connections = []
+
+        # Orchestrator event format
+        request_data = {
+            "adw_id": "test1234",
+            "event_type": "stage_completed",
+            "stage_name": "plan",
+            "next_stage": "build",
+            "workflow_name": "adw_patch_iso",
+            "message": "Plan stage completed",
+        }
+
+        with patch('adw_triggers.trigger_websocket.DB_AVAILABLE', True):
+            with patch('adw_triggers.trigger_websocket.get_db_manager', return_value=mock_db):
+                with patch('adw_triggers.trigger_websocket.manager', mock_manager):
+                    result = asyncio.get_event_loop().run_until_complete(
+                        receive_stage_event(request_data)
+                    )
+
+        # Verify database was updated with next_stage
+        mock_db.execute_update.assert_called_once()
+        update_call_args = mock_db.execute_update.call_args
+        assert update_call_args[0][1][0] == "build"  # next_stage becomes to_stage
+
+        import json
+        response_body = json.loads(result.body.decode())
+        assert response_body.get("db_persisted") is True
+
+    def test_workflow_completed_persists_ready_to_merge(self):
+        """Test that workflow_completed event persists 'ready-to-merge' stage.
+
+        This is the specific scenario reported in the bug:
+        1. ADW in ready-to-merge
+        2. User applies patch
+        3. Workflow progresses to build
+        4. Crash happens
+        5. On refresh, should NOT revert to ready-to-merge
+        """
+        import asyncio
+        from unittest.mock import patch, MagicMock, AsyncMock
+
+        from adw_triggers.trigger_websocket import receive_stage_event
+
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = [{"adw_id": "test1234", "current_stage": "document"}]
+        mock_db.execute_update.return_value = None
+
+        mock_manager = MagicMock()
+        mock_manager.broadcast = AsyncMock()
+        mock_manager.active_connections = []
+
+        # workflow_completed event should transition to ready-to-merge
+        request_data = {
+            "adw_id": "test1234",
+            "event_type": "workflow_completed",
+            "stage_name": "document",
+            "workflow_name": "adw_sdlc_iso",
+            "message": "Workflow completed successfully",
+        }
+
+        with patch('adw_triggers.trigger_websocket.DB_AVAILABLE', True):
+            with patch('adw_triggers.trigger_websocket.get_db_manager', return_value=mock_db):
+                with patch('adw_triggers.trigger_websocket.manager', mock_manager):
+                    result = asyncio.get_event_loop().run_until_complete(
+                        receive_stage_event(request_data)
+                    )
+
+        # Verify database was updated with ready-to-merge
+        mock_db.execute_update.assert_called_once()
+        update_call_args = mock_db.execute_update.call_args
+        assert update_call_args[0][1][0] == "ready-to-merge"
+
+        import json
+        response_body = json.loads(result.body.decode())
+        assert response_body.get("db_persisted") is True
