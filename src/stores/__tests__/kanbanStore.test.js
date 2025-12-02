@@ -789,15 +789,15 @@ describe('Kanban Store', () => {
       expect(mergeState).toBeNull();
     });
 
-    it('should handleMergeCompletion and keep task in ready-to-merge stage', () => {
+    it('should handleMergeCompletion and move task to completed stage', () => {
       act(() => {
         useKanbanStore.getState().handleMergeCompletion('test-adw-merge-123');
       });
 
       const updatedTask = useKanbanStore.getState().tasks[0];
 
-      // Task should stay in ready-to-merge, NOT moved to completed
-      expect(updatedTask.stage).toBe('ready-to-merge');
+      // Task should move to completed stage after successful merge
+      expect(updatedTask.stage).toBe('completed');
 
       // Merge metadata should be set
       expect(updatedTask.metadata.merge_completed).toBe(true);

@@ -23,7 +23,8 @@ const stageIcons = {
   review: '👀',
   document: '📄',
   errored: '⚠️',
-  'ready-to-merge': '✅',
+  'ready-to-merge': '🔀',
+  completed: '✅',
 };
 
 const KanbanBoard = ({ searchQuery = '' }) => {
@@ -46,10 +47,12 @@ const KanbanBoard = ({ searchQuery = '' }) => {
   };
 
   // Group stages: Backlog first, then SDLC, then others
+  // Note: 'completed' stage is intentionally excluded - completed tasks appear in the Completed Tasks modal
   const sdlcStageIds = ['plan', 'build', 'test', 'review', 'document', 'ready-to-merge', 'errored'];
   const backlogStage = stages.find(stage => stage.id === 'backlog');
   const sdlcStages = stages.filter(stage => sdlcStageIds.includes(stage.id));
-  const otherStages = stages.filter(stage => !sdlcStageIds.includes(stage.id) && stage.id !== 'backlog');
+  // Exclude 'completed' from otherStages as well - completed tasks are shown in the Completed Tasks modal
+  const otherStages = stages.filter(stage => !sdlcStageIds.includes(stage.id) && stage.id !== 'backlog' && stage.id !== 'completed');
 
   // Filter tasks based on search query
   const filterTasks = (tasks) => {

@@ -177,7 +177,7 @@ describe('CompletedTasksModal Component', () => {
       render(<CompletedTasksModal isOpen={true} onClose={mockOnClose} />);
 
       expect(
-        screen.getByText(/Tasks that reach 100% progress or complete the PR stage will appear here/)
+        screen.getByText(/Tasks that have been successfully merged will appear here/)
       ).toBeInTheDocument();
     });
 

@@ -406,6 +406,7 @@ h1, h2, h3, h4, h5, h6,
 .brutalist-column.review { border-left: 6px solid #8b5cf6; }
 .brutalist-column.document { border-left: 6px solid #ec4899; }
 .brutalist-column.ready-to-merge { border-left: 6px solid #14b8a6; }
+.brutalist-column.completed { border-left: 6px solid #059669; }
 .brutalist-column.errored { border-left: 6px solid #ef4444; }
 
 /* Column-specific colors */
@@ -439,6 +440,10 @@ h1, h2, h3, h4, h5, h6,
 
 .brutalist-column.ready-to-merge .brutalist-column-header {
   background: #14b8a6;
+}
+
+.brutalist-column.completed .brutalist-column-header {
+  background: #059669;
 }
 
 .brutalist-column.errored .brutalist-column-header {
@@ -1290,6 +1295,7 @@ h1, h2, h3, h4, h5, h6,
 .brutalist-column.review .brutalist-column-header { background: #8b5cf6; }
 .brutalist-column.document .brutalist-column-header { background: #ec4899; }
 .brutalist-column.ready-to-merge .brutalist-column-header { background: #14b8a6; }
+.brutalist-column.completed .brutalist-column-header { background: #059669; }
 .brutalist-column.errored .brutalist-column-header { background: #ef4444; }
 
 .brutalist-empty-column {

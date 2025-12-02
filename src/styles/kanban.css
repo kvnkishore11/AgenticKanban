@@ -396,6 +396,14 @@ html {
   border-left: 4px solid #10b981;
 }
 
+.stage-completed {
+  --stage-color: #047857;
+  --stage-bg: #a7f3d0;
+  --stage-border: #34d399;
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border-left: 4px solid #059669;
+}
+
 .stage-errored {
   --stage-color: #dc2626;
   --stage-bg: #fee2e2;

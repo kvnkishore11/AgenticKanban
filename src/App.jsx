@@ -10,7 +10,7 @@ import KanbanBoard from './components/kanban/KanbanBoard';
 import TaskInput from './components/forms/TaskInput';
 import CommandsPalette from './components/CommandsPalette';
 import SettingsModal from './components/forms/SettingsModal';
-import CompletedTasksModal from './components/kanban/CompletedTasksModal';
+import CompletedTasksView from './components/kanban/CompletedTasksView';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import NotificationToast from './components/common/NotificationToast';
 import { Search } from 'lucide-react';
@@ -224,6 +224,8 @@ function App() {
       <main className="brutalist-board-container">
         {!selectedProject ? (
           <ProjectSelector />
+        ) : showCompletedTasks ? (
+          <CompletedTasksView onBack={() => setShowCompletedTasks(false)} />
         ) : (
           <>
             {showTaskInput && <TaskInput />}
@@ -244,11 +246,7 @@ function App() {
         onClose={() => setShowSettingsModal(false)}
       />
 
-      {/* Completed Tasks Modal */}
-      <CompletedTasksModal
-        isOpen={showCompletedTasks}
-        onClose={() => setShowCompletedTasks(false)}
-      />
+      {/* Completed Tasks View is now rendered in main content area instead of as a modal */}
 
       {/* Click outside handler for dropdown */}
       {showDropdownMenu && (

@@ -93,6 +93,7 @@ const initialState = {
     { id: 'review', name: 'Review', color: 'purple' },
     { id: 'document', name: 'Document', color: 'indigo' },
     { id: 'ready-to-merge', name: 'Ready to Merge', color: 'teal' },
+    { id: 'completed', name: 'Completed', color: 'emerald' },
     { id: 'errored', name: 'Errored', color: 'red' },
   ],
 
@@ -984,14 +985,9 @@ export const useKanbanStore = create()(
         // Completed tasks management
         getCompletedTasks: () => {
           const { tasks } = get();
-          // A task is considered completed if:
-          // 1. Progress is 100%, OR
-          // 2. It's in the PR stage and workflow status is 'completed'
-          return tasks.filter(task => {
-            const isFullProgress = task.progress === 100;
-            const isPRCompleted = task.stage === 'pr' && task.metadata?.workflow_status === 'completed';
-            return isFullProgress || isPRCompleted;
-          });
+          // Only tasks in the 'completed' stage are shown in the Completed Tasks modal
+          // Tasks move to 'completed' stage after successful merge
+          return tasks.filter(task => task.stage === 'completed');
         },
 
         toggleCompletedTasksView: () => {
@@ -2785,8 +2781,9 @@ export const useKanbanStore = create()(
             return;
           }
 
-          // Update task metadata with merge completion info - keep task in ready-to-merge stage
+          // Update task metadata with merge completion info and move to completed stage
           get().updateTask(task.id, {
+            stage: 'completed',
             metadata: {
               ...task.metadata,
               merge_completed: true,
@@ -2809,7 +2806,7 @@ export const useKanbanStore = create()(
             }
           }), false, 'handleMergeCompletion');
 
-          console.log(`Task ${task.id} merge completed - staying in 'ready-to-merge' stage`);
+          console.log(`Task ${task.id} merge completed - moved to 'completed' stage`);
         },
 
         // Handle merge failure - called by WebSocket listener when merge workflow fails

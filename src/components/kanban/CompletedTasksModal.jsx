@@ -82,8 +82,8 @@ const CompletedTasksModal = ({ isOpen, onClose }) => {
                 No Completed Tasks Yet
               </h3>
               <p className="text-gray-500 max-w-md">
-                Tasks that reach 100% progress or complete the PR stage will appear here.
-                Keep working on your tasks to see them in this list!
+                Tasks that have been successfully merged will appear here.
+                Complete your workflows and merge to main to see tasks in this list!
               </p>
             </div>
           )}
