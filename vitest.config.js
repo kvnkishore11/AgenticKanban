@@ -12,6 +12,7 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.js'],
     env: {
       VITE_BACKEND_URL: 'http://localhost:8500',
+      VITE_ADW_PORT: '8500',
     },
     include: [
       'src/**/*.test.{js,jsx,ts,tsx}'

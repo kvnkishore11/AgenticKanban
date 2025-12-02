@@ -38,9 +38,23 @@ class TerminalOperations:
         self.project_root = self._get_project_root()
 
     def _get_project_root(self) -> str:
-        """Get the main project root directory."""
+        """Get the main project root directory.
+
+        Handles both main codebase and worktree locations by detecting
+        if we're in a 'trees/' subdirectory and navigating accordingly.
+        """
         current_file = os.path.abspath(__file__)
-        return os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+        # Go up 3 levels: terminal_ops.py -> adw_modules -> adws -> worktree_root
+        worktree_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+
+        # Check if we're in a worktree (trees/xxx structure)
+        parent_dir = os.path.dirname(worktree_root)
+        if os.path.basename(parent_dir) == "trees":
+            # We're in a worktree, go up 2 more levels to reach main project root
+            return os.path.dirname(parent_dir)
+
+        # We're in the main codebase
+        return worktree_root
 
     def _run_command(
         self,

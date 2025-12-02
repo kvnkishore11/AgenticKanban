@@ -27,7 +27,6 @@ import {
 const AGENT_EVENT_TYPES = ['ALL', 'THINKING', 'TOOL', 'FILE', 'TEXT'];
 
 const AgentLogsPanel = ({
-  taskId,
   adwId = null,  // ADW ID for fetching stage-specific logs
   stage = null,  // Stage to fetch logs for (plan, build, test, review, document)
   maxHeight = '500px',
@@ -40,18 +39,22 @@ const AgentLogsPanel = ({
   const [eventFilter, setEventFilter] = useState('ALL');
   const [autoScroll, setAutoScroll] = useState(autoScrollDefault);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [newLogsCount, setNewLogsCount] = useState(0);
+  const [userScrolledAway, setUserScrolledAway] = useState(false);
 
   // API-based logs state
   const [stageLogs, setStageLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [lastFetchTime, setLastFetchTime] = useState(null);
 
   const logsContainerRef = useRef(null);
   const bottomRef = useRef(null);
   const pollIntervalRef = useRef(null);
+  const previousLogCountRef = useRef(0);
 
-  const websocketStatus = getWebSocketStatus();
+  // Keep websocketStatus and lastFetchTime in case they're needed for future features
+  // const websocketStatus = getWebSocketStatus();
+  // const [lastFetchTime, setLastFetchTime] = useState(null);
 
   // Fetch stage-specific logs from API
   const fetchStageLogs = useCallback(async () => {
@@ -89,7 +92,6 @@ const AgentLogsPanel = ({
         }));
 
         setStageLogs(transformedLogs);
-        setLastFetchTime(new Date());
         setError(null);
       }
     } catch (err) {
@@ -190,12 +192,67 @@ const AgentLogsPanel = ({
     return logs;
   }, [agentLogs, eventFilter, searchQuery]);
 
-  // Auto-scroll to bottom when new logs arrive
-  useEffect(() => {
-    if (autoScroll && bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+  // Check if user is at bottom of scroll container
+  const isAtBottom = useCallback(() => {
+    if (!logsContainerRef.current) return true;
+
+    const { scrollTop, scrollHeight, clientHeight } = logsContainerRef.current;
+    // Consider "at bottom" if within 50px of the bottom
+    return scrollHeight - scrollTop - clientHeight < 50;
+  }, []);
+
+  // Handle scroll events to detect when user manually scrolls
+  const handleScroll = useCallback(() => {
+    if (!logsContainerRef.current) return;
+
+    const atBottom = isAtBottom();
+
+    if (atBottom) {
+      // User scrolled back to bottom, re-enable auto-scroll and clear new logs count
+      if (userScrolledAway) {
+        setUserScrolledAway(false);
+        setNewLogsCount(0);
+        setAutoScroll(true);
+      }
+    } else {
+      // User scrolled away from bottom
+      if (!userScrolledAway) {
+        setUserScrolledAway(true);
+      }
     }
-  }, [filteredLogs.length, autoScroll]);
+  }, [isAtBottom, userScrolledAway]);
+
+  // Attach scroll listener
+  useEffect(() => {
+    const container = logsContainerRef.current;
+    if (!container) return;
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
+
+  // Auto-scroll to bottom when new logs arrive (only if user is at bottom)
+  useEffect(() => {
+    const currentLogCount = filteredLogs.length;
+    const previousLogCount = previousLogCountRef.current;
+
+    // Detect new logs
+    if (currentLogCount > previousLogCount) {
+      const newCount = currentLogCount - previousLogCount;
+
+      // If user is at bottom, auto-scroll
+      if (autoScroll && isAtBottom() && !userScrolledAway) {
+        if (bottomRef.current) {
+          bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      } else if (!isAtBottom()) {
+        // User scrolled away, increment new logs counter
+        setNewLogsCount(prev => prev + newCount);
+      }
+    }
+
+    previousLogCountRef.current = currentLogCount;
+  }, [filteredLogs.length, autoScroll, isAtBottom, userScrolledAway]);
 
   // Notify parent of log count changes
   useEffect(() => {
@@ -213,6 +270,8 @@ const AgentLogsPanel = ({
     if (bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
       setAutoScroll(true);
+      setUserScrolledAway(false);
+      setNewLogsCount(0);
     }
   };
 
@@ -335,15 +394,26 @@ const AgentLogsPanel = ({
             <span>Auto</span>
           </button>
 
-          {/* Jump to latest */}
-          <button
-            type="button"
-            onClick={handleJumpToLatest}
-            className="p-1 text-gray-700 hover:bg-gray-200 rounded transition-colors"
-            title="Jump to latest"
-          >
-            <ArrowDown className="h-4 w-4" />
-          </button>
+          {/* Jump to latest (with new logs indicator) */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={handleJumpToLatest}
+              className={`p-1 rounded transition-colors ${
+                newLogsCount > 0
+                  ? 'text-white bg-purple-600 hover:bg-purple-700'
+                  : 'text-gray-700 hover:bg-gray-200'
+              }`}
+              title={newLogsCount > 0 ? `${newLogsCount} new log${newLogsCount !== 1 ? 's' : ''} available` : 'Jump to latest'}
+            >
+              <ArrowDown className="h-4 w-4" />
+            </button>
+            {newLogsCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 min-w-[16px] flex items-center justify-center px-1 font-bold">
+                {newLogsCount > 99 ? '99+' : newLogsCount}
+              </span>
+            )}
+          </div>
 
           {/* Refresh logs */}
           <button

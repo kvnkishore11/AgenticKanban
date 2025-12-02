@@ -103,11 +103,105 @@ const extractThinking = (content) => {
 };
 
 /**
+ * Generate a concise stage summary from result data
+ */
+const generateStageSummary = (result, messages, toolsUsed, filesChanged) => {
+  if (!result) return null;
+
+  const summaryParts = [];
+
+  // Check for explicit summary in result
+  if (Array.isArray(result)) {
+    const resultEntry = result.find(e => e.type === 'result' && e.result);
+    if (resultEntry?.result) {
+      return typeof resultEntry.result === 'string'
+        ? resultEntry.result
+        : resultEntry.result.summary || null;
+    }
+  } else if (result.summary) {
+    return result.summary;
+  }
+
+  // Generate summary from available data
+  const assistantMsgs = messages.filter(m => m.type === 'assistant');
+
+  if (assistantMsgs.length > 0) {
+    // Extract key decisions from first and last messages
+    const firstMsg = assistantMsgs[0];
+    const lastMsg = assistantMsgs[assistantMsgs.length - 1];
+
+    if (firstMsg.text) {
+      const firstSentence = firstMsg.text.split(/[.!?]\s/)[0];
+      if (firstSentence && firstSentence.length < 200) {
+        summaryParts.push(firstSentence);
+      }
+    }
+
+    if (lastMsg !== firstMsg && lastMsg.text) {
+      const lastSentences = lastMsg.text.split(/[.!?]\s/).slice(-2);
+      if (lastSentences.length > 0 && lastSentences[0]) {
+        summaryParts.push(lastSentences.join('. '));
+      }
+    }
+  }
+
+  // Add tool and file summary
+  if (toolsUsed.length > 0) {
+    summaryParts.push(`Used ${toolsUsed.length} tool${toolsUsed.length !== 1 ? 's' : ''}: ${toolsUsed.slice(0, 3).join(', ')}${toolsUsed.length > 3 ? '...' : ''}`);
+  }
+
+  if (filesChanged.length > 0) {
+    summaryParts.push(`Modified ${filesChanged.length} file${filesChanged.length !== 1 ? 's' : ''}`);
+  }
+
+  return summaryParts.length > 0 ? summaryParts.join('. ') : null;
+};
+
+/**
+ * Extract key decisions from thinking blocks
+ */
+const extractKeyDecisions = (messages) => {
+  const decisions = [];
+
+  messages.forEach(msg => {
+    if (msg.thinking && msg.thinking.length > 0) {
+      msg.thinking.forEach(thought => {
+        // Look for decision-making patterns
+        const decisionPatterns = [
+          /I (?:will|should|need to|must|have to|plan to)\s+([^.!?]+)/gi,
+          /(?:decided|chosen|selected|opted) to\s+([^.!?]+)/gi,
+          /The (?:approach|strategy|solution|plan) is to\s+([^.!?]+)/gi
+        ];
+
+        decisionPatterns.forEach(pattern => {
+          const matches = thought.matchAll(pattern);
+          for (const match of matches) {
+            if (match[1] && match[1].length < 150) {
+              decisions.push(match[1].trim());
+            }
+          }
+        });
+      });
+    }
+  });
+
+  return decisions.slice(0, 5); // Limit to top 5 decisions
+};
+
+/**
  * Parse result to extract conversation messages and summary
  */
 const parseConversationResult = (result) => {
   if (!result) {
-    return { messages: [], summary: null, toolsUsed: [], filesChanged: [], hasErrors: false };
+    return {
+      messages: [],
+      summary: null,
+      toolsUsed: [],
+      filesChanged: [],
+      hasErrors: false,
+      keyDecisions: [],
+      outcome: null
+    };
   }
 
   const messages = [];
@@ -115,6 +209,7 @@ const parseConversationResult = (result) => {
   const filesChanged = new Set();
   let summary = null;
   let hasErrors = false;
+  let outcome = null;
 
   // Handle array of messages/events (Claude session format)
   if (Array.isArray(result)) {
@@ -122,7 +217,7 @@ const parseConversationResult = (result) => {
       // Skip system noise
       if (isSystemNoise(entry)) {
         // But check for errors in stderr
-        if (entry.stderr && entry.stderr.includes('error')) {
+        if (entry.stderr && (entry.stderr.includes('error') || entry.stderr.includes('Error'))) {
           hasErrors = true;
         }
         return;
@@ -135,13 +230,15 @@ const parseConversationResult = (result) => {
         const tools = extractToolUses(content);
         const thinking = extractThinking(content);
 
-        if (text || tools.length > 0) {
+        if (text || tools.length > 0 || thinking.length > 0) {
           messages.push({
             type: 'assistant',
             text,
             tools,
             thinking,
-            index
+            index,
+            model: entry.message?.model || entry.model,
+            stop_reason: entry.message?.stop_reason || entry.stop_reason
           });
 
           // Track tools used
@@ -151,11 +248,13 @@ const parseConversationResult = (result) => {
         }
       }
 
-      // Extract user messages
+      // Extract user messages (filter out tool results)
       if (entry.type === 'user' || entry.role === 'user') {
         const content = entry.message?.content || entry.content;
         const text = extractTextFromContent(content);
-        if (text) {
+
+        // Only include user messages with meaningful text (not just tool results)
+        if (text && !text.startsWith('[tool_result') && text.length > 10) {
           messages.push({
             type: 'user',
             text,
@@ -167,7 +266,19 @@ const parseConversationResult = (result) => {
       // Extract result/completion messages
       if (entry.type === 'result' || entry.subtype === 'result') {
         if (entry.result) {
-          summary = typeof entry.result === 'string' ? entry.result : JSON.stringify(entry.result);
+          outcome = typeof entry.result === 'string' ? entry.result : entry.result;
+
+          // Try to extract summary from outcome
+          if (typeof outcome === 'object' && outcome.summary) {
+            summary = outcome.summary;
+          } else if (typeof outcome === 'string') {
+            summary = outcome;
+          }
+        }
+
+        // Check for success/error status
+        if (entry.subtype === 'error' || entry.is_error) {
+          hasErrors = true;
         }
       }
     });
@@ -177,13 +288,15 @@ const parseConversationResult = (result) => {
     const tools = extractToolUses(result.content);
     const thinking = extractThinking(result.content);
 
-    if (text || tools.length > 0) {
+    if (text || tools.length > 0 || thinking.length > 0) {
       messages.push({
         type: result.role || 'assistant',
         text,
         tools,
         thinking,
-        index: 0
+        index: 0,
+        model: result.model,
+        stop_reason: result.stop_reason
       });
 
       tools.forEach(tool => {
@@ -201,14 +314,32 @@ const parseConversationResult = (result) => {
       const files = Array.isArray(result.files_changed) ? result.files_changed : [result.files_changed];
       files.forEach(f => filesChanged.add(f));
     }
+
+    // Check for outcome
+    if (result.outcome) {
+      outcome = result.outcome;
+    }
   }
+
+  const toolsArray = Array.from(toolsUsed);
+  const filesArray = Array.from(filesChanged);
+
+  // Generate summary if not explicitly provided
+  if (!summary) {
+    summary = generateStageSummary(result, messages, toolsArray, filesArray);
+  }
+
+  // Extract key decisions from thinking blocks
+  const keyDecisions = extractKeyDecisions(messages);
 
   return {
     messages,
     summary,
-    toolsUsed: Array.from(toolsUsed),
-    filesChanged: Array.from(filesChanged),
-    hasErrors
+    toolsUsed: toolsArray,
+    filesChanged: filesArray,
+    hasErrors,
+    keyDecisions,
+    outcome
   };
 };
 
@@ -491,6 +622,36 @@ ConversationView.propTypes = {
 };
 
 /**
+ * Component to display key decisions extracted from thinking
+ */
+const KeyDecisionsPanel = ({ decisions }) => {
+  if (!decisions || decisions.length === 0) return null;
+
+  return (
+    <div className="bg-indigo-50 border-l-4 border-indigo-500 p-3 rounded-r">
+      <div className="flex items-start gap-2">
+        <Lightbulb className="h-5 w-5 text-indigo-600 mt-0.5 flex-shrink-0" />
+        <div className="flex-1">
+          <h4 className="text-sm font-semibold text-indigo-800 mb-2">Key Decisions</h4>
+          <ul className="space-y-1.5 text-sm text-indigo-700">
+            {decisions.map((decision, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="text-indigo-400 mt-1">•</span>
+                <span>{decision}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+KeyDecisionsPanel.propTypes = {
+  decisions: PropTypes.array
+};
+
+/**
  * BeautifiedResultViewer Component
  *
  * Displays agent workflow results in a conversation-style format.
@@ -502,7 +663,7 @@ const BeautifiedResultViewer = ({
   error = null,
   maxHeight = '100%'
 }) => {
-  const { messages, summary, toolsUsed, filesChanged, hasErrors } = useMemo(
+  const { messages, summary, toolsUsed, filesChanged, hasErrors, keyDecisions } = useMemo(
     () => parseConversationResult(result),
     [result]
   );
@@ -563,7 +724,7 @@ const BeautifiedResultViewer = ({
           <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded-r">
             <div className="flex items-start gap-2">
               <ListChecks className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-              <div>
+              <div className="flex-1">
                 <h4 className="text-sm font-semibold text-blue-800 mb-1">Summary</h4>
                 <div className="prose prose-sm max-w-none text-blue-700">
                   <ReactMarkdown>{summary}</ReactMarkdown>
@@ -572,6 +733,9 @@ const BeautifiedResultViewer = ({
             </div>
           </div>
         )}
+
+        {/* Key Decisions */}
+        <KeyDecisionsPanel decisions={keyDecisions} />
 
         {/* Conversation Messages */}
         {hasMeaningfulContent ? (

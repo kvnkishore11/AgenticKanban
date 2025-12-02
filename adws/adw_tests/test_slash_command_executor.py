@@ -11,7 +11,6 @@ from the UI. Instead of scripting every edge case, we let Claude handle the comp
 """
 
 import pytest
-import asyncio
 from pathlib import Path
 import sys
 

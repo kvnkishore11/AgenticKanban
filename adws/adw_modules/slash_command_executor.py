@@ -11,11 +11,10 @@ The key insight: let Claude handle the complexity, don't try to script everythin
 import subprocess
 import asyncio
 import inspect
-import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Callable, Any, Union
+from typing import Optional, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 

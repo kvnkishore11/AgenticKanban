@@ -3,7 +3,7 @@
 import subprocess
 import os
 import logging
-from typing import List, Tuple
+from typing import List
 
 from .types import MergeTestContext
 

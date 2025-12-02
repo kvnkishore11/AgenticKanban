@@ -1,8 +1,6 @@
 """Tests for branch name resilience - ensuring ADW never fails due to branch naming."""
 
-import pytest
 from unittest.mock import Mock, patch
-import logging
 
 import sys
 import os
@@ -13,7 +11,6 @@ from adw_modules.workflow_ops import (
     extract_branch_name_from_output,
     generate_fallback_branch_name,
     generate_branch_name,
-    BRANCH_NAME_PATTERN,
 )
 
 

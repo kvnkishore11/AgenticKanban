@@ -158,7 +158,7 @@ describe('BeautifiedResultViewer Component', () => {
   describe('Conversation View', () => {
     it('should display text content in conversation format', () => {
       render(<BeautifiedResultViewer result={mockSimpleResult} />);
-      expect(screen.getByText(/Task completed successfully/)).toBeInTheDocument();
+      expect(screen.getByText('Task completed successfully. All files have been updated.')).toBeInTheDocument();
     });
 
     it('should display agent label for assistant messages', () => {
@@ -197,7 +197,7 @@ describe('BeautifiedResultViewer Component', () => {
 
     it('should still show assistant messages from session array', () => {
       render(<BeautifiedResultViewer result={mockSessionResult} />);
-      expect(screen.getByText(/I have analyzed the codebase/)).toBeInTheDocument();
+      expect(screen.getByText('I have analyzed the codebase and found the following:')).toBeInTheDocument();
     });
   });
 
@@ -237,7 +237,7 @@ describe('BeautifiedResultViewer Component', () => {
   describe('Content Parsing', () => {
     it('should extract text from content array', () => {
       render(<BeautifiedResultViewer result={mockSimpleResult} />);
-      expect(screen.getByText(/Task completed successfully/)).toBeInTheDocument();
+      expect(screen.getByText('Task completed successfully. All files have been updated.')).toBeInTheDocument();
     });
 
     it('should extract and display tool names', () => {
@@ -256,8 +256,11 @@ describe('BeautifiedResultViewer Component', () => {
       };
 
       render(<BeautifiedResultViewer result={multiTextResult} />);
-      expect(screen.getByText(/First block/)).toBeInTheDocument();
-      expect(screen.getByText(/Second block/)).toBeInTheDocument();
+      // Multiple text blocks are joined and rendered, may appear multiple times (e.g., in raw JSON)
+      const firstBlocks = screen.getAllByText('First block');
+      const secondBlocks = screen.getAllByText('Second block');
+      expect(firstBlocks.length).toBeGreaterThanOrEqual(1);
+      expect(secondBlocks.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -328,8 +331,8 @@ describe('BeautifiedResultViewer Component', () => {
       ];
 
       render(<BeautifiedResultViewer result={multiMessageResult} />);
-      expect(screen.getByText(/First response/)).toBeInTheDocument();
-      expect(screen.getByText(/Second response/)).toBeInTheDocument();
+      expect(screen.getByText('First response')).toBeInTheDocument();
+      expect(screen.getByText('Second response')).toBeInTheDocument();
       expect(screen.getByText(/2 messages/)).toBeInTheDocument();
     });
 
@@ -340,7 +343,8 @@ describe('BeautifiedResultViewer Component', () => {
       };
 
       render(<BeautifiedResultViewer result={stringContentResult} />);
-      expect(screen.getByText(/Simple string content/)).toBeInTheDocument();
+      const elements = screen.getAllByText('Simple string content');
+      expect(elements.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -387,6 +391,153 @@ describe('BeautifiedResultViewer Component', () => {
       render(<BeautifiedResultViewer result={resultWithSummary} />);
       expect(screen.getByText('Summary')).toBeInTheDocument();
       expect(screen.getByText(/Successfully implemented the feature/)).toBeInTheDocument();
+    });
+
+    it('should generate summary from message content when not explicitly provided', () => {
+      const resultWithoutSummary = {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'I completed the implementation by modifying the files.' }]
+      };
+
+      render(<BeautifiedResultViewer result={resultWithoutSummary} />);
+      // Generated summary should be displayed
+      expect(screen.getByText('Summary')).toBeInTheDocument();
+    });
+
+    it('should include tool and file information in generated summary', () => {
+      const resultForSummary = {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'Task complete' },
+          { type: 'tool_use', name: 'Read', id: '1', input: {} }
+        ],
+        files_changed: ['file1.js', 'file2.js']
+      };
+
+      render(<BeautifiedResultViewer result={resultForSummary} />);
+      expect(screen.getByText('Summary')).toBeInTheDocument();
+      // Summary should mention tools and files
+      expect(screen.getByText(/Used 1 tool.*Read/)).toBeInTheDocument();
+      expect(screen.getByText(/Modified 2 files/)).toBeInTheDocument();
+    });
+  });
+
+  describe('Key Decisions Extraction', () => {
+    it('should extract and display key decisions from thinking blocks', () => {
+      const resultWithThinking = [
+        {
+          type: 'assistant',
+          message: {
+            content: [
+              {
+                type: 'thinking',
+                thinking: 'I will refactor the code to improve readability. The approach is to extract helper functions.'
+              },
+              { type: 'text', text: 'Refactoring complete' }
+            ]
+          }
+        }
+      ];
+
+      render(<BeautifiedResultViewer result={resultWithThinking} />);
+      expect(screen.getByText('Key Decisions')).toBeInTheDocument();
+      expect(screen.getByText(/refactor the code to improve readability/)).toBeInTheDocument();
+    });
+
+    it('should extract multiple decision patterns from thinking', () => {
+      const resultWithMultipleDecisions = [
+        {
+          type: 'assistant',
+          message: {
+            content: [
+              {
+                type: 'thinking',
+                thinking: 'I need to validate the input first. Then I decided to use the newer API endpoint.'
+              },
+              { type: 'text', text: 'Implementation done' }
+            ]
+          }
+        }
+      ];
+
+      render(<BeautifiedResultViewer result={resultWithMultipleDecisions} />);
+      expect(screen.getByText('Key Decisions')).toBeInTheDocument();
+      expect(screen.getByText(/validate the input first/)).toBeInTheDocument();
+      expect(screen.getByText(/use the newer API endpoint/)).toBeInTheDocument();
+    });
+
+    it('should not show key decisions section when no decisions found', () => {
+      const resultWithoutDecisions = {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Simple text without decisions' }]
+      };
+
+      render(<BeautifiedResultViewer result={resultWithoutDecisions} />);
+      expect(screen.queryByText('Key Decisions')).not.toBeInTheDocument();
+    });
+
+    it('should limit key decisions to reasonable length', () => {
+      const veryLongThinking = 'I will ' + 'do something '.repeat(50) + 'to complete the task.';
+      const resultWithLongDecision = [
+        {
+          type: 'assistant',
+          message: {
+            content: [
+              {
+                type: 'thinking',
+                thinking: veryLongThinking
+              },
+              { type: 'text', text: 'Done' }
+            ]
+          }
+        }
+      ];
+
+      render(<BeautifiedResultViewer result={resultWithLongDecision} />);
+      // Decision should be extracted but very long ones should be filtered out (< 150 chars)
+      // This test verifies the length limit works
+      expect(screen.queryByText(/do something do something do something do something do something do something do something do something/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Enhanced Error Detection', () => {
+    it('should detect errors from stderr field', () => {
+      const resultWithStderrError = [
+        {
+          type: 'system',
+          subtype: 'hook_response',
+          stderr: 'error: command failed',
+          exit_code: 1
+        },
+        {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Attempted operation' }]
+          }
+        }
+      ];
+
+      render(<BeautifiedResultViewer result={resultWithStderrError} />);
+      expect(screen.getByText('Completed with warnings')).toBeInTheDocument();
+    });
+
+    it('should detect errors from result entries', () => {
+      const resultWithError = [
+        {
+          type: 'result',
+          subtype: 'error',
+          result: 'Operation failed'
+        },
+        {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Attempted operation' }]
+          }
+        }
+      ];
+
+      render(<BeautifiedResultViewer result={resultWithError} />);
+      expect(screen.getByText('Completed with warnings')).toBeInTheDocument();
     });
   });
 });

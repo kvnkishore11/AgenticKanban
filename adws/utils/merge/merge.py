@@ -385,7 +385,7 @@ def _perform_merge(
         )
         if result.returncode != 0:
             # Try without specific branch (in case it doesn't exist on remote yet)
-            logger.warning(f"Could not fetch specific branch, trying general fetch")
+            logger.warning("Could not fetch specific branch, trying general fetch")
             subprocess.run(["git", "fetch", "origin"], cwd=repo_root)
 
         # Step 2: Squash merge from origin/branch-name (or local branch if not on remote)

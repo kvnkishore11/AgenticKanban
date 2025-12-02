@@ -5,8 +5,6 @@ for opening worktrees in a development environment. Each worktree gets its
 own tmux session named after the branch.
 """
 
-import os
-import pytest
 from unittest.mock import patch, MagicMock
 from adw_modules.terminal_ops import (
     TerminalOperations,

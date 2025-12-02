@@ -10,7 +10,6 @@ This test ensures the start script doesn't contain global pkill commands
 that would kill trigger_websocket.py processes from other worktrees.
 """
 
-import os
 import re
 from pathlib import Path
 

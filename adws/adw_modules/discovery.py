@@ -127,8 +127,6 @@ def format_adw_response(state_data: Dict[str, Any]) -> Dict[str, Any]:
 
         if stages:
             workflow_stages = stages
-            # Determine current stage based on execution state
-            current_stage_index = execution_data.get("current_stage_index", 0)
 
             # Find the current or last completed stage
             if workflow_status == "completed":

@@ -9,8 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from adw_modules.state import ADWState
 from adw_modules.websocket_client import WebSocketNotifier
 from adw_modules.data_types import GitHubIssue, IssueClassSlashCommand
-from adw_modules.workflow_ops import generate_branch_name, generate_fallback_branch_name, format_issue_message
-from adw_modules.github import make_issue_comment_safe
+from adw_modules.workflow_ops import generate_branch_name, generate_fallback_branch_name
 
 
 def generate_branch(
@@ -54,7 +53,7 @@ def generate_branch(
     except Exception as e:
         # Final safety net - any exception should not stop the workflow
         logger.warning(f"Exception in branch generation: {e}. Using fallback.")
-        notifier.notify_log("adw_plan_iso", f"Branch generation exception, using fallback", "WARN")
+        notifier.notify_log("adw_plan_iso", "Branch generation exception, using fallback", "WARN")
         branch_name = generate_fallback_branch_name(issue.number, adw_id, issue_command, logger)
 
     # Don't create branch here - let worktree create it

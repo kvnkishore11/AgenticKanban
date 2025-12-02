@@ -1,6 +1,5 @@
 """Tests for trigger_websocket.py command building logic and validation."""
 
-import pytest
 import sys
 import os
 

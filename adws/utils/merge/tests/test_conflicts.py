@@ -1,7 +1,6 @@
 """Tests for merge workflow conflict detection and resolution module."""
 
 from unittest.mock import patch, MagicMock, mock_open
-import subprocess
 
 import sys
 import os

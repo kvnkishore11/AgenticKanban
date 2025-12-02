@@ -13,6 +13,39 @@ import {
 } from 'lucide-react';
 
 /**
+ * Determine if an entry should be expanded by default based on its importance
+ */
+const shouldExpandByDefault = (log, eventType) => {
+  // Always expand thinking blocks (high importance for understanding agent reasoning)
+  if (eventType === 'thinking_block') {
+    return true;
+  }
+
+  // Always expand tool results with errors (critical information)
+  if (eventType === 'tool_use_post' && (log.error || log.status === 'error')) {
+    return true;
+  }
+
+  // Always expand file changes (important for understanding modifications)
+  if (eventType === 'file_changed') {
+    return true;
+  }
+
+  // Keep collapsed: routine tool calls with no errors
+  if (eventType === 'tool_use_pre') {
+    return false;
+  }
+
+  // Keep collapsed: text blocks (usually verbose)
+  if (eventType === 'text_block') {
+    return false;
+  }
+
+  // Default: collapsed
+  return false;
+};
+
+/**
  * AgentLogEntry - Specialized component for rendering agent-specific log entries.
  *
  * Handles different event types:
@@ -23,14 +56,13 @@ import {
  * - text_block: Agent text responses
  *
  * Features:
+ * - Intelligent default expansion based on entry type and importance
  * - Expandable content for detailed information
  * - Syntax highlighting for code/JSON
  * - Icons and color coding by event type
  * - Duration display for tool executions
  */
-const AgentLogEntry = ({ log }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-
+const AgentLogEntry = ({ log, defaultExpanded = null }) => {
   // Determine event type
   const getEventType = () => {
     if (log.event_type) return log.event_type;
@@ -45,6 +77,13 @@ const AgentLogEntry = ({ log }) => {
   };
 
   const eventType = getEventType();
+
+  // Use intelligent default expansion if not explicitly provided
+  const initialExpanded = defaultExpanded !== null
+    ? defaultExpanded
+    : shouldExpandByDefault(log, eventType);
+
+  const [isExpanded, setIsExpanded] = useState(initialExpanded);
 
   // Icon mapping
   const getIcon = () => {
@@ -87,11 +126,12 @@ const AgentLogEntry = ({ log }) => {
         return 'text-purple-600 bg-purple-50 border-purple-200';
       case 'tool_use_pre':
         return 'text-indigo-600 bg-indigo-50 border-indigo-200';
-      case 'tool_use_post':
+      case 'tool_use_post': {
         const status = log.status || 'success';
         return status === 'error'
           ? 'text-red-600 bg-red-50 border-red-200'
           : 'text-green-600 bg-green-50 border-green-200';
+      }
       case 'file_changed':
         return 'text-orange-600 bg-orange-50 border-orange-200';
       case 'text_block':
@@ -367,7 +407,8 @@ AgentLogEntry.propTypes = {
 
     // Sequence
     sequence: PropTypes.number
-  }).isRequired
+  }).isRequired,
+  defaultExpanded: PropTypes.bool
 };
 
 export default AgentLogEntry;

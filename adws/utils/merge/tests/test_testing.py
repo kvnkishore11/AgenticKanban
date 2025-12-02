@@ -1,6 +1,6 @@
 """Tests for merge workflow test validation module."""
 
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 
 import sys
 import os

@@ -222,7 +222,7 @@ class TestRunE2ETestsWithResolution:
         mock_logger = Mock()
         mock_resolve = Mock()
 
-        ctx = run_e2e_tests_with_resolution(
+        run_e2e_tests_with_resolution(
             "test1234", "999", mock_logger, "/path/to/worktree", mock_resolve
         )
 

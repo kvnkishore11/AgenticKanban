@@ -1226,4 +1226,278 @@ describe('AgentLogsPanel Component', () => {
       });
     });
   });
+
+  describe('Smart Auto-Scroll Behavior', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    // Helper function to mock scroll properties on an element
+    const mockScrollProperties = (element, { scrollTop, scrollHeight, clientHeight }) => {
+      Object.defineProperty(element, 'scrollTop', {
+        value: scrollTop,
+        writable: true,
+        configurable: true
+      });
+      Object.defineProperty(element, 'scrollHeight', {
+        value: scrollHeight,
+        writable: true,
+        configurable: true
+      });
+      Object.defineProperty(element, 'clientHeight', {
+        value: clientHeight,
+        writable: true,
+        configurable: true
+      });
+    };
+
+    it('should auto-scroll to bottom when new logs arrive and user is at bottom', async () => {
+      // Initial logs
+      global.fetch.mockResolvedValue(mockApiResponse([mockAgentLogs[0]]));
+
+      await act(async () => {
+        render(<AgentLogsPanel taskId="task-1" adwId="adw-123" stage="plan" />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('1 entries')).toBeInTheDocument();
+      });
+
+      // Find scroll container and mock that user is at bottom
+      const scrollContainer = document.querySelector('.overflow-y-auto');
+      expect(scrollContainer).toBeInTheDocument();
+
+      // Mock scroll properties to indicate user is at bottom (within 50px threshold)
+      mockScrollProperties(scrollContainer, {
+        scrollTop: 950,
+        scrollHeight: 1000,
+        clientHeight: 100
+      });
+
+      // Clear previous scrollIntoView calls
+      Element.prototype.scrollIntoView.mockClear();
+
+      // New logs arrive
+      global.fetch.mockResolvedValue(mockApiResponse([mockAgentLogs[0], mockAgentLogs[1]]));
+
+      // Advance timers to trigger polling
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      // Wait for new logs to appear
+      await waitFor(() => {
+        expect(screen.getByText('2 entries')).toBeInTheDocument();
+      }, { timeout: 5000 });
+
+      // scrollIntoView should be called for auto-scroll
+      await waitFor(() => {
+        expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+      }, { timeout: 2000 });
+    }, 10000);
+
+    it('should not auto-scroll when user has scrolled away from bottom', async () => {
+      // Initial logs
+      global.fetch.mockResolvedValue(mockApiResponse([mockAgentLogs[0]]));
+
+      await act(async () => {
+        render(<AgentLogsPanel taskId="task-1" adwId="adw-123" stage="plan" />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('1 entries')).toBeInTheDocument();
+      });
+
+      // Find scroll container and mock that user is scrolled away from bottom
+      const scrollContainer = document.querySelector('.overflow-y-auto');
+      expect(scrollContainer).toBeInTheDocument();
+
+      // Mock scroll properties to indicate user is scrolled away (more than 50px from bottom)
+      mockScrollProperties(scrollContainer, {
+        scrollTop: 100,
+        scrollHeight: 1000,
+        clientHeight: 200
+      });
+
+      // Trigger scroll event to update internal state
+      fireEvent.scroll(scrollContainer);
+
+      // Clear previous scrollIntoView calls
+      Element.prototype.scrollIntoView.mockClear();
+
+      // New logs arrive
+      global.fetch.mockResolvedValue(mockApiResponse([mockAgentLogs[0], mockAgentLogs[1]]));
+
+      // Advance timers to trigger polling
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      // Wait for new logs to appear
+      await waitFor(() => {
+        expect(screen.getByText('2 entries')).toBeInTheDocument();
+      }, { timeout: 5000 });
+
+      // Wait a bit to ensure scrollIntoView is not called
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      });
+
+      // scrollIntoView should NOT be called when user scrolled away
+      expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+    }, 10000);
+
+    it('should show new logs counter when user is scrolled away', async () => {
+      // Initial logs
+      global.fetch.mockResolvedValue(mockApiResponse([mockAgentLogs[0]]));
+
+      await act(async () => {
+        render(<AgentLogsPanel taskId="task-1" adwId="adw-123" stage="plan" />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('1 entries')).toBeInTheDocument();
+      });
+
+      // Find scroll container and mock that user is scrolled away from bottom
+      const scrollContainer = document.querySelector('.overflow-y-auto');
+      expect(scrollContainer).toBeInTheDocument();
+
+      // Mock scroll properties to indicate user is scrolled away
+      mockScrollProperties(scrollContainer, {
+        scrollTop: 100,
+        scrollHeight: 1000,
+        clientHeight: 200
+      });
+
+      // Trigger scroll event to update internal state
+      fireEvent.scroll(scrollContainer);
+
+      // New logs arrive
+      global.fetch.mockResolvedValue(mockApiResponse([mockAgentLogs[0], mockAgentLogs[1]]));
+
+      // Advance timers to trigger polling
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      // Wait for new logs to appear
+      await waitFor(() => {
+        expect(screen.getByText('2 entries')).toBeInTheDocument();
+      }, { timeout: 5000 });
+
+      // New logs badge should be visible (number in red badge)
+      await waitFor(() => {
+        const badge = document.querySelector('.bg-red-500');
+        expect(badge).toBeInTheDocument();
+        expect(badge.textContent).toBe('1');
+      }, { timeout: 3000 });
+    }, 10000);
+
+    it('should clear new logs counter when user clicks jump to latest', async () => {
+      // Initial logs
+      global.fetch.mockResolvedValue(mockApiResponse([mockAgentLogs[0]]));
+
+      await act(async () => {
+        render(<AgentLogsPanel taskId="task-1" adwId="adw-123" stage="plan" />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('1 entries')).toBeInTheDocument();
+      });
+
+      // Find scroll container and mock scrolled away state
+      const scrollContainer = document.querySelector('.overflow-y-auto');
+      expect(scrollContainer).toBeInTheDocument();
+
+      mockScrollProperties(scrollContainer, {
+        scrollTop: 100,
+        scrollHeight: 1000,
+        clientHeight: 200
+      });
+      fireEvent.scroll(scrollContainer);
+
+      // New logs arrive
+      global.fetch.mockResolvedValue(mockApiResponse([mockAgentLogs[0], mockAgentLogs[1]]));
+
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('2 entries')).toBeInTheDocument();
+      }, { timeout: 5000 });
+
+      // Wait for badge to appear
+      await waitFor(() => {
+        const badge = document.querySelector('.bg-red-500');
+        expect(badge).toBeInTheDocument();
+      }, { timeout: 3000 });
+
+      // Find and click jump to latest button
+      const jumpButton = screen.getByTitle(/Jump to latest|new log/);
+      fireEvent.click(jumpButton);
+
+      // Badge should be removed after clicking
+      await waitFor(() => {
+        const badge = document.querySelector('.bg-red-500');
+        expect(badge).not.toBeInTheDocument();
+      }, { timeout: 2000 });
+    }, 10000);
+
+    it('should re-enable auto-scroll when user scrolls back to bottom', async () => {
+      // Initial logs
+      global.fetch.mockResolvedValue(mockApiResponse([mockAgentLogs[0]]));
+
+      await act(async () => {
+        render(<AgentLogsPanel taskId="task-1" adwId="adw-123" stage="plan" />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('1 entries')).toBeInTheDocument();
+      });
+
+      const scrollContainer = document.querySelector('.overflow-y-auto');
+      expect(scrollContainer).toBeInTheDocument();
+
+      // User scrolls away from bottom
+      mockScrollProperties(scrollContainer, {
+        scrollTop: 100,
+        scrollHeight: 1000,
+        clientHeight: 200
+      });
+      fireEvent.scroll(scrollContainer);
+
+      // User scrolls back to bottom (within 50px threshold)
+      mockScrollProperties(scrollContainer, {
+        scrollTop: 800,
+        scrollHeight: 1000,
+        clientHeight: 200
+      });
+      fireEvent.scroll(scrollContainer);
+
+      // Clear previous calls
+      Element.prototype.scrollIntoView.mockClear();
+
+      // New logs arrive
+      global.fetch.mockResolvedValue(mockApiResponse([mockAgentLogs[0], mockAgentLogs[1]]));
+
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('2 entries')).toBeInTheDocument();
+      }, { timeout: 5000 });
+
+      // Auto-scroll should be re-enabled, so scrollIntoView should be called
+      await waitFor(() => {
+        expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+      }, { timeout: 2000 });
+    }, 10000);
+  });
 });
