@@ -2676,52 +2676,61 @@ export const useKanbanStore = create()(
                 ...state.mergingTasks,
                 [taskId]: {
                   status: 'in_progress',
-                  message: 'Starting merge via /merge_worktree...',
+                  message: 'Starting agent-based merge workflow...',
                   timestamp: new Date().toISOString()
                 }
               }
             }), false, 'triggerMergeWorkflow');
 
-            // Use slash command instead of complex workflow triggering
-            // This is the simple, powerful approach: let Claude handle the complexity
-            const response = await websocketService.triggerSlashCommand(
-              'merge_worktree',  // The slash command to execute
-              [adw_id, 'squash'],  // Arguments: adw_id and merge method (squash is worktree-safe)
-              {
-                adw_id,
-                task_id: taskId
-              }
-            );
+            // Use trigger_workflow via WebSocket for agent-based merge
+            // This runs adw_merge_iso which uses the agent pattern to handle errors
+            // within the same context instead of spawning new Claude instances
+            const response = await websocketService.triggerWorkflow({
+              workflow_type: 'adw_merge_iso',
+              adw_id: adw_id,
+              issue_number: task.metadata?.issue_number || String(task.id),
+              issue_type: task.workItemType || null,
+              issue_json: {
+                title: task.title || `Task ${task.id}`,
+                body: task.description || '',
+                number: task.id,
+                metadata: task.metadata || {},
+                stage: task.stage,
+              },
+              trigger_reason: `Merge worktree for: ${task.title || task.description?.substring(0, 50)}`
+            });
 
-            // Check for successful execution
-            if (response.success) {
-              // Update task metadata to indicate merge completed
+            // Check for successful trigger acceptance
+            // Note: 'accepted' means workflow was triggered, not completed
+            // Actual completion comes via WebSocket status updates
+            if (response.status === 'accepted') {
+              // Update task metadata to indicate merge was triggered
               get().updateTask(taskId, {
                 metadata: {
                   ...task.metadata,
                   merge_triggered: true,
                   merge_triggered_at: new Date().toISOString(),
-                  merge_completed: true,
-                  merge_completed_at: new Date().toISOString(),
+                  merge_adw_id: response.adw_id || adw_id,
                 }
               });
 
-              // Update merge state to success
+              // Update merge state - workflow is running (agent handles errors internally)
               set((state) => ({
                 isLoading: false,
                 mergingTasks: {
                   ...state.mergingTasks,
                   [taskId]: {
-                    status: 'success',
-                    message: 'Merge completed successfully!',
+                    status: 'running',
+                    message: 'Agent-based merge workflow running...',
                     timestamp: new Date().toISOString()
                   }
                 }
-              }), false, 'triggerMergeWorkflowSuccess');
+              }), false, 'triggerMergeWorkflowAccepted');
 
-              return { success: true, message: 'Merge completed successfully' };
+              // Return success - actual completion will be notified via WebSocket
+              return { success: true, message: 'Merge workflow triggered successfully' };
             } else {
-              throw new Error(response.error || 'Merge failed');
+              throw new Error(response.error || response.message || 'Merge trigger failed');
             }
 
           } catch (error) {

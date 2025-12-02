@@ -518,6 +518,52 @@ def implement_plan(
     return implement_response
 
 
+# Agent name for merge operations
+AGENT_MERGER = "merger"
+
+
+def execute_merge_workflow(
+    adw_id: str,
+    merge_method: str,
+    logger: logging.Logger,
+    working_dir: Optional[str] = None,
+) -> AgentPromptResponse:
+    """Execute the merge workflow using the /merge_execute command.
+
+    This uses the agent pattern to allow Claude to handle errors,
+    fix issues, and retry within the same context.
+
+    Args:
+        adw_id: ADW identifier for the worktree to merge
+        merge_method: Merge strategy (squash, merge, rebase)
+        logger: Logger instance
+        working_dir: Working directory for execution
+
+    Returns:
+        AgentPromptResponse with merge results
+    """
+    merge_template_request = AgentTemplateRequest(
+        agent_name=AGENT_MERGER,
+        slash_command="/merge_execute",
+        args=[adw_id, merge_method],
+        adw_id=adw_id,
+        working_dir=working_dir,
+    )
+
+    logger.info(f"Executing agent-based merge for {adw_id} using {merge_method} method")
+    logger.debug(
+        f"merge_template_request: {merge_template_request.model_dump_json(indent=2, by_alias=True)}"
+    )
+
+    merge_response = execute_template(merge_template_request)
+
+    logger.debug(
+        f"merge_response: {merge_response.model_dump_json(indent=2, by_alias=True)}"
+    )
+
+    return merge_response
+
+
 def generate_branch_name(
     issue: GitHubIssue,
     issue_class: IssueClassSlashCommand,

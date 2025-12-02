@@ -43,6 +43,7 @@ SLASH_COMMAND_MODEL_MAP: Final[Dict[SlashCommand, Dict[ModelSet, str]]] = {
     "/patch": {"base": "sonnet", "heavy": "sonnet"},
     "/install_worktree": {"base": "sonnet", "heavy": "sonnet"},
     "/track_agentic_kpis": {"base": "sonnet", "heavy": "sonnet"},
+    "/merge_execute": {"base": "sonnet", "heavy": "sonnet"},
 }
 
 

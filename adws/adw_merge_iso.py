@@ -4,7 +4,11 @@
 # ///
 
 """
-ADW Merge Isolated - Merge isolated ADW worktree into main branch
+ADW Merge Isolated - Agent-Based Worktree Merge
+
+This workflow uses the agent pattern to merge an isolated ADW worktree into main.
+Unlike the previous direct-execution approach, this delegates the merge to a Claude
+agent that can handle errors, fix issues, and retry within the same context.
 
 Usage:
   uv run adw_merge_iso.py <adw-id> [merge-method]
@@ -13,108 +17,162 @@ Arguments:
   adw-id: The ADW ID of the worktree to merge (required)
   merge-method: Merge strategy - "squash", "merge", or "rebase" (default: "squash")
 
-Workflow:
-1. Load ADW state and validate worktree exists
-2. Get branch name and worktree path from state
-3. Switch to main repository root (not worktree)
-4. Fetch latest changes from origin
-5. Checkout and pull main branch
-6. Attempt to merge the feature branch
-7. If conflicts occur, invoke Claude Code for resolution
-8. Restore config files to main repository paths (fixes worktree-specific paths)
-9. Run validation tests to ensure merge is clean
-10. Push merged changes to remote main
-11. Clean up worktree after successful merge
-12. Optionally delete remote branch
-13. Update ADW state with merge status
-
-Config File Handling:
-Worktrees often modify .mcp.json and playwright-mcp-config.json to point to
-worktree-specific paths (e.g., trees/adw-id/...). After merge, these files are
-automatically restored to main repository paths to prevent breaking the main repo.
-
-This command works with or without an associated issue number, providing
-flexibility for various workflows.
+The agent will:
+1. Load ADW state and validate
+2. Perform the merge
+3. Handle any errors (test failures, conflicts, config issues)
+4. Retry operations after fixing issues
+5. Only fail if truly unable to proceed after multiple attempts
 """
 
 import sys
+import os
 from dotenv import load_dotenv
 
-from utils.merge import (
-    initialize_merge_workflow,
-    validate_merge_worktree,
-    execute_merge,
-    cleanup_worktree_and_branch,
-    finalize_merge,
-    post_merge_status,
-    post_validation_status,
-    post_merge_start_status,
-    post_cleanup_status,
-    post_error_status,
-)
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from adw_modules.state import ADWState
+from adw_modules.utils import setup_logger
+from adw_modules.websocket_client import WebSocketNotifier
+from adw_modules.workflow_ops import execute_merge_workflow
+from adw_modules.github import make_issue_comment_safe
+from adw_modules.workflow_ops import format_issue_message
+
+
+def parse_arguments():
+    """Parse command line arguments."""
+    if len(sys.argv) < 2:
+        print("Usage: uv run adw_merge_iso.py <adw-id> [merge-method]")
+        print("  adw-id: The ADW ID of the worktree to merge")
+        print("  merge-method: squash (default), merge, or rebase")
+        sys.exit(1)
+
+    adw_id = sys.argv[1]
+    merge_method = sys.argv[2] if len(sys.argv) > 2 else "squash"
+
+    # Validate merge method
+    valid_methods = ["squash", "merge", "rebase"]
+    if merge_method not in valid_methods:
+        print(f"Invalid merge method: {merge_method}")
+        print(f"Valid options: {', '.join(valid_methods)}")
+        sys.exit(1)
+
+    return adw_id, merge_method
 
 
 def main():
-    """Main entry point - high-level workflow orchestration."""
+    """Main entry point - orchestrate agent-based merge."""
     load_dotenv()
 
-    # 1. Initialize workflow (env, state, logger, notifier)
-    ctx = initialize_merge_workflow(sys.argv, "adw_merge_iso")
+    # Parse arguments
+    adw_id, merge_method = parse_arguments()
 
-    # 2. Post initial status
-    post_merge_status(
-        ctx.adw_id, ctx.branch_name, ctx.merge_method,
-        ctx.issue_number, ctx.state, ctx.logger
-    )
+    # Setup logger
+    logger = setup_logger(adw_id)
+    logger.info(f"ADW Merge ISO (Agent-Based) starting - ID: {adw_id}, Method: {merge_method}")
 
-    # 3. Validate worktree exists
-    validation_ctx = validate_merge_worktree(
-        ctx.adw_id, ctx.state, ctx.issue_number, ctx.logger
-    )
-    if not validation_ctx.is_valid:
-        post_error_status(
-            ctx.adw_id, f"Worktree validation failed: {validation_ctx.error}",
-            ctx.issue_number, ctx.state, ctx.logger
-        )
-        print(f"\nError: Worktree validation failed: {validation_ctx.error}")
+    # Load state
+    state = ADWState.load(adw_id)
+    if not state:
+        logger.error(f"Failed to load state for ADW {adw_id}")
+        print(f"Error: Could not find ADW state for {adw_id}")
         sys.exit(1)
 
-    # 4. Post validation status
-    post_validation_status(
-        ctx.adw_id, ctx.branch_name,
-        ctx.issue_number, ctx.state, ctx.logger
+    # Get issue number for notifications (optional)
+    issue_number = state.get("issue_number")
+    branch_name = state.get("branch_name", "unknown")
+
+    # Setup notifier
+    notifier = WebSocketNotifier(adw_id)
+
+    # Post initial status
+    logger.info(f"Starting agent-based merge for branch: {branch_name}")
+    notifier.notify_progress(
+        "adw_merge_iso", 10, "Starting",
+        f"Starting agent-based merge of {branch_name}"
     )
 
-    # 5. Post merge start status
-    post_merge_start_status(
-        ctx.adw_id, ctx.branch_name, ctx.merge_method,
-        ctx.issue_number, ctx.state, ctx.logger
-    )
-
-    # 6. Execute merge (includes conflict resolution, config restoration, tests)
-    merge_result = execute_merge(
-        ctx.adw_id, ctx.branch_name, ctx.merge_method,
-        ctx.issue_number, ctx.state, ctx.logger
-    )
-    if not merge_result.success:
-        post_error_status(
-            ctx.adw_id, f"Failed to merge: {merge_result.error}",
-            ctx.issue_number, ctx.state, ctx.logger
+    if issue_number:
+        make_issue_comment_safe(
+            issue_number,
+            format_issue_message(
+                adw_id, "merger",
+                f"Starting agent-based merge of `{branch_name}` to main using `{merge_method}` strategy"
+            ),
+            state
         )
-        print(f"\nError: Failed to merge: {merge_result.error}")
+
+    # Execute merge using agent pattern
+    # The agent will handle errors, fix issues, and retry within the same context
+    notifier.notify_progress(
+        "adw_merge_iso", 30, "Merging",
+        "Agent executing merge workflow..."
+    )
+
+    try:
+        response = execute_merge_workflow(
+            adw_id=adw_id,
+            merge_method=merge_method,
+            logger=logger,
+        )
+
+        if response.success:
+            logger.info("Agent-based merge completed successfully")
+            notifier.notify_complete(
+                "adw_merge_iso",
+                f"Successfully merged {branch_name} to main"
+            )
+
+            if issue_number:
+                make_issue_comment_safe(
+                    issue_number,
+                    format_issue_message(
+                        adw_id, "merger",
+                        f"Successfully merged `{branch_name}` to main using agent-based workflow"
+                    ),
+                    state
+                )
+
+            # Update state
+            state.update(
+                merge_status="completed",
+                merge_method=merge_method,
+                completed=True
+            )
+            state.save("adw_merge_iso")
+
+        else:
+            logger.error(f"Agent-based merge failed: {response.output}")
+            notifier.notify_error(
+                "adw_merge_iso",
+                f"Merge failed after agent attempts: {response.output[:200]}",
+                "Merging"
+            )
+
+            if issue_number:
+                make_issue_comment_safe(
+                    issue_number,
+                    format_issue_message(
+                        adw_id, "merger",
+                        f"Merge failed after multiple attempts:\n```\n{response.output[:500]}\n```"
+                    ),
+                    state
+                )
+
+            sys.exit(1)
+
+    except Exception as e:
+        logger.exception(f"Exception during agent-based merge: {e}")
+        notifier.notify_error(
+            "adw_merge_iso",
+            f"Merge exception: {str(e)}",
+            "Merging"
+        )
         sys.exit(1)
 
-    ctx.logger.info(f"✅ Successfully merged {ctx.branch_name} to main")
-
-    # 7. Post cleanup status and cleanup
-    post_cleanup_status(ctx.adw_id, ctx.issue_number, ctx.state, ctx.logger)
-    cleanup_worktree_and_branch(ctx.adw_id, ctx.branch_name, ctx.logger)
-
-    # 8. Finalize (state update, success message)
-    finalize_merge(
-        ctx.adw_id, ctx.branch_name, ctx.merge_method,
-        ctx.issue_number, ctx.state, ctx.logger
-    )
+    finally:
+        notifier.close()
 
 
 if __name__ == "__main__":
