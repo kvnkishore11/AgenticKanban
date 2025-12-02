@@ -51,6 +51,7 @@ logs/
 
 # Claude session data (auto-generated)
 .claude/data/
+**/.claude/data/
 
 # Agent output directories
 agents/
