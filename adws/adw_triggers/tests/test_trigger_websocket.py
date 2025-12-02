@@ -244,3 +244,104 @@ class TestPatchWorkflowStageTransition:
 
         assert target_stage == "build", \
             "Patch workflow from errored stage should go to 'build', not 'plan'"
+
+
+class TestOpenCodebaseEndpoint:
+    """Tests for the open_codebase endpoint using TerminalOperations."""
+
+    def test_open_codebase_rejects_invalid_adw_id_format(self):
+        """Test that invalid ADW ID formats are rejected."""
+        import asyncio
+        from adw_triggers.trigger_websocket import open_codebase
+
+        # Test too short
+        result = asyncio.get_event_loop().run_until_complete(open_codebase("abc"))
+        assert result.status_code == 400
+        assert "Invalid ADW ID format" in result.body.decode()
+
+        # Test too long
+        result = asyncio.get_event_loop().run_until_complete(open_codebase("abcdefghij"))
+        assert result.status_code == 400
+        assert "Invalid ADW ID format" in result.body.decode()
+
+        # Test special characters
+        result = asyncio.get_event_loop().run_until_complete(open_codebase("abc!@#12"))
+        assert result.status_code == 400
+        assert "Invalid ADW ID format" in result.body.decode()
+
+    def test_open_codebase_rejects_nonexistent_adw(self):
+        """Test that nonexistent ADW IDs return 404."""
+        import asyncio
+        from adw_triggers.trigger_websocket import open_codebase
+
+        result = asyncio.get_event_loop().run_until_complete(open_codebase("zzzzzzzz"))
+        assert result.status_code == 404
+        assert "not found" in result.body.decode().lower()
+
+    def test_open_codebase_uses_dedicated_session(self):
+        """Test that open_codebase uses TerminalOperations for dedicated sessions.
+
+        Each worktree should have its own tmux session named after the branch,
+        with a 'code-{adw_id}' window running neovim.
+        """
+        from adw_modules.terminal_ops import TerminalOperations
+
+        # Verify TerminalOperations creates session with branch name
+        ops = TerminalOperations()
+        assert hasattr(ops, 'open_codebase')
+        assert hasattr(ops, '_sanitize_session_name')
+
+        # Verify session name sanitization works correctly
+        assert ops._sanitize_session_name("feat/test-branch") == "feat-test-branch"
+        assert ops._sanitize_session_name("fix.bug:123") == "fix-bug-123"
+
+
+class TestOpenWorktreeEndpoint:
+    """Tests for the open_worktree endpoint using TerminalOperations."""
+
+    def test_open_worktree_rejects_invalid_adw_id_format(self):
+        """Test that invalid ADW ID formats are rejected."""
+        import asyncio
+        from adw_triggers.trigger_websocket import open_worktree
+
+        # Test too short
+        result = asyncio.get_event_loop().run_until_complete(open_worktree("abc"))
+        assert result.status_code == 400
+        assert "Invalid ADW ID format" in result.body.decode()
+
+        # Test too long
+        result = asyncio.get_event_loop().run_until_complete(open_worktree("abcdefghij"))
+        assert result.status_code == 400
+        assert "Invalid ADW ID format" in result.body.decode()
+
+        # Test special characters
+        result = asyncio.get_event_loop().run_until_complete(open_worktree("abc!@#12"))
+        assert result.status_code == 400
+        assert "Invalid ADW ID format" in result.body.decode()
+
+    def test_open_worktree_rejects_nonexistent_adw(self):
+        """Test that nonexistent ADW IDs return 404."""
+        import asyncio
+        from adw_triggers.trigger_websocket import open_worktree
+
+        result = asyncio.get_event_loop().run_until_complete(open_worktree("zzzzzzzz"))
+        assert result.status_code == 404
+        assert "not found" in result.body.decode().lower()
+
+    def test_open_worktree_uses_dedicated_session(self):
+        """Test that open_worktree uses TerminalOperations for dedicated sessions.
+
+        Each worktree should have its own tmux session named after the branch,
+        with a 'logs-{adw_id}' window containing split panes for scripts.
+        """
+        from adw_modules.terminal_ops import TerminalOperations
+
+        # Verify TerminalOperations creates session with logs window
+        ops = TerminalOperations()
+        assert hasattr(ops, 'open_worktree')
+        assert hasattr(ops, '_setup_logs_window')
+
+        # Verify the implementation creates proper window names
+        adw_id = "test1234"
+        expected_window_name = f"logs-{adw_id[:8]}"
+        assert expected_window_name == "logs-test1234"

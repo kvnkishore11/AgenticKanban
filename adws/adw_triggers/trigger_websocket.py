@@ -2217,6 +2217,179 @@ async def delete_adw(adw_id: str):
         )
 
 
+@app.post("/api/codebase/open/{adw_id}")
+async def open_codebase(adw_id: str):
+    """
+    Open the codebase in neovim within a dedicated tmux session.
+
+    Each worktree gets its own tmux session named after the branch, with a
+    'code-{adw_id}' window running neovim.
+
+    Args:
+        adw_id: The ADW identifier (8-character alphanumeric string)
+
+    Returns:
+        JSON response with success status and details
+    """
+    # Import terminal ops for proper session handling
+    from adw_modules.terminal_ops import TerminalOperations
+
+    # Validate ADW ID format
+    if len(adw_id) != 8 or not adw_id.isalnum():
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Invalid ADW ID format: {adw_id}. Must be 8 alphanumeric characters."}
+        )
+
+    try:
+        agents_dir = get_agents_directory()
+        adw_dir = agents_dir / adw_id
+
+        if not adw_dir.exists():
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"ADW ID '{adw_id}' not found"}
+            )
+
+        state_data = read_adw_state(adw_dir)
+        if not state_data:
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"adw_state.json not found or invalid for ADW ID '{adw_id}'"}
+            )
+
+        worktree_path = state_data.get("worktree_path")
+        if not worktree_path:
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"Worktree path not found for ADW ID '{adw_id}'"}
+            )
+
+        if not os.path.exists(worktree_path):
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"Worktree not found at path: {worktree_path}"}
+            )
+
+        logger.info(f"Opening codebase for ADW {adw_id} at {worktree_path}")
+
+        # Use TerminalOperations for proper session handling
+        terminal_ops = TerminalOperations()
+        result = terminal_ops.open_codebase(adw_id=adw_id, worktree_path=worktree_path)
+
+        if not result.success:
+            return JSONResponse(
+                status_code=500,
+                content={"error": result.error or result.message}
+            )
+
+        return {
+            "success": True,
+            "adw_id": adw_id,
+            "worktree_path": worktree_path,
+            "tmux_session": result.session_name,
+            "window_name": result.window_name,
+            "branch_name": result.branch_name,
+            "message": result.message
+        }
+
+    except Exception as e:
+        logger.error(f"Error opening codebase for {adw_id}: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to open codebase: {str(e)}"}
+        )
+
+
+@app.post("/api/worktree/open/{adw_id}")
+async def open_worktree(adw_id: str):
+    """
+    Open the worktree in WezTerm with a dedicated tmux session.
+
+    Each worktree gets its own tmux session named after the branch, with a
+    'logs-{adw_id}' window containing split panes for frontend and backend scripts.
+
+    Args:
+        adw_id: The ADW identifier (8-character alphanumeric string)
+
+    Returns:
+        JSON response with success status and details
+    """
+    # Import terminal ops for proper session handling
+    from adw_modules.terminal_ops import TerminalOperations
+
+    # Validate ADW ID format
+    if len(adw_id) != 8 or not adw_id.isalnum():
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Invalid ADW ID format: {adw_id}. Must be 8 alphanumeric characters."}
+        )
+
+    try:
+        agents_dir = get_agents_directory()
+        adw_dir = agents_dir / adw_id
+
+        if not adw_dir.exists():
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"ADW ID '{adw_id}' not found"}
+            )
+
+        state_data = read_adw_state(adw_dir)
+        if not state_data:
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"adw_state.json not found or invalid for ADW ID '{adw_id}'"}
+            )
+
+        worktree_path = state_data.get("worktree_path")
+        if not worktree_path:
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"Worktree path not found for ADW ID '{adw_id}'"}
+            )
+
+        if not os.path.exists(worktree_path):
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"Worktree not found at path: {worktree_path}"}
+            )
+
+        logger.info(f"Opening worktree for ADW {adw_id} at {worktree_path}")
+
+        # Use TerminalOperations for proper session handling
+        terminal_ops = TerminalOperations()
+        result = terminal_ops.open_worktree(
+            adw_id=adw_id,
+            worktree_path=worktree_path,
+            run_scripts=True,  # Run frontend/backend scripts in split panes
+            open_browser=False  # Don't auto-open browser from API
+        )
+
+        if not result.success:
+            return JSONResponse(
+                status_code=500,
+                content={"error": result.error or result.message}
+            )
+
+        return {
+            "success": True,
+            "adw_id": adw_id,
+            "worktree_path": worktree_path,
+            "tmux_session": result.session_name,
+            "window_name": result.window_name,
+            "branch_name": result.branch_name,
+            "message": result.message
+        }
+
+    except Exception as e:
+        logger.error(f"Error opening worktree for {adw_id}: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to open worktree: {str(e)}"}
+        )
+
+
 @app.get("/api/adws/{adw_id}/plan")
 async def get_adw_plan(adw_id: str):
     """Get plan file content for a specific ADW ID.
