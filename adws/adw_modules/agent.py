@@ -25,6 +25,8 @@ CLAUDE_PATH = os.getenv("CLAUDE_CODE_PATH", "claude")
 # Model selection mapping for slash commands
 # Maps each command to its model configuration for base and heavy model sets
 SLASH_COMMAND_MODEL_MAP: Final[Dict[SlashCommand, Dict[ModelSet, str]]] = {
+    "/clarify": {"base": "haiku", "heavy": "haiku"},
+    "/clarify-refine": {"base": "haiku", "heavy": "haiku"},
     "/classify_issue": {"base": "sonnet", "heavy": "sonnet"},
     "/classify_adw": {"base": "sonnet", "heavy": "sonnet"},
     "/generate_branch_name": {"base": "sonnet", "heavy": "sonnet"},

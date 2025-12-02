@@ -731,6 +731,16 @@ export const useKanbanStore = create()(
             // Send project notification after successful task creation
             get().sendProjectNotification(newTask);
 
+            // Auto-trigger clarification in background (non-blocking)
+            // This pre-warms the clarification so it's ready when user opens the task
+            if (newTask.description && adwConfig.adw_id) {
+              setTimeout(() => {
+                get().triggerClarification(newTask.id, newTask.description).catch(error => {
+                  console.warn('Background clarification failed (non-critical):', error.message);
+                });
+              }, 200);
+            }
+
             // Auto-trigger workflow if "Start Immediately" was clicked
             if (taskData.startImmediately && taskData.queuedStages && taskData.queuedStages.length > 0) {
               setTimeout(() => {
@@ -899,6 +909,8 @@ export const useKanbanStore = create()(
         },
 
         // Trigger clarification workflow via backend API
+        // When feedback is provided WITH previous understanding, uses fast /clarify-refine
+        // Otherwise uses full /clarify (reads PROJECT_CONTEXT.md)
         triggerClarification: async (taskId, description, feedback = null) => {
           const state = get();
           const task = state.tasks.find(t => t.id === taskId);
@@ -910,6 +922,11 @@ export const useKanbanStore = create()(
             return;
           }
 
+          // Get previous understanding if available (for fast refinement)
+          const previousResult = task.metadata?.clarificationResult;
+          const previousUnderstanding = previousResult?.understanding || null;
+          const previousQuestions = previousResult?.questions || null;
+
           try {
             const wsPort = import.meta.env.VITE_ADW_PORT || 8500;
             const response = await fetch(`http://localhost:${wsPort}/api/clarify`, {
@@ -919,7 +936,10 @@ export const useKanbanStore = create()(
                 task_id: taskId,
                 description: description,
                 adw_id: adwId,
-                feedback: feedback
+                feedback: feedback,
+                // Pass previous understanding for fast refinement when feedback is provided
+                previous_understanding: feedback ? previousUnderstanding : null,
+                previous_questions: feedback ? previousQuestions : null,
               })
             });
 

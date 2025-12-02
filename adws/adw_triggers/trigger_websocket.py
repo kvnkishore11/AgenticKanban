@@ -1722,6 +1722,8 @@ async def clarify_task(request: ClarificationRequest):
                 description=request.description,
                 user_feedback=request.feedback,
                 adw_id=request.adw_id,
+                previous_understanding=request.previous_understanding,
+                previous_questions=request.previous_questions,
             )
 
             return ClarificationResult(

@@ -129,6 +129,8 @@ class ClarificationRequest(BaseModel):
     description: str  # Task description to analyze
     adw_id: str  # ADW ID for the task
     feedback: Optional[str] = None  # Optional user feedback for refinement
+    previous_understanding: Optional[str] = None  # Previous understanding for fast refinement
+    previous_questions: Optional[List[str]] = None  # Previous questions for refinement context
 
 
 class ClarificationResult(BaseModel):
