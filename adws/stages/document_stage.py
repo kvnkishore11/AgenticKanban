@@ -60,7 +60,13 @@ class DocumentStage(BaseStage):
         """Execute document phase by running adw_document_iso.py."""
         ctx.logger.info(f"Starting document stage for ADW {ctx.adw_id}")
 
-        # Build args: <issue_number> <adw_id>
+        # Build args: <issue_number> <adw_id> [model]
         args = [str(ctx.issue_number), ctx.adw_id]
+
+        # Add model preference if specified in config
+        if ctx.config and 'model' in ctx.config:
+            model = ctx.config['model']
+            ctx.logger.info(f"Using model preference: {model}")
+            args.append(f"--model={model}")
 
         return self.run_script(ctx, "adw_document_iso.py", args)

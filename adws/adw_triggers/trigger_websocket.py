@@ -63,7 +63,6 @@ from adw_triggers.websocket_models import (
 
 # Database imports (for database-backed API)
 try:
-    import sqlite3
     # Add server directory to path for database imports
     _server_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "server")
     if _server_path not in sys.path:
@@ -2028,7 +2027,7 @@ async def receive_stage_event(request_data: dict):
                 # Continue with broadcast even if database update fails
                 # The frontend will still receive the event and can retry
         else:
-            print(f"[Stage Event] Warning: Database not available, skipping persistence")
+            print("[Stage Event] Warning: Database not available, skipping persistence")
 
         print(f"[Stage Event] Broadcasting transition: adw_id={adw_id}, {from_stage} -> {to_stage}")
 

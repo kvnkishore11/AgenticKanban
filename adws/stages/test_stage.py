@@ -71,6 +71,12 @@ class TestStage(BaseStage):
         if ctx.config.get("skip_e2e", False):
             args.append("--skip-e2e")
 
+        # Add model preference if specified in config
+        if ctx.config and 'model' in ctx.config:
+            model = ctx.config['model']
+            ctx.logger.info(f"Using model preference: {model}")
+            args.append(f"--model={model}")
+
         return self.run_script(ctx, "adw_test_iso.py", args)
 
     def on_failure(self, ctx: StageContext, error: Exception) -> None:

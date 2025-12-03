@@ -36,6 +36,14 @@ vi.mock('../../services/adwCreationService', () => ({
   }
 }));
 
+vi.mock('../../services/api/adwDbService', () => ({
+  default: {
+    updateAdw: vi.fn(() => Promise.resolve({ success: true })),
+    getAdw: vi.fn(() => Promise.resolve(null)),
+    deleteAdw: vi.fn(() => Promise.resolve({ success: true }))
+  }
+}));
+
 vi.mock('../../services/storage/localStorage', () => ({
   default: {
     getItem: vi.fn(() => []),
@@ -841,6 +849,9 @@ describe('Kanban Store', () => {
 
   describe('Stage Sync from Backend', () => {
     beforeEach(() => {
+      // Reset fetch mock
+      global.fetch = vi.fn();
+
       // Set up tasks with ADW IDs for sync tests
       useKanbanStore.setState({
         tasks: [

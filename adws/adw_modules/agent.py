@@ -50,36 +50,57 @@ SLASH_COMMAND_MODEL_MAP: Final[Dict[SlashCommand, Dict[ModelSet, str]]] = {
 
 
 def get_model_for_slash_command(
-    request: AgentTemplateRequest, default: str = "sonnet"
+    request: AgentTemplateRequest,
+    default: str = "sonnet",
+    stage_name: str = None,
+    orchestrator_state: dict = None
 ) -> str:
     """Get the appropriate model for a template request based on ADW state and slash command.
 
-    This function loads the ADW state to determine the model set (base or heavy)
-    and returns the appropriate model for the slash command.
+    Model selection precedence:
+    1. Stage-specific preference (from orchestrator_state.workflow.stageModelPreferences)
+    2. Slash command mapping (from SLASH_COMMAND_MODEL_MAP)
+    3. Model set fallback (base or heavy from ADW state)
+    4. Default parameter
 
     Args:
         request: The template request containing the slash command and adw_id
         default: Default model if not found in mapping
+        stage_name: Optional stage name for stage-specific model preference
+        orchestrator_state: Optional orchestrator state dict containing model preferences
 
     Returns:
-        Model name to use (e.g., "sonnet" or "haiku")
+        Model name to use (e.g., "sonnet", "opus", or "haiku")
     """
     # Import here to avoid circular imports
     from .state import ADWState
+    from utils.model_config import get_stage_model
 
-    # Load state to get model_set
+    # Load state to get model_set and orchestrator_state if not provided
     model_set: ModelSet = "base"  # Default model set
     state = ADWState.load(request.adw_id)
+
     if state:
         model_set = state.get("model_set", "base")
 
-    # Get the model configuration for the command
+        # If orchestrator_state not provided, try to get it from state
+        if orchestrator_state is None:
+            orchestrator_state = state.get("orchestrator_state", {})
+
+    # Priority 1: Check for stage-specific model preference
+    if stage_name and orchestrator_state:
+        stage_model = get_stage_model(orchestrator_state, stage_name, default=None)
+        if stage_model:
+            return stage_model
+
+    # Priority 2: Get the model configuration from slash command mapping
     command_config = SLASH_COMMAND_MODEL_MAP.get(request.slash_command)
 
     if command_config:
         # Get the model for the specified model set, defaulting to base if not found
         return command_config.get(model_set, command_config.get("base", default))
 
+    # Priority 3: Fall back to default
     return default
 
 

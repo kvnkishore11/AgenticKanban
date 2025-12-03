@@ -181,3 +181,21 @@ This prompt helps you determine what documentation you should read based on the 
     - When working with database triggers for automatic logging
     - When implementing concurrent ADW operations or race condition handling
     - When working with the kanbanStore database integration (loadAdwsFromDatabase)
+
+- app_docs/feature-9221d732-model-selection-per-stage.md
+  - Conditions:
+    - When working with per-stage model selection in SDLC workflows
+    - When implementing or troubleshooting model preferences for pipeline stages
+    - When working with TaskInput component's model selector dropdowns
+    - When modifying ModelSelector component or model configuration constants
+    - When implementing model selection UI or model preference state management
+    - When working with orchestrator_state.workflow.stageModelPreferences in the database
+    - When troubleshooting model selection precedence (stage preference > command map > model set)
+    - When implementing or debugging model configuration utilities (adws/utils/model_config.py)
+    - When working with stage execution that reads and applies model preferences
+    - When modifying agent.py model selection logic or SLASH_COMMAND_MODEL_MAP
+    - When implementing cost optimization by selecting different models per stage
+    - When troubleshooting "Using model preference" logs in agent execution
+    - When working with default model assignments (Opus for Plan/Build, Sonnet for Test/Review/Document, Haiku for Clarify/Merge)
+    - When implementing backward compatibility for tasks without model preferences
+    - When adding new stages that should support model selection

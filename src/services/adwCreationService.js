@@ -177,6 +177,7 @@ class ADWCreationService {
         current_substage: 'initializing',
         progress_percent: 0,
         execution_plan: this.generateExecutionPlan(taskData.queuedStages),
+        stageModelPreferences: taskData.stageModelPreferences || {}, // Per-stage model selection
       },
       context: {
         images: taskData.images || [],

@@ -19,6 +19,8 @@ import { useDropzone } from 'react-dropzone';
 import { useClipboard } from '../../hooks/useClipboard';
 import RichTextEditor from '../ui/RichTextEditor';
 import { htmlToPlainText } from '../../utils/htmlUtils';
+import StageButton from './StageButton';
+import { DEFAULT_STAGE_MODELS, getDefaultModelForStage } from '../../constants/modelDefaults';
 
 /**
  * TaskInput component - unified modal for creating and editing tasks
@@ -54,6 +56,11 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
   const [startImmediately, setStartImmediately] = useState(false);
   const [toast, setToast] = useState(null);
   const modalRef = useRef(null);
+
+  // Model preferences per stage - initialized with defaults from task or default models
+  const [stageModelPreferences, setStageModelPreferences] = useState(
+    task?.stageModelPreferences || { ...DEFAULT_STAGE_MODELS }
+  );
 
   // Initialize image annotations from existing task data
   useEffect(() => {
@@ -223,9 +230,24 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
       if (prev.includes(stageId)) {
         return prev.filter(id => id !== stageId);
       } else {
+        // When adding a stage, ensure it has a model preference
+        if (!stageModelPreferences[stageId]) {
+          setStageModelPreferences(current => ({
+            ...current,
+            [stageId]: getDefaultModelForStage(stageId)
+          }));
+        }
         return [...prev, stageId];
       }
     });
+  };
+
+  // Handle model selection change for a stage
+  const handleModelChange = (stageId, model) => {
+    setStageModelPreferences(prev => ({
+      ...prev,
+      [stageId]: model
+    }));
   };
 
   const handleFullSdlcToggle = () => {
@@ -266,6 +288,7 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
       queuedStages,
       customAdwId: customAdwId.trim(),
       startImmediately: startImmediately,
+      stageModelPreferences: stageModelPreferences, // Include model preferences
       images: images.map(img => ({
         ...img,
         annotations: imageAnnotations[img.id] || []
@@ -300,6 +323,7 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
       setErrors([]);
       setImageAnnotations({});
       setAnnotatingImage(null);
+      setStageModelPreferences({ ...DEFAULT_STAGE_MODELS }); // Reset model preferences to defaults
     }
   };
 
@@ -360,6 +384,11 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
     { id: 'test', label: 'Test', icon: '🧪' },
     { id: 'review', label: 'Review', icon: '👀' },
     { id: 'document', label: 'Document', icon: '📄' },
+  ];
+
+  // Config/utility stages (mini stages that aren't part of main SDLC)
+  const configStageOptions = [
+    { id: 'clarify', label: 'Clarify', icon: '💬', description: 'AI task clarification' },
   ];
 
   return (
@@ -460,7 +489,26 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
               STAGES {!isPatchType && <span className="text-red-500">*</span>}
               {isPatchType && <span className="text-gray-500 font-normal tracking-[1px]">(not applicable for patch)</span>}
             </label>
-            <div className={`flex items-center gap-2 flex-wrap ${isPatchType ? 'opacity-40 pointer-events-none' : ''}`}>
+            <div className={`flex items-center gap-2 ${isPatchType ? 'opacity-40 pointer-events-none' : ''}`}>
+              {/* Config/Utility Stages Section */}
+              <div className="flex items-center gap-2 pr-3 border-r-2 border-gray-300">
+                <span className="text-[8px] font-bold uppercase tracking-[1px] text-gray-400 mr-1">Config</span>
+                {configStageOptions.map((stage) => (
+                  <StageButton
+                    key={stage.id}
+                    stageId={stage.id}
+                    label={stage.label}
+                    icon={stage.icon}
+                    isSelected={true}
+                    selectedModel={stageModelPreferences[stage.id] || getDefaultModelForStage(stage.id)}
+                    onToggle={() => {}} // Config stages are always on, no toggle
+                    onModelChange={(model) => handleModelChange(stage.id, model)}
+                    disabled={isPatchType}
+                    variant="config"
+                  />
+                ))}
+              </div>
+
               {/* SDLC Preset */}
               <button
                 type="button"
@@ -469,7 +517,7 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
                   showToast(isFullSdlcSelected ? 'SDLC deselected' : 'All SDLC stages selected');
                 }}
                 disabled={isPatchType}
-                className={`px-4 py-2.5 border-[3px] border-black text-[9px] font-bold uppercase tracking-[1px] cursor-pointer transition-all flex items-center gap-1.5
+                className={`h-[58px] px-3 border-[3px] border-black text-[9px] font-bold uppercase tracking-[1px] cursor-pointer transition-all flex items-center gap-1.5
                   ${isFullSdlcSelected
                     ? 'bg-black text-white -translate-x-0.5 -translate-y-0.5 shadow-[2px_2px_0_#444]'
                     : 'bg-white hover:bg-black hover:text-white'
@@ -480,46 +528,39 @@ const TaskInput = ({ task = null, onClose = null, onSave = null }) => {
                 <span>⚡</span> SDLC
               </button>
 
-              {/* Individual Stage Buttons */}
+              {/* Individual Stage Buttons with integrated Model Selectors */}
               {stageOptions.map((stage) => {
                 const isSelected = queuedStages.includes(stage.id);
                 return (
-                  <button
+                  <StageButton
                     key={stage.id}
-                    type="button"
-                    onClick={() => handleStageToggle(stage.id)}
+                    stageId={stage.id}
+                    label={stage.label}
+                    icon={stage.icon}
+                    isSelected={isSelected}
+                    selectedModel={stageModelPreferences[stage.id] || getDefaultModelForStage(stage.id)}
+                    onToggle={() => handleStageToggle(stage.id)}
+                    onModelChange={(model) => handleModelChange(stage.id, model)}
                     disabled={isPatchType}
-                    className={`px-3.5 py-2.5 border-[3px] border-black text-[10px] font-bold uppercase cursor-pointer transition-all flex items-center gap-1.5
-                      ${isSelected
-                        ? 'bg-black text-white -translate-x-0.5 -translate-y-0.5 shadow-[2px_2px_0_#444]'
-                        : 'bg-white hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_#000]'
-                      }
-                      ${isPatchType ? 'cursor-not-allowed' : ''}`}
-                    style={{ fontFamily: "'Courier New', monospace" }}
-                  >
-                    {stage.icon} {stage.label}
-                  </button>
+                  />
                 );
               })}
 
-              {/* Merge Button */}
-              <button
-                type="button"
-                onClick={() => {
+              {/* Merge Button with integrated Model Selector */}
+              <StageButton
+                stageId="merge"
+                label="Merge"
+                icon={<GitMerge size={14} />}
+                isSelected={isMergeSelected}
+                selectedModel={stageModelPreferences['merge'] || getDefaultModelForStage('merge')}
+                onToggle={() => {
                   handleMergeToggle();
                   showToast(isMergeSelected ? 'Merge deselected' : 'Merge workflow added');
                 }}
+                onModelChange={(model) => handleModelChange('merge', model)}
                 disabled={isPatchType}
-                className={`px-3.5 py-2.5 border-[3px] text-[10px] font-bold uppercase cursor-pointer transition-all flex items-center gap-1.5
-                  ${isMergeSelected
-                    ? 'bg-purple-500 border-purple-600 text-white -translate-x-0.5 -translate-y-0.5 shadow-[2px_2px_0_#6d28d9]'
-                    : 'border-purple-500 text-purple-700 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_#6d28d9]'
-                  }
-                  ${isPatchType ? 'cursor-not-allowed' : ''}`}
-                style={{ fontFamily: "'Courier New', monospace" }}
-              >
-                <GitMerge size={14} /> Merge
-              </button>
+                variant="merge"
+              />
             </div>
           </div>
 

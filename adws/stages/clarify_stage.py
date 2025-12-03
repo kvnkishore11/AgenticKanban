@@ -79,6 +79,12 @@ class ClarifyStage(BaseStage):
         if user_feedback:
             args.append(user_feedback)
 
+        # Add model preference if specified in config
+        if ctx.config and 'model' in ctx.config:
+            model = ctx.config['model']
+            ctx.logger.info(f"Using model preference: {model}")
+            args.append(f"--model={model}")
+
         # Run the clarify script
         result = self.run_script(
             ctx,

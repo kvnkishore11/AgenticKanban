@@ -43,7 +43,7 @@ from utils.test import (
 @pytest.fixture
 def mock_adw_id():
     """Return a test ADW ID."""
-    return "test-adw-12345678"
+    return "12345678"
 
 
 @pytest.fixture
@@ -165,21 +165,37 @@ class TestBuildWorkflowComponents:
             plan_file="specs/test.md",
         )
 
-        # Mock the state path to use tmp_path
-        state_file = tmp_path / "adw_state.json"
-        with patch.object(state, 'get_state_path', return_value=str(state_file)):
-            # Save state
-            state.save("test_phase")
+        # Save state (to database)
+        state.save("test_phase")
 
-            # Verify file exists
-            assert state_file.exists()
+        try:
+            # Verify state was persisted by loading it from the database
+            loaded_state = ADWState.load(mock_adw_id)
 
-            # Read and verify content
-            with open(state_file) as f:
-                data = json.load(f)
-                assert data["issue_number"] == "42"
-                # Note: branch_name might be modified by ADWState, just check it exists
-                assert "branch_name" in data
+            # Verify the loaded state exists and has the saved data
+            assert loaded_state is not None
+            assert loaded_state.get("issue_number") == 42  # Database stores as integer
+            assert loaded_state.get("branch_name") is not None
+            assert loaded_state.get("plan_file") == "specs/test.md"
+        finally:
+            # Clean up test data from database
+            try:
+                import sqlite3
+                from pathlib import Path
+                project_root = Path(__file__).parent.parent.parent
+                if 'trees' in project_root.parts:
+                    trees_index = project_root.parts.index('trees')
+                    main_root = Path(*project_root.parts[:trees_index])
+                    db_path = main_root / "adws" / "database" / "agentickanban.db"
+                else:
+                    db_path = project_root / "adws" / "database" / "agentickanban.db"
+                if db_path.exists():
+                    conn = sqlite3.connect(str(db_path))
+                    conn.execute("DELETE FROM adw_states WHERE adw_id = ?", (mock_adw_id,))
+                    conn.commit()
+                    conn.close()
+            except Exception:
+                pass  # Best effort cleanup
 
     def test_state_append_adw_id(self, mock_adw_id):
         """Test appending ADW IDs to track workflow execution."""

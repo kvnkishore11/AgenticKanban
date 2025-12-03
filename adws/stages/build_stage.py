@@ -41,7 +41,13 @@ class BuildStage(BaseStage):
         """Execute build phase by running adw_build_iso.py."""
         ctx.logger.info(f"Starting build stage for ADW {ctx.adw_id}")
 
-        # Build args: <issue_number> <adw_id>
+        # Build args: <issue_number> <adw_id> [model]
         args = [str(ctx.issue_number), ctx.adw_id]
+
+        # Add model preference if specified in config
+        if ctx.config and 'model' in ctx.config:
+            model = ctx.config['model']
+            ctx.logger.info(f"Using model preference: {model}")
+            args.append(f"--model={model}")
 
         return self.run_script(ctx, "adw_build_iso.py", args)

@@ -1,9 +1,5 @@
 """Tests for kanban_mode module functionality."""
 
-import pytest
-from unittest.mock import MagicMock, patch
-from datetime import datetime
-
 
 class MockADWState:
     """Mock ADWState for testing."""
