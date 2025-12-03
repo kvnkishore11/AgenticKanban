@@ -29,6 +29,14 @@ class WorkflowTriggerRequest(BaseModel):
     # Optional parameters for specific workflows
     trigger_reason: str = "WebSocket request"  # Reason for triggering this workflow
 
+    @field_validator('issue_number', mode='before')
+    @classmethod
+    def coerce_issue_number_to_string(cls, v):
+        """Coerce issue_number to string if it's an integer."""
+        if v is None:
+            return v
+        return str(v)
+
 
 class WorkflowTriggerResponse(BaseModel):
     """Response after triggering an ADW workflow."""

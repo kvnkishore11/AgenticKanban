@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS adw_states (
 
     CONSTRAINT chk_adw_id_length CHECK (length(adw_id) = 8),
     CONSTRAINT chk_issue_number_positive CHECK (issue_number IS NULL OR issue_number > 0),
-    CONSTRAINT chk_current_stage CHECK (current_stage IN ('backlog', 'plan', 'build', 'test', 'review', 'document', 'ready-to-merge', 'errored')),
+    CONSTRAINT chk_current_stage CHECK (current_stage IN ('backlog', 'plan', 'build', 'test', 'review', 'document', 'ready-to-merge', 'completed', 'errored')),
     CONSTRAINT chk_status CHECK (status IN ('pending', 'in_progress', 'completed', 'errored', 'stuck')),
     CONSTRAINT chk_model_set CHECK (model_set IN ('base', 'heavy')),
     CONSTRAINT chk_data_source CHECK (data_source IN ('github', 'kanban'))
