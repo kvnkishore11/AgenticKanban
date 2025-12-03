@@ -11,11 +11,9 @@
 
 import { useState, useEffect } from 'react';
 import { useKanbanStore } from '../../stores/kanbanStore';
-import { X, Play, AlertCircle, Info, Hash, RotateCcw } from 'lucide-react';
+import { X, Play, AlertCircle, Info, Hash } from 'lucide-react';
 import AdwIdInput from '../ui/AdwIdInput';
-import StageModelSelector from '../ui/StageModelSelector';
 import { isAdwIdRequired, getWorkflowDescription, validateAdwId, supportsAdwId } from '../../utils/adwValidation';
-import { getDefaultModelForStage, generateDefaultStageModels, MODEL_INFO } from '../../utils/modelDefaults';
 
 const WorkflowTriggerModal = ({ task, onClose }) => {
   const {
@@ -30,7 +28,6 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
   const [patchRequest, setPatchRequest] = useState('');
   const [isTriggering, setIsTriggering] = useState(false);
   const [errors, setErrors] = useState([]);
-  const [stageModels, setStageModels] = useState({});
 
   const websocketStatus = getWebSocketStatus();
 
@@ -136,17 +133,6 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
     { value: 'experimental', label: 'Experimental', description: 'Latest experimental models' }
   ];
 
-  // Helper function to get stages for a workflow type
-  const getStagesForWorkflow = (workflowType) => {
-    const stageMap = {
-      'adw_plan_build_iso': ['plan', 'build'],
-      'adw_plan_build_test_iso': ['plan', 'build', 'test'],
-      'adw_sdlc_iso': ['plan', 'build', 'test', 'review', 'document'],
-      'adw_sdlc_zte_iso': ['plan', 'build', 'test', 'review', 'document', 'merge']
-    };
-    return stageMap[workflowType] || [];
-  };
-
   // Auto-select workflow based on task's work item type and current stage
   useEffect(() => {
     if (!workflowType) {
@@ -181,16 +167,6 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
       setAdwId(task.metadata.adw_id);
     }
   }, [task.metadata, adwId]);
-
-  // Initialize stageModels with defaults when workflow type changes
-  useEffect(() => {
-    if (workflowType) {
-      const stages = getStagesForWorkflow(workflowType);
-      if (stages.length > 0) {
-        setStageModels(generateDefaultStageModels(stages));
-      }
-    }
-  }, [workflowType]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -243,11 +219,6 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
       // Include patch request content for patch workflows
       if (workflowType === 'adw_patch_iso' && patchRequest && patchRequest.trim()) {
         options.patch_request = patchRequest.trim();
-      }
-
-      // Include stageModels for orchestrator workflows
-      if (getStagesForWorkflow(workflowType).length > 0) {
-        options.stageModels = stageModels;
       }
 
       console.log('[WorkflowTriggerModal] Triggering workflow with options:', options);
@@ -420,40 +391,6 @@ const WorkflowTriggerModal = ({ task, onClose }) => {
               ))}
             </select>
           </div>
-
-          {/* Per-Stage Model Configuration - Show only for orchestrator workflows */}
-          {selectedWorkflow && selectedWorkflow.category === 'orchestrator' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Per-Stage Model Configuration
-              </label>
-              <p className="text-xs text-gray-500 mb-3">
-                Customize which AI model to use for each stage of the workflow. Each stage can use a different model based on its requirements.
-              </p>
-              <div className="space-y-3">
-                {getStagesForWorkflow(workflowType).map((stageName) => (
-                  <StageModelSelector
-                    key={stageName}
-                    stageName={stageName}
-                    selectedModel={stageModels[stageName] || getDefaultModelForStage(stageName)}
-                    onChange={(model) => setStageModels(prev => ({ ...prev, [stageName]: model }))}
-                    disabled={isTriggering}
-                  />
-                ))}
-              </div>
-              <div className="mt-3">
-                <button
-                  type="button"
-                  onClick={() => setStageModels(generateDefaultStageModels(getStagesForWorkflow(workflowType)))}
-                  disabled={isTriggering}
-                  className="btn-secondary flex items-center space-x-2"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  <span>Reset to Defaults</span>
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Issue Number */}
           <div>

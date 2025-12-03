@@ -1,1 +1,1 @@
-"""Utility modules for ADW system."""
+"""ADW utility modules."""

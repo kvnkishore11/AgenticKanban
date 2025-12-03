@@ -26,21 +26,8 @@ class WorkflowTriggerRequest(BaseModel):
     stages: Optional[List[str]] = None  # Dynamic stage list (e.g., ["plan", "build", "test"])
     config: Optional[Dict[str, Any]] = None  # Extensible orchestrator config
 
-    # Per-stage model selection (allows granular control of AI models per stage)
-    stage_models: Optional[Dict[str, str]] = None  # Maps stage names to model choices (e.g., {"plan": "opus", "test": "sonnet", "merge": "haiku"})
-
     # Optional parameters for specific workflows
     trigger_reason: str = "WebSocket request"  # Reason for triggering this workflow
-
-    @validator('stage_models')
-    def validate_stage_models(cls, v):
-        """Validate that all stage model values are valid model types."""
-        if v is not None:
-            valid_models = {"sonnet", "haiku", "opus"}
-            for stage_name, model in v.items():
-                if model not in valid_models:
-                    raise ValueError(f"Invalid model '{model}' for stage '{stage_name}'. Must be one of: {valid_models}")
-        return v
 
 
 class WorkflowTriggerResponse(BaseModel):

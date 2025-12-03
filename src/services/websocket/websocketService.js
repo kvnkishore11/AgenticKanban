@@ -787,12 +787,6 @@ class WebSocketService {
       trigger_reason: `Kanban task: ${task.title || task.description.substring(0, 50)}`
     };
 
-    // Include stage_models if provided in options
-    if (options.stageModels) {
-      request.stage_models = options.stageModels;
-      console.log('[WebSocketService] Including stage_models:', options.stageModels);
-    }
-
     // For orchestrator workflow, include the stages array
     if (workflowType === 'adw_orchestrator' && task.queuedStages) {
       request.stages = this.getNormalizedStages(task.queuedStages);

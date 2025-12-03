@@ -48,9 +48,6 @@ class StageContext:
     completed_stages: List[str] = field(default_factory=list)  # Names of completed stages
     skipped_stages: List[str] = field(default_factory=list)  # Names of skipped stages
 
-    # Per-stage model selection
-    stage_model: Optional[str] = None  # AI model to use for this stage (sonnet/haiku/opus)
-
 
 class Stage(ABC):
     """Abstract base class for all workflow stages.

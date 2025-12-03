@@ -249,18 +249,6 @@ class ADWOrchestrator:
                     self.logger.error(f"Unknown stage: {stage_cfg.name}")
                     continue
 
-                # Determine model for this stage
-                # Priority: stage config > ADW state overrides > default
-                stage_model = stage_cfg.model
-                if not stage_model:
-                    # Check ADW state for per-stage model overrides
-                    stage_model_overrides = self.state.get("stage_model_overrides", {})
-                    if stage_model_overrides and stage_cfg.name in stage_model_overrides:
-                        stage_model = stage_model_overrides[stage_cfg.name]
-
-                if stage_model:
-                    self.logger.debug(f"Stage {stage_cfg.name} using model: {stage_model}")
-
                 # Create stage context with progression info
                 ctx = StageContext(
                     adw_id=self.adw_id,
@@ -276,8 +264,6 @@ class ADWOrchestrator:
                     total_stages=len(self.config.stages),
                     completed_stages=self.execution.get_completed_stages(),
                     skipped_stages=[s.stage_name for s in self.execution.stages if s.status == StageStatus.SKIPPED],
-                    # Per-stage model selection
-                    stage_model=stage_model,
                 )
 
                 # Execute stage
