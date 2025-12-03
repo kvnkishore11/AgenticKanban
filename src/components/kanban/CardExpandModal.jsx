@@ -321,7 +321,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
 
     const checkResultAvailability = async () => {
       try {
-        const wsPort = import.meta.env.VITE_ADW_PORT || 8500;
+        const wsPort = window.APP_CONFIG?.WS_PORT || import.meta.env.VITE_ADW_PORT || 8500;
         const response = await fetch(`http://localhost:${wsPort}/api/stage-logs/${adwId}/${effectiveStage}`);
         if (response.ok) {
           const data = await response.json();
@@ -358,7 +358,7 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
     const adwId = task.metadata?.adw_id || workflowMetadata?.adw_id;
     if (activeContentType === 'result' && adwId && effectiveStage) {
       setResultLoading(true);
-      const wsPort = import.meta.env.VITE_ADW_PORT || 8500;
+      const wsPort = window.APP_CONFIG?.WS_PORT || import.meta.env.VITE_ADW_PORT || 8500;
       fetch(`http://localhost:${wsPort}/api/stage-logs/${adwId}/${effectiveStage}`)
         .then(res => res.ok ? res.json() : null)
         .then(data => {

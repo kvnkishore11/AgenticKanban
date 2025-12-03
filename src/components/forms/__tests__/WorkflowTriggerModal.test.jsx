@@ -20,6 +20,23 @@ vi.mock('../../ui/AdwIdInput', () => ({
     />
   )
 }));
+vi.mock('../../ui/StageModelSelector', () => ({
+  default: ({ stageName, selectedModel, onChange, disabled }) => (
+    <div data-testid={`stage-model-selector-${stageName}`}>
+      <label>{stageName}</label>
+      <select
+        data-testid={`model-select-${stageName}`}
+        value={selectedModel}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+      >
+        <option value="sonnet-4">Sonnet 4</option>
+        <option value="haiku-4">Haiku 4</option>
+        <option value="opus-4">Opus 4</option>
+      </select>
+    </div>
+  )
+}));
 vi.mock('../../../utils/adwValidation', () => ({
   isAdwIdRequired: (workflowType) => workflowType?.includes('build') || workflowType?.includes('test'),
   getWorkflowDescription: (workflowType) => `Description for ${workflowType}`,
@@ -29,6 +46,35 @@ vi.mock('../../../utils/adwValidation', () => ({
     return { isValid: true };
   },
   supportsAdwId: () => true
+}));
+vi.mock('../../../utils/modelDefaults', () => ({
+  getDefaultModelForStage: (stageName) => {
+    const defaults = {
+      plan: 'sonnet-4',
+      build: 'sonnet-4',
+      test: 'haiku-4',
+      review: 'sonnet-4',
+      document: 'haiku-4',
+      merge: 'haiku-4'
+    };
+    return defaults[stageName] || 'sonnet-4';
+  },
+  generateDefaultStageModels: (stages) => {
+    const defaults = {
+      plan: 'sonnet-4',
+      build: 'sonnet-4',
+      test: 'haiku-4',
+      review: 'sonnet-4',
+      document: 'haiku-4',
+      merge: 'haiku-4'
+    };
+    return stages.reduce((acc, stage) => ({ ...acc, [stage]: defaults[stage] || 'sonnet-4' }), {});
+  },
+  MODEL_INFO: {
+    'sonnet-4': { name: 'Claude Sonnet 4' },
+    'haiku-4': { name: 'Claude Haiku 4' },
+    'opus-4': { name: 'Claude Opus 4' }
+  }
 }));
 
 describe('WorkflowTriggerModal Component', () => {
@@ -702,6 +748,222 @@ describe('WorkflowTriggerModal Component', () => {
       const triggerWorkflowElements = screen.getAllByText('Trigger Workflow');
       expect(triggerWorkflowElements.length).toBeGreaterThan(0);
       expect(screen.getByRole('heading', { name: /workflow summary/i, level: 4 })).toBeInTheDocument();
+    });
+  });
+
+  describe('Per-Stage Model Selection', () => {
+    it('should not render StageModelSelector for non-orchestrator workflows', () => {
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      const planRadio = screen.getByRole('radio', { name: /plan \(isolated\)/i });
+      fireEvent.click(planRadio);
+
+      expect(screen.queryByTestId('stage-model-selector-plan')).not.toBeInTheDocument();
+      expect(screen.queryByText('Per-Stage Model Configuration')).not.toBeInTheDocument();
+    });
+
+    it('should render StageModelSelector components for Plan + Build orchestrator workflow', () => {
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      const allRadios = screen.getAllByRole('radio');
+      const planBuildRadio = allRadios.find(radio => radio.value === 'adw_plan_build_iso');
+      fireEvent.click(planBuildRadio);
+
+      expect(screen.getByText('Per-Stage Model Configuration')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-plan')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-build')).toBeInTheDocument();
+    });
+
+    it('should render StageModelSelector components for Plan + Build + Test orchestrator workflow', () => {
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      const allRadios = screen.getAllByRole('radio');
+      const planBuildTestRadio = allRadios.find(radio => radio.value === 'adw_plan_build_test_iso');
+      fireEvent.click(planBuildTestRadio);
+
+      expect(screen.getByText('Per-Stage Model Configuration')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-plan')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-build')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-test')).toBeInTheDocument();
+    });
+
+    it('should render StageModelSelector components for Full SDLC orchestrator workflow', () => {
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      const allRadios = screen.getAllByRole('radio');
+      const sdlcRadio = allRadios.find(radio => radio.value === 'adw_sdlc_iso');
+      fireEvent.click(sdlcRadio);
+
+      expect(screen.getByText('Per-Stage Model Configuration')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-plan')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-build')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-test')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-review')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-document')).toBeInTheDocument();
+    });
+
+    it('should render StageModelSelector components for Zero Touch Execution orchestrator workflow', () => {
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      const allRadios = screen.getAllByRole('radio');
+      const zteRadio = allRadios.find(radio => radio.value === 'adw_sdlc_zte_iso');
+      fireEvent.click(zteRadio);
+
+      expect(screen.getByText('Per-Stage Model Configuration')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-plan')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-build')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-test')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-review')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-document')).toBeInTheDocument();
+      expect(screen.getByTestId('stage-model-selector-merge')).toBeInTheDocument();
+    });
+
+    it('should pre-populate default models when orchestrator workflow is selected', () => {
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      const allRadios = screen.getAllByRole('radio');
+      const planBuildRadio = allRadios.find(radio => radio.value === 'adw_plan_build_iso');
+      fireEvent.click(planBuildRadio);
+
+      const planSelect = screen.getByTestId('model-select-plan');
+      const buildSelect = screen.getByTestId('model-select-build');
+
+      expect(planSelect).toHaveValue('sonnet-4');
+      expect(buildSelect).toHaveValue('sonnet-4');
+    });
+
+    it('should update stageModels state when model selection changes', () => {
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      const allRadios = screen.getAllByRole('radio');
+      const planBuildRadio = allRadios.find(radio => radio.value === 'adw_plan_build_iso');
+      fireEvent.click(planBuildRadio);
+
+      const planSelect = screen.getByTestId('model-select-plan');
+      fireEvent.change(planSelect, { target: { value: 'opus-4' } });
+
+      expect(planSelect).toHaveValue('opus-4');
+    });
+
+    it('should include stageModels in workflow trigger payload for orchestrator workflows', async () => {
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      const allRadios = screen.getAllByRole('radio');
+      const planBuildRadio = allRadios.find(radio => radio.value === 'adw_plan_build_iso');
+      fireEvent.click(planBuildRadio);
+
+      // Provide ADW ID since build workflows require it
+      const adwInput = screen.getByTestId('adw-id-input');
+      fireEvent.change(adwInput, { target: { value: 'abc12345' } });
+
+      const planSelect = screen.getByTestId('model-select-plan');
+      fireEvent.change(planSelect, { target: { value: 'opus-4' } });
+
+      const triggerButton = screen.getByRole('button', { name: /trigger workflow/i });
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(mockStore.triggerWorkflowForTask).toHaveBeenCalledWith(
+          123,
+          expect.objectContaining({
+            stageModels: expect.objectContaining({
+              plan: 'opus-4',
+              build: 'sonnet-4'
+            })
+          })
+        );
+      });
+    });
+
+    it('should not include stageModels in payload for non-orchestrator workflows', async () => {
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      const planRadio = screen.getByRole('radio', { name: /plan \(isolated\)/i });
+      fireEvent.click(planRadio);
+
+      const triggerButton = screen.getByRole('button', { name: /trigger workflow/i });
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        expect(mockStore.triggerWorkflowForTask).toHaveBeenCalledWith(
+          123,
+          expect.not.objectContaining({
+            stageModels: expect.anything()
+          })
+        );
+      });
+    });
+
+    it('should render Reset to Defaults button for orchestrator workflows', () => {
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      const allRadios = screen.getAllByRole('radio');
+      const planBuildRadio = allRadios.find(radio => radio.value === 'adw_plan_build_iso');
+      fireEvent.click(planBuildRadio);
+
+      expect(screen.getByRole('button', { name: /reset to defaults/i })).toBeInTheDocument();
+    });
+
+    it('should reset models to defaults when Reset button is clicked', () => {
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      const allRadios = screen.getAllByRole('radio');
+      const planBuildRadio = allRadios.find(radio => radio.value === 'adw_plan_build_iso');
+      fireEvent.click(planBuildRadio);
+
+      // Change plan model
+      const planSelect = screen.getByTestId('model-select-plan');
+      fireEvent.change(planSelect, { target: { value: 'opus-4' } });
+      expect(planSelect).toHaveValue('opus-4');
+
+      // Click reset button
+      const resetButton = screen.getByRole('button', { name: /reset to defaults/i });
+      fireEvent.click(resetButton);
+
+      // Should be back to default
+      expect(planSelect).toHaveValue('sonnet-4');
+    });
+
+    it('should disable StageModelSelector components when isTriggering', async () => {
+      mockStore.triggerWorkflowForTask.mockImplementation(() => new Promise(() => {}));
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      const allRadios = screen.getAllByRole('radio');
+      const planBuildRadio = allRadios.find(radio => radio.value === 'adw_plan_build_iso');
+      fireEvent.click(planBuildRadio);
+
+      // Provide ADW ID since build workflows require it
+      const adwInput = screen.getByTestId('adw-id-input');
+      fireEvent.change(adwInput, { target: { value: 'abc12345' } });
+
+      const triggerButton = screen.getByRole('button', { name: /trigger workflow/i });
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        const planSelect = screen.getByTestId('model-select-plan');
+        expect(planSelect).toBeDisabled();
+      });
+    });
+
+    it('should disable Reset to Defaults button when isTriggering', async () => {
+      mockStore.triggerWorkflowForTask.mockImplementation(() => new Promise(() => {}));
+      render(<WorkflowTriggerModal task={MOCK_TASK} onClose={mockOnClose} />);
+
+      const allRadios = screen.getAllByRole('radio');
+      const planBuildRadio = allRadios.find(radio => radio.value === 'adw_plan_build_iso');
+      fireEvent.click(planBuildRadio);
+
+      // Provide ADW ID since build workflows require it
+      const adwInput = screen.getByTestId('adw-id-input');
+      fireEvent.change(adwInput, { target: { value: 'abc12345' } });
+
+      const triggerButton = screen.getByRole('button', { name: /trigger workflow/i });
+      fireEvent.click(triggerButton);
+
+      await waitFor(() => {
+        const resetButton = screen.getByRole('button', { name: /reset to defaults/i });
+        expect(resetButton).toBeDisabled();
+      });
     });
   });
 });

@@ -50,20 +50,35 @@ SLASH_COMMAND_MODEL_MAP: Final[Dict[SlashCommand, Dict[ModelSet, str]]] = {
 
 
 def get_model_for_slash_command(
-    request: AgentTemplateRequest, default: str = "sonnet"
+    request: AgentTemplateRequest,
+    default: str = "sonnet",
+    stage_model: Optional[str] = None,
 ) -> str:
-    """Get the appropriate model for a template request based on ADW state and slash command.
+    """Get the appropriate model for a template request.
 
-    This function loads the ADW state to determine the model set (base or heavy)
-    and returns the appropriate model for the slash command.
+    Priority order for model selection:
+    1. stage_model parameter (per-stage override)
+    2. Model set mapping from ADW state (base or heavy)
+    3. Default parameter
+
+    This allows fine-grained control where complex stages can use powerful models
+    (e.g., opus for plan/build) while simple stages use efficient models
+    (e.g., haiku for merge).
 
     Args:
         request: The template request containing the slash command and adw_id
         default: Default model if not found in mapping
+        stage_model: Per-stage model override (highest priority)
 
     Returns:
-        Model name to use (e.g., "sonnet" or "haiku")
+        Model name to use (e.g., "sonnet", "haiku", or "opus")
     """
+    # Priority 1: Per-stage model override
+    if stage_model:
+        # Validate the stage model
+        if stage_model in ["sonnet", "haiku", "opus"]:
+            return stage_model
+
     # Import here to avoid circular imports
     from .state import ADWState
 
@@ -73,13 +88,14 @@ def get_model_for_slash_command(
     if state:
         model_set = state.get("model_set", "base")
 
-    # Get the model configuration for the command
+    # Priority 2: Model set mapping from slash command configuration
     command_config = SLASH_COMMAND_MODEL_MAP.get(request.slash_command)
 
     if command_config:
         # Get the model for the specified model set, defaulting to base if not found
         return command_config.get(model_set, command_config.get("base", default))
 
+    # Priority 3: Default fallback
     return default
 
 
@@ -508,12 +524,15 @@ def prompt_claude_code(request: AgentPromptRequest) -> AgentPromptResponse:
         )
 
 
-def execute_template(request: AgentTemplateRequest) -> AgentPromptResponse:
+def execute_template(
+    request: AgentTemplateRequest, stage_model: Optional[str] = None
+) -> AgentPromptResponse:
     """Execute a Claude Code template with slash command and arguments.
 
     This function automatically selects the appropriate model based on:
-    1. The slash command being executed
-    2. The model_set stored in the ADW state (base or heavy)
+    1. stage_model parameter (per-stage override, highest priority)
+    2. The slash command being executed
+    3. The model_set stored in the ADW state (base or heavy)
 
     Example:
         request = AgentTemplateRequest(
@@ -522,12 +541,16 @@ def execute_template(request: AgentTemplateRequest) -> AgentPromptResponse:
             args=["plan.md"],
             adw_id="abc12345"
         )
+        # With stage_model="opus", this will use "opus" regardless of model_set
+        response = execute_template(request, stage_model="opus")
+
+        # Without stage_model, it falls back to model_set mapping
         # If state has model_set="heavy", this will use "sonnet"
         # If state has model_set="base" or missing, this will use "sonnet"
         response = execute_template(request)
     """
-    # Get the appropriate model for this request
-    mapped_model = get_model_for_slash_command(request)
+    # Get the appropriate model for this request (with per-stage override support)
+    mapped_model = get_model_for_slash_command(request, stage_model=stage_model)
     request = request.model_copy(update={"model": mapped_model})
 
     # Construct prompt from slash command and args

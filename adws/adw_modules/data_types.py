@@ -251,6 +251,8 @@ class ADWStateData(BaseModel):
     patch_source_mode: Optional[Literal["github", "kanban"]] = None  # Source of patch content
     # Orchestrator state (for dynamic workflows)
     orchestrator: Optional[dict] = None  # Orchestrator execution state
+    # Per-stage model selection (for granular model control)
+    stage_model_overrides: Optional[dict] = Field(default_factory=dict)  # Maps stage names to model choices (sonnet/haiku/opus)
 
 
 class ReviewIssue(BaseModel):

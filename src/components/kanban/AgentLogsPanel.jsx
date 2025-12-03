@@ -64,7 +64,7 @@ const AgentLogsPanel = ({
     }
 
     try {
-      const wsPort = import.meta.env.VITE_ADW_PORT || 8500;
+      const wsPort = window.APP_CONFIG?.WS_PORT || import.meta.env.VITE_ADW_PORT || 8500;
       const response = await fetch(`http://localhost:${wsPort}/api/stage-logs/${adwId}/${stage}`);
 
       if (!response.ok) {

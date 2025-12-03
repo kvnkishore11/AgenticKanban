@@ -28,6 +28,7 @@ class StageConfig:
     timeout_minutes: Optional[int] = None
     skip_conditions: List[str] = field(default_factory=list)
     custom_args: Dict[str, Any] = field(default_factory=dict)
+    model: Optional[str] = None  # AI model to use for this stage (sonnet/haiku/opus)
 
 
 @dataclass
@@ -196,6 +197,7 @@ class ConfigLoader:
                 timeout_minutes=stage_cfg.timeout_minutes or config.timeout_minutes,
                 skip_conditions=stage_cfg.skip_conditions,
                 custom_args=stage_cfg.custom_args,
+                model=stage_cfg.model,
             ))
 
         workflow_name = f"dynamic_{'_'.join(config.stages)}"
@@ -221,6 +223,7 @@ class ConfigLoader:
                 timeout_minutes=stage_data.get("timeout_minutes"),
                 skip_conditions=stage_data.get("skip_conditions", []),
                 custom_args=stage_data.get("config", {}),
+                model=stage_data.get("model"),
             ))
 
         return WorkflowConfig(

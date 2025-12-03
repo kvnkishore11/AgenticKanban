@@ -70,6 +70,7 @@ class ProjectPersistenceService {
 
     if (success) {
       console.log(`Saved ${uniqueProjects.length} projects to storage`);
+      console.log('Persistence Verification:', { timestamp: new Date().toISOString(), projectCount: uniqueProjects.length, projects: uniqueProjects.map(p => ({ id: p.id, name: p.name, path: p.path })) });
     }
 
     return success;

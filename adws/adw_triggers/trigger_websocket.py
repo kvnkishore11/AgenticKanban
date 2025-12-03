@@ -35,6 +35,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 import uvicorn
+import re
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -558,6 +559,35 @@ def validate_workflow_request(request_data: dict) -> tuple[Optional[WorkflowTrig
                 f"Please provide either a valid issue_number, issue_type, issue_json, or adw_id (for dependent workflows) in your request."
             )
 
+        # Validate patch issue_type compatibility with workflows
+        # Patch issue_type can only be used with adw_patch_iso workflow
+        # Extract issue_type from either direct parameter or issue_json
+        issue_type = request.issue_type
+        if request.issue_json and not issue_type:
+            issue_type = request.issue_json.get("workItemType")
+
+        if issue_type and issue_type.lower() == "patch":
+            # Plan-based workflows that should NOT accept patch issue_type
+            plan_based_workflows = [
+                "adw_plan_iso",
+                "adw_plan_build_iso",
+                "adw_plan_build_test_iso",
+                "adw_plan_build_test_review_iso",
+                "adw_plan_build_document_iso",
+                "adw_plan_build_review_iso",
+                "adw_sdlc_iso",
+                "adw_sdlc_zte_iso",
+            ]
+
+            if request.workflow_type in plan_based_workflows:
+                return None, (
+                    f"The 'patch' issue type is incompatible with {request.workflow_type}. "
+                    f"Patch issues should use the 'adw_patch_iso' workflow which is optimized for "
+                    f"quick fixes without full planning phases. Please either: "
+                    f"(1) Use 'adw_patch_iso' workflow for patch issues, or "
+                    f"(2) Use a different issue type (feature/bug/chore) for plan-based workflows."
+                )
+
         return request, None
 
     except Exception as e:
@@ -646,6 +676,9 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
                 update_data["data_source"] = "kanban"
             else:
                 update_data["data_source"] = "github"
+            # Store per-stage model overrides if provided
+            if request.stage_models:
+                update_data["stage_model_overrides"] = request.stage_models
             state.update(**update_data)
         else:
             # Create new state if it doesn't exist
@@ -670,6 +703,9 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
                 update_data["data_source"] = "kanban"
             else:
                 update_data["data_source"] = "github"
+            # Store per-stage model overrides if provided
+            if request.stage_models:
+                update_data["stage_model_overrides"] = request.stage_models
             state.update(**update_data)
         state.save("websocket_trigger")
     else:
@@ -689,6 +725,9 @@ async def trigger_workflow(request: WorkflowTriggerRequest, websocket: WebSocket
             update_data["data_source"] = "kanban"
         else:
             update_data["data_source"] = "github"
+        # Store per-stage model overrides if provided
+        if request.stage_models:
+            update_data["stage_model_overrides"] = request.stage_models
         state.update(**update_data)
         state.save("websocket_trigger")
 
