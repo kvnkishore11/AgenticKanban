@@ -31,7 +31,9 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Monaco', 'Menlo', 'Ubuntu Mono', 'Courier New', 'monospace'],
+        mono: ['JetBrains Mono', 'IBM Plex Mono', 'Monaco', 'Menlo', 'monospace'],
+        display: ['Space Mono', 'JetBrains Mono', 'monospace'],
+        brutalist: ['JetBrains Mono', 'IBM Plex Mono', 'Courier New', 'monospace'],
       },
       spacing: {
         '18': '4.5rem',
