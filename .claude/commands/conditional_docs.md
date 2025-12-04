@@ -199,3 +199,16 @@ This prompt helps you determine what documentation you should read based on the 
     - When working with default model assignments (Opus for Plan/Build, Sonnet for Test/Review/Document, Haiku for Clarify/Merge)
     - When implementing backward compatibility for tasks without model preferences
     - When adding new stages that should support model selection
+
+- app_docs/feature-3130fd0b-mark-task-complete.md
+  - Conditions:
+    - When working with task completion functionality or manual stage transitions
+    - When implementing or troubleshooting the "Mark as Complete" CTA
+    - When working with KanbanCard dropdown menu items or CardExpandModal footer buttons
+    - When implementing task stage updates that bypass normal workflow progression
+    - When troubleshooting tasks that need to be manually moved to completed stage
+    - When working with kanbanStore.markTaskAsComplete action
+    - When implementing optimistic UI updates for task state changes
+    - When working with task completion timestamps (completed_at field)
+    - When troubleshooting scenarios where terminal/git operations complete work but UI doesn't reflect it
+    - When implementing similar manual stage transition features

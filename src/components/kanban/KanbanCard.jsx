@@ -26,6 +26,7 @@ const KanbanCard = memo(({ task, onEdit }) => {
   // Actions are stable and don't cause re-renders
   const deleteWorktree = useKanbanStore(state => state.deleteWorktree);
   const triggerWorkflowForTask = useKanbanStore(state => state.triggerWorkflowForTask);
+  const markTaskAsComplete = useKanbanStore(state => state.markTaskAsComplete);
 
   // Subscribe only to data relevant to this specific task
   // IMPORTANT: Use stable empty references to prevent infinite re-renders when data is undefined
@@ -58,6 +59,11 @@ const KanbanCard = memo(({ task, onEdit }) => {
   // Allow merge from build stage onwards (user can fix things manually and merge)
   const stagesAllowingMerge = ['build', 'implement', 'test', 'review', 'document', 'pr', 'ready-to-merge'];
   const canMerge = stagesAllowingMerge.includes(task.stage?.toLowerCase());
+
+  // Mark as complete - available from plan stage onwards (not for backlog, completed, or errored)
+  const stagesAllowingMarkComplete = ['plan', 'build', 'implement', 'test', 'review', 'document', 'pr', 'ready-to-merge'];
+  const canMarkComplete = stagesAllowingMarkComplete.includes(task.stage?.toLowerCase());
+  const [isMarkingComplete, setIsMarkingComplete] = useState(false);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -309,6 +315,20 @@ const KanbanCard = memo(({ task, onEdit }) => {
     }
   };
 
+  const handleMarkCompleteClick = async () => {
+    setShowMenu(false);
+    setIsMarkingComplete(true);
+
+    try {
+      console.log(`Marking task ${task.id} as complete`);
+      await markTaskAsComplete(task.id);
+    } catch (error) {
+      console.error('Failed to mark task as complete:', error);
+    } finally {
+      setIsMarkingComplete(false);
+    }
+  };
+
   // Check if this is a completed task
   const isCompleted = task.stage === 'completed';
 
@@ -432,6 +452,15 @@ const KanbanCard = memo(({ task, onEdit }) => {
                   onClick={(e) => { e.stopPropagation(); if (!isMerging) handleMergeClick(); }}
                 >
                   {isMerging ? '⏳ MERGING...' : '🔀 MERGE TO MAIN'}
+                </div>
+              )}
+              {/* Mark as complete - available from plan stage onwards */}
+              {canMarkComplete && (
+                <div
+                  className={`brutalist-card-dropdown-item ${isMarkingComplete ? 'disabled' : ''}`}
+                  onClick={(e) => { e.stopPropagation(); if (!isMarkingComplete) handleMarkCompleteClick(); }}
+                >
+                  {isMarkingComplete ? '⏳ MARKING...' : '✅ MARK AS COMPLETE'}
                 </div>
               )}
               <div

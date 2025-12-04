@@ -3277,6 +3277,84 @@ export const useKanbanStore = create()(
         },
 
         /**
+         * Mark a task as complete
+         * Updates the task's stage to 'completed' and status to 'completed'
+         * in both the frontend state and backend database.
+         *
+         * @param {string} taskId - The task identifier to mark as complete
+         * @returns {Promise<boolean>} True if successfully marked complete
+         */
+        markTaskAsComplete: async (taskId) => {
+          try {
+            // Find the task
+            const task = get().tasks.find(t => t.id === taskId);
+            if (!task) {
+              throw new Error(`Task ${taskId} not found`);
+            }
+
+            // Extract adw_id from metadata
+            const adw_id = task.metadata?.adw_id;
+            if (!adw_id) {
+              throw new Error(`Task ${taskId} does not have an adw_id`);
+            }
+
+            // Set loading state
+            set((state) => ({
+              isLoading: true,
+            }), false, 'markTaskAsCompleteStart');
+
+            console.log(`Marking task ${taskId} (ADW: ${adw_id}) as complete`);
+
+            // Call backend API to update stage and status
+            const response = await adwDbService.updateAdw(adw_id, {
+              current_stage: 'completed',
+              status: 'completed',
+              completed_at: new Date().toISOString()
+            });
+
+            if (response) {
+              console.log(`Successfully marked task ${taskId} as complete`);
+
+              // Update frontend state optimistically
+              set((state) => ({
+                tasks: state.tasks.map(t =>
+                  t.id === taskId
+                    ? {
+                        ...t,
+                        stage: 'completed',
+                        status: 'completed',
+                        updatedAt: new Date().toISOString()
+                      }
+                    : t
+                ),
+                isLoading: false,
+              }), false, 'markTaskAsCompleteSuccess');
+
+              // Show success notification
+              get().addNotification('success', `Task marked as complete`, 5000);
+
+              return true;
+            } else {
+              throw new Error('Failed to update task status');
+            }
+
+          } catch (error) {
+            console.error(`Failed to mark task ${taskId} as complete:`, error);
+
+            // Update error state
+            set((state) => ({
+              isLoading: false,
+              error: `Failed to mark task as complete: ${error.message}`
+            }), false, 'markTaskAsCompleteError');
+
+            // Show error notification
+            get().addNotification('error', `Failed to mark task as complete: ${error.message}`, 7000);
+
+            return false;
+          }
+        },
+
+        /**
          * Add a notification to the notifications list
          * @param {string} type - 'success', 'error', 'warning', 'info'
          * @param {string} message - Notification message

@@ -29,6 +29,7 @@ class ADWStage(str, Enum):
     REVIEW = "review"
     DOCUMENT = "document"
     READY_TO_MERGE = "ready-to-merge"
+    COMPLETED = "completed"
     ERRORED = "errored"
 
 

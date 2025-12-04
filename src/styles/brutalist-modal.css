@@ -1268,6 +1268,22 @@
   cursor: wait;
 }
 
+.brutalist-footer-btn.complete {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: var(--color-brutalist-white);
+  border-color: #047857;
+}
+
+.brutalist-footer-btn.complete:hover:not(:disabled) {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 3px 3px 0 #065f46;
+}
+
+.brutalist-footer-btn.complete:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 /* ========================================
    9. PLAN VIEW MODE
    ======================================== */

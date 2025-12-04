@@ -77,7 +77,8 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
     triggerMergeWorkflow,
     getMergeState,
     clearMergeState,
-    applyPatch
+    applyPatch,
+    markTaskAsComplete
   } = useKanbanStore();
 
   const [viewMode, setViewMode] = useState('details'); // 'details' or 'plan'
@@ -106,6 +107,9 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   // Patch selection state
   const [selectedPatch, setSelectedPatch] = useState(null);
   const [viewingPatch, setViewingPatch] = useState(false); // Toggle between stage and patch view
+
+  // Mark as complete state
+  const [isMarkingComplete, setIsMarkingComplete] = useState(false);
 
   // Get real-time workflow data
   const workflowLogs = getWorkflowLogsForTask(task.id);
@@ -506,6 +510,42 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
     }
   };
 
+  const handleMarkComplete = async () => {
+    setIsMarkingComplete(true);
+
+    try {
+      setToast({
+        type: 'info',
+        title: 'Marking as Complete',
+        message: 'Updating task status...',
+        duration: 2000
+      });
+
+      const result = await markTaskAsComplete(task.id);
+
+      if (result) {
+        setToast({
+          type: 'success',
+          title: 'Task Completed',
+          message: 'Task has been marked as complete.',
+          duration: 5000
+        });
+      } else {
+        throw new Error('Failed to mark task as complete');
+      }
+    } catch (error) {
+      console.error('Failed to mark task as complete:', error);
+      setToast({
+        type: 'error',
+        title: 'Mark Complete Failed',
+        message: error.message || 'Failed to mark task as complete.',
+        duration: 8000
+      });
+    } finally {
+      setIsMarkingComplete(false);
+    }
+  };
+
   const handleApplyPatch = async (patchRequest) => {
     setIsPatchSubmitting(true);
     try {
@@ -616,6 +656,11 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
   };
 
   const isReadyToMerge = task.stage === 'ready-to-merge';
+
+  // Check if task can be marked as complete (plan stage onwards, not already completed or errored)
+  const stagesAllowingMarkComplete = ['plan', 'build', 'implement', 'test', 'review', 'document', 'pr', 'ready-to-merge'];
+  const canMarkComplete = stagesAllowingMarkComplete.includes(task.stage?.toLowerCase());
+  const isCompleted = task.stage === 'completed';
 
   if (!isOpen) return null;
 
@@ -1129,6 +1174,29 @@ const CardExpandModal = ({ task, isOpen, onClose, onEdit }) => {
                   <CheckCircle size={16} />
                   <span>MERGED</span>
                 </div>
+              )}
+
+              {/* MARK AS COMPLETE - Only visible for eligible stages */}
+              {canMarkComplete && !isCompleted && (
+                <button
+                  type="button"
+                  onClick={handleMarkComplete}
+                  disabled={isMarkingComplete}
+                  className="brutalist-footer-btn complete"
+                  title="Mark this task as complete"
+                >
+                  {isMarkingComplete ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>MARKING...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} />
+                      <span>MARK AS COMPLETE</span>
+                    </>
+                  )}
+                </button>
               )}
 
               {onEdit && (
