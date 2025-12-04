@@ -498,22 +498,19 @@ class ADWService {
    */
   async openCodebase(adw_id) {
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL;
-      if (!backendUrl) {
-        throw new Error('VITE_BACKEND_URL environment variable is required');
-      }
-
-      const response = await fetch(`${backendUrl}/api/codebase/open/${adw_id}`, {
+      // Try Vite dev server API first (works without backend via adw-api-plugin)
+      // Uses relative URL which goes to same origin (Vite dev server)
+      const response = await fetch(`/api/codebase/open/${adw_id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({ detail: 'Unknown error' }));
 
       if (!response.ok) {
-        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+        throw new Error(data.detail || `HTTP error! status: ${response.status}`);
       }
 
       console.log(`Successfully opened codebase ${adw_id}:`, data);
@@ -534,22 +531,19 @@ class ADWService {
    */
   async openWorktree(adw_id) {
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL;
-      if (!backendUrl) {
-        throw new Error('VITE_BACKEND_URL environment variable is required');
-      }
-
-      const response = await fetch(`${backendUrl}/api/worktree/open/${adw_id}`, {
+      // Try Vite dev server API first (works without backend via adw-api-plugin)
+      // Uses relative URL which goes to same origin (Vite dev server)
+      const response = await fetch(`/api/worktree/open/${adw_id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({ detail: 'Unknown error' }));
 
       if (!response.ok) {
-        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+        throw new Error(data.detail || `HTTP error! status: ${response.status}`);
       }
 
       console.log(`Successfully opened worktree ${adw_id}:`, data);

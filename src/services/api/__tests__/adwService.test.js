@@ -665,4 +665,121 @@ describe('ADWService', () => {
         .rejects.toThrow('Network error');
     });
   });
+
+  describe('API Integration - Open Codebase', () => {
+    it('should open codebase successfully using relative URL', async () => {
+      const mockResponse = {
+        success: true,
+        adw_id: 'test1234',
+        worktree_path: '/path/to/worktree',
+        tmux_session: 'AgenticKanban',
+        window_name: 'nvim-test1234',
+        message: "Opened neovim in tmux session 'AgenticKanban' window 'nvim-test1234'",
+      };
+
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      });
+
+      const result = await adwService.openCodebase('test1234');
+
+      expect(result).toEqual(mockResponse);
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/codebase/open/test1234',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+    });
+
+    it('should handle codebase open error with detail message', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => ({ detail: 'ADW not found' }),
+      });
+
+      await expect(adwService.openCodebase('test1234'))
+        .rejects.toThrow('ADW not found');
+    });
+
+    it('should handle codebase open with non-JSON error response', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => { throw new Error('Invalid JSON'); },
+      });
+
+      await expect(adwService.openCodebase('test1234'))
+        .rejects.toThrow('Unknown error');
+    });
+
+    it('should handle codebase open network error', async () => {
+      global.fetch.mockRejectedValueOnce(new Error('Network error'));
+
+      await expect(adwService.openCodebase('test1234'))
+        .rejects.toThrow('Network error');
+    });
+  });
+
+  describe('API Integration - Open Worktree', () => {
+    it('should open worktree successfully using relative URL', async () => {
+      const mockResponse = {
+        success: true,
+        adw_id: 'test1234',
+        worktree_path: '/path/to/worktree',
+        tmux_session: 'AgenticKanban',
+        window_name: 'term-test1234',
+        wezterm_opened: true,
+        message: "Opened terminal in tmux session 'AgenticKanban' window 'term-test1234'",
+      };
+
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      });
+
+      const result = await adwService.openWorktree('test1234');
+
+      expect(result).toEqual(mockResponse);
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/worktree/open/test1234',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+    });
+
+    it('should handle worktree open error with detail message', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => ({ detail: 'Worktree not found' }),
+      });
+
+      await expect(adwService.openWorktree('test1234'))
+        .rejects.toThrow('Worktree not found');
+    });
+
+    it('should handle worktree open with non-JSON error response', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: async () => { throw new Error('Invalid JSON'); },
+      });
+
+      await expect(adwService.openWorktree('test1234'))
+        .rejects.toThrow('Unknown error');
+    });
+
+    it('should handle worktree open network error', async () => {
+      global.fetch.mockRejectedValueOnce(new Error('Network error'));
+
+      await expect(adwService.openWorktree('test1234'))
+        .rejects.toThrow('Network error');
+    });
+  });
 });

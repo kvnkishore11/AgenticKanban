@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import { adwApiPlugin } from './vite-plugins/adw-api-plugin.js'
 
 // Add process error handlers to prevent abrupt crashes
 // eslint-disable-next-line no-undef
@@ -37,7 +38,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), ['VITE_', 'FRONTEND_PORT', 'ADW_PORT'])
 
   return {
-    plugins: [react()],
+    plugins: [react(), adwApiPlugin()],
     server: {
       // Prefer environment variable (from start.sh), fallback to .env file, then default
       // eslint-disable-next-line no-undef
