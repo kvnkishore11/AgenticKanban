@@ -5,58 +5,60 @@
  * the frontend to open ADW worktrees and codebases without requiring the
  * FastAPI backend to be running.
  *
+ * Only adw_id is required - worktree_path and branch_name are derived automatically:
+ * - worktree_path: {project_root}/trees/{adw_id}
+ * - branch_name: Read from git in the worktree
+ *
  * Each worktree gets its own tmux session named after the branch, with two windows:
  * - logs: Split panes running frontend and backend scripts
  * - code: Neovim for code editing
  *
  * Endpoints:
- * - POST /api/worktree/open/:adw_id - Opens terminal with logs window
- * - POST /api/codebase/open/:adw_id - Opens neovim in code window
+ * - POST /api/worktree/open - Opens terminal with logs window
+ * - POST /api/codebase/open - Opens neovim in code window
  */
 
 import { execSync, spawn } from 'child_process';
-import { readFileSync, existsSync } from 'fs';
+import { existsSync } from 'fs';
 import { join } from 'path';
 
 /**
  * Get the project root directory.
- */
-function getProjectRoot() {
-  return process.cwd();
-}
-
-/**
- * Get the agents directory path.
  * Handles both main project and worktree environments.
  */
-function getAgentsDirectory() {
-  const projectRoot = getProjectRoot();
+function getProjectRoot() {
+  const cwd = process.cwd();
 
-  if (projectRoot.includes('/trees/')) {
-    const treesIndex = projectRoot.indexOf('/trees/');
-    const mainProjectRoot = projectRoot.substring(0, treesIndex);
-    return join(mainProjectRoot, 'agents');
+  // If we're running from within a worktree, go up to the main project
+  if (cwd.includes('/trees/')) {
+    const treesIndex = cwd.indexOf('/trees/');
+    return cwd.substring(0, treesIndex);
   }
 
-  return join(projectRoot, 'agents');
+  return cwd;
 }
 
 /**
- * Read and parse the ADW state file for a given ADW ID.
+ * Derive the worktree path from the ADW ID.
+ * Pattern: {project_root}/trees/{adw_id}
  */
-function readAdwState(adwId) {
-  const agentsDir = getAgentsDirectory();
-  const statePath = join(agentsDir, adwId, 'adw_state.json');
+function deriveWorktreePath(adwId) {
+  const projectRoot = getProjectRoot();
+  return join(projectRoot, 'trees', adwId);
+}
 
-  if (!existsSync(statePath)) {
-    return null;
-  }
-
+/**
+ * Get the git branch name for a worktree.
+ */
+function getBranchName(worktreePath) {
   try {
-    const content = readFileSync(statePath, 'utf-8');
-    return JSON.parse(content);
-  } catch (error) {
-    console.error(`[ADW Plugin] Error reading ADW state for ${adwId}:`, error.message);
+    const result = execSync(`git -C "${worktreePath}" branch --show-current`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 5000,
+    });
+    return result.trim() || null;
+  } catch {
     return null;
   }
 }
@@ -79,16 +81,6 @@ function runCommand(cmd, options = {}) {
     }
     return [-1, '', error.message];
   }
-}
-
-/**
- * Get the git branch name for a worktree.
- */
-function getBranchName(worktreePath) {
-  const [returncode, stdout] = runCommand(
-    ['git', '-C', `"${worktreePath}"`, 'branch', '--show-current']
-  );
-  return returncode === 0 && stdout ? stdout : null;
 }
 
 /**
@@ -183,9 +175,7 @@ function splitHorizontal(windowTarget, worktreePath) {
 /**
  * Setup the logs window with split panes and scripts.
  */
-function setupLogsWindow(sessionName, windowName, worktreePath, runScripts) {
-  if (!runScripts) return;
-
+function setupLogsWindow(sessionName, windowName, worktreePath) {
   const windowTarget = `${sessionName}:${windowName}`;
 
   // Run frontend script in pane 0
@@ -248,39 +238,52 @@ function sendError(res, status, detail) {
 }
 
 /**
+ * Parse JSON body from request.
+ */
+function parseBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (e) {
+        reject(new Error('Invalid JSON body'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+/**
  * Handle opening a worktree - creates logs window with split panes.
  */
-async function handleOpenWorktree(adwId, res) {
+async function handleOpenWorktree(req, res) {
   try {
-    // Validate ADW ID format (8 alphanumeric characters)
-    if (!/^[a-zA-Z0-9]{8}$/.test(adwId)) {
-      return sendError(res, 400, `Invalid ADW ID format: ${adwId}. Must be 8 alphanumeric characters.`);
+    const body = await parseBody(req);
+    const { adw_id, worktree_path: providedPath, branch_name: providedBranch } = body;
+
+    // adw_id is required
+    if (!adw_id) {
+      return sendError(res, 400, 'adw_id is required');
     }
 
-    const stateData = readAdwState(adwId);
-    if (!stateData) {
-      return sendError(res, 404, `ADW ID '${adwId}' not found or adw_state.json is missing`);
-    }
-
-    const worktreePath = stateData.worktree_path;
-    if (!worktreePath) {
-      return sendError(res, 404, `Worktree path not found for ADW ID '${adwId}'`);
-    }
+    // Derive worktree_path from adw_id if not provided
+    const worktreePath = providedPath || deriveWorktreePath(adw_id);
 
     if (!existsSync(worktreePath)) {
       return sendError(res, 404, `Worktree not found at path: ${worktreePath}`);
     }
 
-    // Get branch name and create session name
-    const branchName = getBranchName(worktreePath) || `adw-${adwId.substring(0, 8)}`;
+    // Derive branch_name from git if not provided
+    const branchName = providedBranch || getBranchName(worktreePath) || `adw-${adw_id}`;
     const sessionName = sanitizeSessionName(branchName);
     const windowName = 'logs';
-    const frontendPort = stateData.frontend_port || 5173;
 
-    console.log(`[ADW Plugin] Opening worktree for ADW ${adwId}`);
+    console.log(`[ADW Plugin] Opening worktree for ADW ${adw_id}`);
     console.log(`[ADW Plugin]   Session: ${sessionName}`);
     console.log(`[ADW Plugin]   Window: ${windowName}`);
-    console.log(`[ADW Plugin]   Path: ${worktreePath}`);
+    console.log(`[ADW Plugin]   Path: ${worktreePath}${!providedPath ? ' (derived)' : ''}`);
 
     const sessExists = sessionExists(sessionName);
     const winExists = sessExists && windowExists(sessionName, windowName);
@@ -296,7 +299,7 @@ async function handleOpenWorktree(adwId, res) {
       if (!success) {
         return sendError(res, 500, `Failed to create logs window: ${err}`);
       }
-      setupLogsWindow(sessionName, windowName, worktreePath, true);
+      setupLogsWindow(sessionName, windowName, worktreePath);
     } else {
       // Create new session with the window
       console.log(`[ADW Plugin] Creating session ${sessionName}`);
@@ -304,7 +307,7 @@ async function handleOpenWorktree(adwId, res) {
       if (!success) {
         return sendError(res, 500, `Failed to create session: ${err}`);
       }
-      setupLogsWindow(sessionName, windowName, worktreePath, true);
+      setupLogsWindow(sessionName, windowName, worktreePath);
     }
 
     // Open WezTerm and attach to session
@@ -315,17 +318,16 @@ async function handleOpenWorktree(adwId, res) {
 
     sendJson(res, 200, {
       success: true,
-      adw_id: adwId,
+      adw_id: adw_id,
       worktree_path: worktreePath,
       session_name: sessionName,
       window_name: windowName,
       branch_name: branchName,
-      frontend_port: frontendPort,
       message: `Opened worktree in session '${sessionName}' window '${windowName}'`
     });
 
   } catch (error) {
-    console.error(`[ADW Plugin] Error opening worktree for ${adwId}:`, error);
+    console.error(`[ADW Plugin] Error opening worktree:`, error);
     sendError(res, 500, `Failed to open worktree: ${error.message}`);
   }
 }
@@ -333,36 +335,32 @@ async function handleOpenWorktree(adwId, res) {
 /**
  * Handle opening a codebase - creates code window with neovim.
  */
-async function handleOpenCodebase(adwId, res) {
+async function handleOpenCodebase(req, res) {
   try {
-    // Validate ADW ID format (8 alphanumeric characters)
-    if (!/^[a-zA-Z0-9]{8}$/.test(adwId)) {
-      return sendError(res, 400, `Invalid ADW ID format: ${adwId}. Must be 8 alphanumeric characters.`);
+    const body = await parseBody(req);
+    const { adw_id, worktree_path: providedPath, branch_name: providedBranch } = body;
+
+    // adw_id is required
+    if (!adw_id) {
+      return sendError(res, 400, 'adw_id is required');
     }
 
-    const stateData = readAdwState(adwId);
-    if (!stateData) {
-      return sendError(res, 404, `ADW ID '${adwId}' not found or adw_state.json is missing`);
-    }
-
-    const worktreePath = stateData.worktree_path;
-    if (!worktreePath) {
-      return sendError(res, 404, `Worktree path not found for ADW ID '${adwId}'`);
-    }
+    // Derive worktree_path from adw_id if not provided
+    const worktreePath = providedPath || deriveWorktreePath(adw_id);
 
     if (!existsSync(worktreePath)) {
       return sendError(res, 404, `Worktree not found at path: ${worktreePath}`);
     }
 
-    // Get branch name and create session name
-    const branchName = getBranchName(worktreePath) || `adw-${adwId.substring(0, 8)}`;
+    // Derive branch_name from git if not provided
+    const branchName = providedBranch || getBranchName(worktreePath) || `adw-${adw_id}`;
     const sessionName = sanitizeSessionName(branchName);
     const windowName = 'code';
 
-    console.log(`[ADW Plugin] Opening codebase for ADW ${adwId}`);
+    console.log(`[ADW Plugin] Opening codebase for ADW ${adw_id}`);
     console.log(`[ADW Plugin]   Session: ${sessionName}`);
     console.log(`[ADW Plugin]   Window: ${windowName}`);
-    console.log(`[ADW Plugin]   Path: ${worktreePath}`);
+    console.log(`[ADW Plugin]   Path: ${worktreePath}${!providedPath ? ' (derived)' : ''}`);
 
     const sessExists = sessionExists(sessionName);
     const winExists = sessExists && windowExists(sessionName, windowName);
@@ -397,7 +395,7 @@ async function handleOpenCodebase(adwId, res) {
 
     sendJson(res, 200, {
       success: true,
-      adw_id: adwId,
+      adw_id: adw_id,
       worktree_path: worktreePath,
       session_name: sessionName,
       window_name: windowName,
@@ -406,7 +404,7 @@ async function handleOpenCodebase(adwId, res) {
     });
 
   } catch (error) {
-    console.error(`[ADW Plugin] Error opening codebase for ${adwId}:`, error);
+    console.error(`[ADW Plugin] Error opening codebase:`, error);
     sendError(res, 500, `Failed to open codebase: ${error.message}`);
   }
 }
@@ -424,15 +422,12 @@ export function adwApiPlugin() {
           return next();
         }
 
-        const worktreeMatch = req.url?.match(/^\/api\/worktree\/open\/([a-zA-Z0-9]{8})$/);
-        const codebaseMatch = req.url?.match(/^\/api\/codebase\/open\/([a-zA-Z0-9]{8})$/);
-
-        if (worktreeMatch) {
-          console.log(`[ADW Plugin] Handling worktree open for ${worktreeMatch[1]}`);
-          await handleOpenWorktree(worktreeMatch[1], res);
-        } else if (codebaseMatch) {
-          console.log(`[ADW Plugin] Handling codebase open for ${codebaseMatch[1]}`);
-          await handleOpenCodebase(codebaseMatch[1], res);
+        if (req.url === '/api/worktree/open') {
+          console.log(`[ADW Plugin] Handling worktree open request`);
+          await handleOpenWorktree(req, res);
+        } else if (req.url === '/api/codebase/open') {
+          console.log(`[ADW Plugin] Handling codebase open request`);
+          await handleOpenCodebase(req, res);
         } else {
           next();
         }
@@ -440,8 +435,8 @@ export function adwApiPlugin() {
 
       console.log('[ADW Plugin] ADW API plugin initialized');
       console.log('[ADW Plugin] Registered endpoints:');
-      console.log('[ADW Plugin]   POST /api/worktree/open/:adw_id');
-      console.log('[ADW Plugin]   POST /api/codebase/open/:adw_id');
+      console.log('[ADW Plugin]   POST /api/worktree/open');
+      console.log('[ADW Plugin]   POST /api/codebase/open');
     }
   };
 }

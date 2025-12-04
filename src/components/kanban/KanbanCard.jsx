@@ -220,12 +220,20 @@ const KanbanCard = memo(({ task, onEdit }) => {
       return;
     }
 
+    // worktree_path and branch_name are optional - Vite plugin will derive them if missing
+    const worktreePath = task.metadata?.worktree_path;
+    const branchName = task.metadata?.branch_name;
+
     setOpenWorktreeStatus('opening');
     setOpenWorktreeMessage('Opening terminal...');
 
     try {
-      console.log(`Opening worktree for ADW ${adwId}`);
-      const result = await adwService.openWorktree(adwId);
+      console.log(`Opening worktree for ADW ${adwId}${worktreePath ? ` at ${worktreePath}` : ' (path will be derived)'}`);
+      const result = await adwService.openWorktree({
+        adw_id: adwId,
+        worktree_path: worktreePath,  // Can be undefined - plugin will derive it
+        branch_name: branchName,
+      });
       setOpenWorktreeStatus('success');
       setOpenWorktreeMessage('Terminal opened!');
       // Auto-hide success message after 3 seconds
@@ -236,7 +244,7 @@ const KanbanCard = memo(({ task, onEdit }) => {
       // Extract meaningful error message
       const errorMsg = error.message?.includes('Worktree not found')
         ? 'Worktree not found'
-        : 'Failed to open';
+        : error.message || 'Failed to open';
       setOpenWorktreeMessage(errorMsg);
       // Auto-hide error message after 4 seconds
       setTimeout(() => setOpenWorktreeStatus('idle'), 4000);
@@ -254,12 +262,20 @@ const KanbanCard = memo(({ task, onEdit }) => {
       return;
     }
 
+    // worktree_path and branch_name are optional - Vite plugin will derive them if missing
+    const worktreePath = task.metadata?.worktree_path;
+    const branchName = task.metadata?.branch_name;
+
     setOpenCodebaseStatus('opening');
     setOpenCodebaseMessage('Opening neovim...');
 
     try {
-      console.log(`Opening codebase for ADW ${adwId}`);
-      const result = await adwService.openCodebase(adwId);
+      console.log(`Opening codebase for ADW ${adwId}${worktreePath ? ` at ${worktreePath}` : ' (path will be derived)'}`);
+      const result = await adwService.openCodebase({
+        adw_id: adwId,
+        worktree_path: worktreePath,  // Can be undefined - plugin will derive it
+        branch_name: branchName,
+      });
       setOpenCodebaseStatus('success');
       setOpenCodebaseMessage('Neovim opened!');
       // Auto-hide success message after 3 seconds
@@ -270,7 +286,7 @@ const KanbanCard = memo(({ task, onEdit }) => {
       // Extract meaningful error message
       const errorMsg = error.message?.includes('Worktree not found')
         ? 'Worktree not found'
-        : 'Failed to open';
+        : error.message || 'Failed to open';
       setOpenCodebaseMessage(errorMsg);
       // Auto-hide error message after 4 seconds
       setTimeout(() => setOpenCodebaseStatus('idle'), 4000);

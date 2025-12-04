@@ -490,21 +490,31 @@ class ADWService {
 
   /**
    * Open codebase in neovim within a tmux session
-   * Creates/attaches to AgenticKanban tmux session and opens neovim at worktree path
+   * Creates a dedicated tmux session for the worktree and opens neovim
    *
-   * @param {string} adw_id - The ADW identifier (8-character alphanumeric)
+   * @param {Object} options - Options for opening codebase
+   * @param {string} options.adw_id - The ADW identifier (8-character alphanumeric) - REQUIRED
+   * @param {string} [options.worktree_path] - Full path to worktree (derived from adw_id if not provided)
+   * @param {string} [options.branch_name] - Git branch name for the session (derived from git if not provided)
    * @returns {Promise<Object>} Response with success status and details
-   * @throws {Error} If worktree not found or terminal operation fails
+   * @throws {Error} If adw_id is missing or terminal operation fails
    */
-  async openCodebase(adw_id) {
+  async openCodebase({ adw_id, worktree_path, branch_name }) {
     try {
-      // Try Vite dev server API first (works without backend via adw-api-plugin)
-      // Uses relative URL which goes to same origin (Vite dev server)
-      const response = await fetch(`/api/codebase/open/${adw_id}`, {
+      if (!adw_id) {
+        throw new Error('adw_id is required to open codebase');
+      }
+
+      const response = await fetch('/api/codebase/open', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          adw_id,
+          worktree_path,  // Optional - plugin derives from adw_id if missing
+          branch_name,    // Optional - plugin derives from git if missing
+        }),
       });
 
       const data = await response.json().catch(() => ({ detail: 'Unknown error' }));
@@ -523,21 +533,31 @@ class ADWService {
 
   /**
    * Start a worktree in WezTerm with tmux session
-   * Creates/attaches to AgenticKanban tmux session and opens terminal at worktree path
+   * Creates a dedicated tmux session for the worktree and opens terminal with scripts
    *
-   * @param {string} adw_id - The ADW identifier (8-character alphanumeric)
+   * @param {Object} options - Options for opening worktree
+   * @param {string} options.adw_id - The ADW identifier (8-character alphanumeric) - REQUIRED
+   * @param {string} [options.worktree_path] - Full path to worktree (derived from adw_id if not provided)
+   * @param {string} [options.branch_name] - Git branch name for the session (derived from git if not provided)
    * @returns {Promise<Object>} Response with success status and details
-   * @throws {Error} If worktree not found or terminal operation fails
+   * @throws {Error} If adw_id is missing or terminal operation fails
    */
-  async openWorktree(adw_id) {
+  async openWorktree({ adw_id, worktree_path, branch_name }) {
     try {
-      // Try Vite dev server API first (works without backend via adw-api-plugin)
-      // Uses relative URL which goes to same origin (Vite dev server)
-      const response = await fetch(`/api/worktree/open/${adw_id}`, {
+      if (!adw_id) {
+        throw new Error('adw_id is required to open worktree');
+      }
+
+      const response = await fetch('/api/worktree/open', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          adw_id,
+          worktree_path,  // Optional - plugin derives from adw_id if missing
+          branch_name,    // Optional - plugin derives from git if missing
+        }),
       });
 
       const data = await response.json().catch(() => ({ detail: 'Unknown error' }));
