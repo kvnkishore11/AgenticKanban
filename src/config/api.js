@@ -45,15 +45,16 @@ function getBackendUrl() {
 }
 
 /**
- * Get the WebSocket URL based on environment and hostname
- * @returns {string} The WebSocket URL
+ * Get the ADW server URL (WebSocket endpoint) based on environment and hostname
+ * ADW server handles real-time communication for workflow triggers
+ * @returns {string} The ADW server URL
  */
-function getWebSocketUrl() {
+function getAdwUrl() {
   // Auto-detect from hostname (Caddy setup)
   if (isCaddyRouted() && typeof window !== 'undefined' && window.location) {
     const hostname = window.location.hostname;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//ws.${hostname}`;
+    return `${protocol}//adw.${hostname}`;
   }
 
   // Fallback: derive from backend URL
@@ -81,13 +82,19 @@ function getApiPort() {
 
 // Export computed values
 export const API_URL = getBackendUrl();
-export const WS_URL = getWebSocketUrl();
-export const WS_TRIGGER_ENDPOINT = `${WS_URL}/ws/trigger`;
+export const ADW_URL = getAdwUrl();
+export const ADW_TRIGGER_ENDPOINT = `${ADW_URL}/ws/trigger`;
 export const API_HOST = getApiHost();
 export const API_PORT = getApiPort();
 
+// Legacy aliases for backward compatibility
+export const WS_URL = ADW_URL;
+export const WS_TRIGGER_ENDPOINT = ADW_TRIGGER_ENDPOINT;
+
 // Export utility functions for dynamic use
-export { getBackendUrl, getWebSocketUrl, isCaddyRouted, getApiHost, getApiPort };
+export { getBackendUrl, getAdwUrl, isCaddyRouted, getApiHost, getApiPort };
+// Legacy alias
+export { getAdwUrl as getWebSocketUrl };
 
 // For debugging
 if (import.meta.env.DEV) {
@@ -96,7 +103,7 @@ if (import.meta.env.DEV) {
     hostname,
     isCaddyRouted: isCaddyRouted(),
     API_URL,
-    WS_URL,
-    WS_TRIGGER_ENDPOINT,
+    ADW_URL,
+    ADW_TRIGGER_ENDPOINT,
   });
 }

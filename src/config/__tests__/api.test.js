@@ -100,16 +100,16 @@ describe('API Configuration', () => {
     });
   });
 
-  describe('getWebSocketUrl', () => {
-    it('uses ws protocol for Caddy hostname', async () => {
+  describe('getAdwUrl', () => {
+    it('uses adw subdomain for Caddy hostname', async () => {
       vi.stubEnv('VITE_BACKEND_URL', '');
       Object.defineProperty(window, 'location', {
         value: { hostname: 'f4d61857.localhost', protocol: 'http:' },
         writable: true,
       });
 
-      const { getWebSocketUrl } = await import('../api.js');
-      expect(getWebSocketUrl()).toBe('ws://ws.f4d61857.localhost');
+      const { getAdwUrl } = await import('../api.js');
+      expect(getAdwUrl()).toBe('ws://adw.f4d61857.localhost');
     });
 
     it('uses wss protocol for https Caddy hostname', async () => {
@@ -119,32 +119,67 @@ describe('API Configuration', () => {
         writable: true,
       });
 
-      const { getWebSocketUrl } = await import('../api.js');
-      expect(getWebSocketUrl()).toBe('wss://ws.f4d61857.localhost');
+      const { getAdwUrl } = await import('../api.js');
+      expect(getAdwUrl()).toBe('wss://adw.f4d61857.localhost');
     });
 
-    it('derives WebSocket URL from backend URL for localhost', async () => {
+    it('derives ADW URL from backend URL for localhost', async () => {
       vi.stubEnv('VITE_BACKEND_URL', 'http://localhost:8500');
       Object.defineProperty(window, 'location', {
         value: { hostname: 'localhost', protocol: 'http:' },
         writable: true,
       });
 
-      const { getWebSocketUrl } = await import('../api.js');
-      expect(getWebSocketUrl()).toBe('ws://localhost:8500');
+      const { getAdwUrl } = await import('../api.js');
+      expect(getAdwUrl()).toBe('ws://localhost:8500');
     });
   });
 
-  describe('exported constants', () => {
-    it('exports WS_TRIGGER_ENDPOINT with /ws/trigger suffix', async () => {
+  describe('legacy getWebSocketUrl alias', () => {
+    it('is an alias for getAdwUrl', async () => {
       vi.stubEnv('VITE_BACKEND_URL', '');
       Object.defineProperty(window, 'location', {
         value: { hostname: 'f4d61857.localhost', protocol: 'http:' },
         writable: true,
       });
 
-      const { WS_TRIGGER_ENDPOINT } = await import('../api.js');
-      expect(WS_TRIGGER_ENDPOINT).toBe('ws://ws.f4d61857.localhost/ws/trigger');
+      const { getAdwUrl, getWebSocketUrl } = await import('../api.js');
+      expect(getWebSocketUrl()).toBe(getAdwUrl());
+    });
+  });
+
+  describe('exported constants', () => {
+    it('exports ADW_TRIGGER_ENDPOINT with /ws/trigger suffix', async () => {
+      vi.stubEnv('VITE_BACKEND_URL', '');
+      Object.defineProperty(window, 'location', {
+        value: { hostname: 'f4d61857.localhost', protocol: 'http:' },
+        writable: true,
+      });
+
+      const { ADW_TRIGGER_ENDPOINT } = await import('../api.js');
+      expect(ADW_TRIGGER_ENDPOINT).toBe('ws://adw.f4d61857.localhost/ws/trigger');
+    });
+
+    it('exports ADW_URL correctly', async () => {
+      vi.stubEnv('VITE_BACKEND_URL', '');
+      Object.defineProperty(window, 'location', {
+        value: { hostname: 'f4d61857.localhost', protocol: 'http:' },
+        writable: true,
+      });
+
+      const { ADW_URL } = await import('../api.js');
+      expect(ADW_URL).toBe('ws://adw.f4d61857.localhost');
+    });
+
+    it('exports legacy WS_URL as alias for ADW_URL', async () => {
+      vi.stubEnv('VITE_BACKEND_URL', '');
+      Object.defineProperty(window, 'location', {
+        value: { hostname: 'f4d61857.localhost', protocol: 'http:' },
+        writable: true,
+      });
+
+      const { ADW_URL, WS_URL } = await import('../api.js');
+      expect(WS_URL).toBe(ADW_URL);
     });
 
     it('exports API_HOST correctly', async () => {

@@ -5,7 +5,7 @@
 
 import { isWorkflowComplete } from '../../utils/workflowValidation.js';
 import { SDLC_STAGES } from '../../constants/workItems.js';
-import { API_HOST, API_PORT, isCaddyRouted, getWebSocketUrl } from '../../config/api.js';
+import { API_HOST, API_PORT, isCaddyRouted, getAdwUrl } from '../../config/api.js';
 
 class WebSocketService {
   constructor() {
@@ -180,13 +180,13 @@ class WebSocketService {
 
   /**
    * Get WebSocket URL based on configuration
-   * Uses Caddy routing (ws.<adw_id>.localhost) when available
+   * Uses Caddy routing (adw.<adw_id>.localhost) when available
    */
   getWebSocketUrl() {
     // Use Caddy routing if available
     if (this.config.useCaddyRouting) {
-      const wsUrl = getWebSocketUrl();
-      return `${wsUrl}/ws/trigger`;
+      const adwUrl = getAdwUrl();
+      return `${adwUrl}/ws/trigger`;
     }
 
     // Fallback to traditional port-based routing

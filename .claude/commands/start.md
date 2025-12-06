@@ -26,7 +26,7 @@
 4. Report the URLs to the user:
    - Frontend: http://<adw_id>.localhost
    - Backend: http://api.<adw_id>.localhost
-   - WebSocket: ws://ws.<adw_id>.localhost/ws/trigger
+   - ADW Server: ws://adw.<adw_id>.localhost/ws/trigger
 
 ## Legacy/Manual Startup (Fallback)
 
