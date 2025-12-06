@@ -9,10 +9,17 @@ WebSocket server's connection manager. Instead, they POST messages to an
 HTTP endpoint on the WebSocket server, which then broadcasts them to
 connected WebSocket clients.
 
+## WT Protocol Support
+
+This client now supports the WT (Worktree Manager) protocol for Caddy-based
+hostname routing. When Caddy is running with ADW routes, it automatically
+detects and uses the Caddy URL pattern:
+- http://api.<adw_id>.localhost
+
 Usage:
     from adw_modules.websocket_client import WebSocketNotifier
 
-    # Initialize notifier
+    # Initialize notifier (auto-detects Caddy if running)
     notifier = WebSocketNotifier(adw_id="your-adw-id")
 
     # Send status updates
@@ -35,6 +42,9 @@ if TYPE_CHECKING:
 from typing import Optional, Literal
 import logging
 
+# Import shared Caddy utilities for server URL detection
+from adw_modules.caddy_utils import detect_server_url
+
 
 class WebSocketNotifier:
     """Client for sending workflow updates to WebSocket server via HTTP."""
@@ -45,14 +55,17 @@ class WebSocketNotifier:
 
         Args:
             adw_id: ADW ID for the workflow
-            server_url: WebSocket server URL (default: http://localhost:8500)
+            server_url: WebSocket server URL. If None, auto-detects using:
+                       1. WEBSOCKET_URL env var
+                       2. Caddy-based URL (if Caddy running)
+                       3. WEBSOCKET_PORT env var
+                       4. Default localhost:8500
         """
         self.adw_id = adw_id
 
-        # Get server URL from environment or use default
+        # Auto-detect server URL if not provided
         if server_url is None:
-            port = os.getenv("WEBSOCKET_PORT", "8500")
-            server_url = f"http://localhost:{port}"
+            server_url = detect_server_url(adw_id)
 
         self.server_url = server_url.rstrip("/")
         self.endpoint = f"{self.server_url}/api/workflow-updates"
@@ -65,6 +78,8 @@ class WebSocketNotifier:
 
         if not self.enabled:
             self.logger.info("WebSocket notifications disabled via environment variable")
+        else:
+            self.logger.debug(f"WebSocket notifier initialized with server: {self.server_url}")
 
     def _send_message(
         self,

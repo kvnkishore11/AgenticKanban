@@ -1,7 +1,20 @@
 """Worktree and port management operations for isolated ADW workflows.
 
-Provides utilities for creating and managing git worktrees under trees/<adw_id>/
-and allocating unique ports for each isolated instance.
+Provides utilities for creating and managing git worktrees under trees/<adw_id>/.
+
+## Port Management (DEPRECATED)
+
+The legacy port allocation functions (get_ports_for_adw, find_next_available_ports,
+setup_worktree_environment) are deprecated. The WT protocol now handles port
+allocation dynamically via Caddy reverse proxy.
+
+New approach:
+- Use `wt start <adw_id>` to start a worktree with random ports
+- Access via hostnames: http://<adw_id>.localhost
+- Backend via: http://api.<adw_id>.localhost
+- WebSocket via: ws://adw.<adw_id>.localhost/ws/trigger
+
+See ~/.claude/adw/README.md for details.
 """
 
 import os
@@ -9,8 +22,18 @@ import subprocess
 import logging
 import socket
 import shutil
+import warnings
 from typing import Tuple, Optional
 from adw_modules.state import ADWState
+
+# Import shared Caddy utilities
+from adw_modules.caddy_utils import (
+    is_caddy_running,
+    get_caddy_route_port,
+    get_adw_hostname,
+    get_adw_api_url,
+    get_adw_websocket_url,
+)
 
 
 def create_worktree(adw_id: str, branch_name: str, logger: logging.Logger) -> Tuple[str, Optional[str]]:
@@ -149,8 +172,16 @@ def remove_worktree(adw_id: str, logger: logging.Logger) -> Tuple[bool, Optional
     return True, None
 
 
+# -----------------------------------------------------------------------------
+# Legacy Port Management (DEPRECATED - Use WT Protocol Instead)
+# -----------------------------------------------------------------------------
+
 def setup_worktree_environment(worktree_path: str, websocket_port: int, frontend_port: int, logger: logging.Logger) -> None:
     """Set up worktree environment by creating .ports.env file.
+
+    .. deprecated::
+        Use `wt start <adw_id>` instead. The WT protocol handles port allocation
+        dynamically via Caddy reverse proxy.
 
     The actual environment setup (copying .env files, installing dependencies) is handled
     by the install_worktree.md command which runs inside the worktree.
@@ -161,23 +192,39 @@ def setup_worktree_environment(worktree_path: str, websocket_port: int, frontend
         frontend_port: Frontend port number
         logger: Logger instance
     """
+    warnings.warn(
+        "setup_worktree_environment is deprecated. Use 'wt start <adw_id>' instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+
     # Create .ports.env file with port configuration
     ports_env_path = os.path.join(worktree_path, ".ports.env")
+
+    # Derive adw_id from worktree_path for Caddy URL support
+    adw_id = os.path.basename(worktree_path)
 
     with open(ports_env_path, "w") as f:
         f.write(f"WEBSOCKET_PORT={websocket_port}\n")
         f.write(f"FRONTEND_PORT={frontend_port}\n")
         f.write(f"ADW_PORT={websocket_port}\n")
         f.write(f"VITE_ADW_PORT={websocket_port}\n")
+        # Support both legacy port-based and new Caddy-based URLs
         f.write(f"VITE_BACKEND_URL=http://localhost:{websocket_port}\n")
+        f.write(f"# WT Protocol URLs (preferred when Caddy is running)\n")
+        f.write(f"# VITE_BACKEND_URL=http://api.{adw_id}.localhost\n")
 
     logger.info(f"Created .ports.env with WebSocket: {websocket_port}, Frontend: {frontend_port}")
 
 
-# Port management functions
-
 def get_ports_for_adw(adw_id: str) -> Tuple[int, int]:
     """Deterministically assign ports based on ADW ID.
+
+    .. deprecated::
+        Use WT protocol instead. Access worktrees via hostnames:
+        - Frontend: http://<adw_id>.localhost
+        - Backend: http://api.<adw_id>.localhost
+        - WebSocket: ws://adw.<adw_id>.localhost/ws/trigger
 
     Args:
         adw_id: The ADW ID
@@ -185,6 +232,20 @@ def get_ports_for_adw(adw_id: str) -> Tuple[int, int]:
     Returns:
         Tuple of (websocket_port, frontend_port)
     """
+    warnings.warn(
+        "get_ports_for_adw is deprecated. Use WT protocol hostnames instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+
+    # Check if Caddy is running and has a route for this ADW
+    if is_caddy_running():
+        be_port = get_caddy_route_port(adw_id, "be")
+        fe_port = get_caddy_route_port(adw_id, "fe")
+        if be_port and fe_port:
+            return be_port, fe_port
+
+    # Legacy fallback: deterministic port assignment
     # Convert first 8 chars of ADW ID to index (0-14)
     # Using base 36 conversion and modulo to get consistent mapping
     try:
@@ -203,10 +264,10 @@ def get_ports_for_adw(adw_id: str) -> Tuple[int, int]:
 
 def is_port_available(port: int) -> bool:
     """Check if a port is available for binding.
-    
+
     Args:
         port: Port number to check
-        
+
     Returns:
         True if port is available, False otherwise
     """
@@ -222,6 +283,9 @@ def is_port_available(port: int) -> bool:
 def find_next_available_ports(adw_id: str, max_attempts: int = 15) -> Tuple[int, int]:
     """Find available ports starting from deterministic assignment.
 
+    .. deprecated::
+        Use WT protocol instead. Run `wt start <adw_id>` to start with random ports.
+
     Args:
         adw_id: The ADW ID
         max_attempts: Maximum number of attempts (default 15)
@@ -232,7 +296,21 @@ def find_next_available_ports(adw_id: str, max_attempts: int = 15) -> Tuple[int,
     Raises:
         RuntimeError: If no available ports found
     """
-    base_websocket, base_frontend = get_ports_for_adw(adw_id)
+    warnings.warn(
+        "find_next_available_ports is deprecated. Use 'wt start <adw_id>' instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+
+    # Check if Caddy is running and has a route for this ADW
+    if is_caddy_running():
+        be_port = get_caddy_route_port(adw_id, "be")
+        fe_port = get_caddy_route_port(adw_id, "fe")
+        if be_port and fe_port:
+            return be_port, fe_port
+
+    # Legacy fallback - use internal function to avoid deprecation warning
+    base_websocket, base_frontend = _get_legacy_ports(adw_id)
     base_index = base_websocket - 8500
 
     for offset in range(max_attempts):
@@ -244,3 +322,14 @@ def find_next_available_ports(adw_id: str, max_attempts: int = 15) -> Tuple[int,
             return websocket_port, frontend_port
 
     raise RuntimeError("No available ports in the allocated range")
+
+
+def _get_legacy_ports(adw_id: str) -> Tuple[int, int]:
+    """Internal legacy port calculation without deprecation warning."""
+    try:
+        id_chars = ''.join(c for c in adw_id[:8] if c.isalnum())
+        index = int(id_chars, 36) % 15
+    except ValueError:
+        index = hash(adw_id) % 15
+
+    return 8500 + index, 9200 + index
