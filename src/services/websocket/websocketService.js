@@ -100,7 +100,7 @@ class WebSocketService {
 
     // Use VITE_ADW_PORT if provided, otherwise fallback to VITE_BACKEND_URL port
     const port = adwPort ? parseInt(adwPort) : parseInt(url.port);
-    
+
     this.config = {
       host: url.hostname,
       port: port, // Dynamic WebSocket server port

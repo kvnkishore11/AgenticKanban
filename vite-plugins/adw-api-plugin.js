@@ -41,10 +41,12 @@ function getProjectRoot() {
 /**
  * Derive the worktree path from the ADW ID.
  * Pattern: {project_root}/trees/{adw_id}
+ * Note: ADW IDs are always lowercase in directory names
  */
 function deriveWorktreePath(adwId) {
   const projectRoot = getProjectRoot();
-  return join(projectRoot, 'trees', adwId);
+  // Always lowercase - directories use lowercase ADW IDs
+  return join(projectRoot, 'trees', adwId.toLowerCase());
 }
 
 /**

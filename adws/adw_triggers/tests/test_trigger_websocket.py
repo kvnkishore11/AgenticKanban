@@ -824,3 +824,204 @@ class TestStageEventPersistence:
         import json
         response_body = json.loads(result.body.decode())
         assert response_body.get("db_persisted") is True
+
+
+class TestDeleteADWProtectsMainServer:
+    """Tests for ADW deletion not killing the main server.
+
+    This tests the fix for the critical bug where deleting an ADW whose
+    port hash collides with the main server port (8500) would kill the
+    main backend server itself, causing all connections to drop.
+
+    Bug scenario:
+    1. ADW ID hashes to port 8500 (same as main server)
+    2. Delete ADW is triggered
+    3. Code runs `lsof -ti:8500` and kills all processes on that port
+    4. Main server gets killed
+    5. All WebSocket connections drop
+    """
+
+    def test_get_ports_for_adw_can_return_main_server_port(self):
+        """Test that get_ports_for_adw can return port 8500 (main server port).
+
+        This proves the collision is possible and the protection is necessary.
+        """
+        from adw_modules import worktree_ops
+
+        # Find an ADW ID that hashes to port 8500 (index 0)
+        # The formula is: websocket_port = 8500 + (hash % 15)
+        # So we need index = 0, meaning hash % 15 == 0
+
+        # Test some IDs to demonstrate collisions can happen
+        colliding_ids = []
+        for i in range(1000):
+            test_id = f"{i:08d}"  # 8-char numeric ID
+            ws_port, _ = worktree_ops.get_ports_for_adw(test_id)
+            if ws_port == 8500:
+                colliding_ids.append(test_id)
+                if len(colliding_ids) >= 3:
+                    break
+
+        # At least some IDs should hash to port 8500
+        assert len(colliding_ids) > 0, "No ADW IDs hash to port 8500 - port range test needs adjustment"
+
+        # Verify these IDs return port 8500
+        for adw_id in colliding_ids:
+            ws_port, _ = worktree_ops.get_ports_for_adw(adw_id)
+            assert ws_port == 8500, f"ADW {adw_id} should hash to port 8500"
+
+    def test_delete_adw_skips_main_server_port_killing(self):
+        """Test that delete_adw does NOT kill processes on main server port.
+
+        This is the core protection: when an ADW's port matches the main
+        server port, we skip the kill step to avoid crashing the server.
+        """
+        import asyncio
+        from unittest.mock import patch, MagicMock
+
+        # Mock dependencies
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = []  # No ADW in DB (simplifies test)
+        mock_db.execute_update.return_value = 1
+
+        # Mock worktree_ops to return main server port (8500)
+        mock_ports = MagicMock()
+        mock_ports.get_ports_for_adw.return_value = (8500, 9200)  # Port collision!
+        mock_ports.get_worktree_path.return_value = "/nonexistent/path"
+        mock_ports.remove_worktree.return_value = (True, None)
+
+        # Track subprocess.run calls
+        subprocess_calls = []
+
+        def mock_subprocess_run(cmd, **kwargs):
+            subprocess_calls.append(cmd)
+            result = MagicMock()
+            result.stdout = ""
+            result.returncode = 1  # No processes found
+            return result
+
+        from adw_triggers.trigger_websocket import delete_adw
+
+        with patch('adw_triggers.trigger_websocket.DB_AVAILABLE', True):
+            with patch('adw_triggers.trigger_websocket.get_db_manager', return_value=mock_db):
+                with patch('adw_triggers.trigger_websocket.worktree_ops', mock_ports):
+                    with patch('adw_triggers.trigger_websocket.subprocess.run', mock_subprocess_run):
+                        with patch('adw_triggers.trigger_websocket.os.path.exists', return_value=False):
+                            with patch('adw_triggers.trigger_websocket.find_adw_directory', return_value=None):
+                                with patch('adw_triggers.trigger_websocket.manager') as mock_manager:
+                                    mock_manager.broadcast = MagicMock()
+                                    result = asyncio.get_event_loop().run_until_complete(
+                                        delete_adw("00000000")
+                                    )
+
+        # Check that we did NOT try to kill processes on port 8500
+        kill_8500_attempted = any(
+            "lsof" in str(cmd) and ":8500" in str(cmd)
+            for cmd in subprocess_calls
+        )
+        assert not kill_8500_attempted, \
+            "delete_adw should NOT attempt to kill processes on port 8500 (main server port)"
+
+    def test_delete_adw_skips_main_frontend_port_killing(self):
+        """Test that delete_adw does NOT kill processes on main frontend port.
+
+        Similar protection for the frontend port (5173).
+        """
+        import asyncio
+        from unittest.mock import patch, MagicMock
+
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = []
+        mock_db.execute_update.return_value = 1
+
+        # Mock worktree_ops to return main frontend port (5173 -> 9200 adjusted)
+        mock_ports = MagicMock()
+        mock_ports.get_ports_for_adw.return_value = (8501, 5173)  # Frontend collision!
+        mock_ports.get_worktree_path.return_value = "/nonexistent/path"
+        mock_ports.remove_worktree.return_value = (True, None)
+
+        subprocess_calls = []
+
+        def mock_subprocess_run(cmd, **kwargs):
+            subprocess_calls.append(cmd)
+            result = MagicMock()
+            result.stdout = ""
+            result.returncode = 1
+            return result
+
+        from adw_triggers.trigger_websocket import delete_adw
+
+        with patch('adw_triggers.trigger_websocket.DB_AVAILABLE', True):
+            with patch('adw_triggers.trigger_websocket.get_db_manager', return_value=mock_db):
+                with patch('adw_triggers.trigger_websocket.worktree_ops', mock_ports):
+                    with patch('adw_triggers.trigger_websocket.subprocess.run', mock_subprocess_run):
+                        with patch('adw_triggers.trigger_websocket.os.path.exists', return_value=False):
+                            with patch('adw_triggers.trigger_websocket.find_adw_directory', return_value=None):
+                                with patch('adw_triggers.trigger_websocket.WEBSOCKET_PORT', 8500):
+                                    with patch.dict('os.environ', {'FRONTEND_PORT': '5173'}):
+                                        with patch('adw_triggers.trigger_websocket.manager') as mock_manager:
+                                            mock_manager.broadcast = MagicMock()
+                                            result = asyncio.get_event_loop().run_until_complete(
+                                                delete_adw("test1234")
+                                            )
+
+        # Check that we did NOT try to kill processes on port 5173
+        kill_5173_attempted = any(
+            "lsof" in str(cmd) and ":5173" in str(cmd)
+            for cmd in subprocess_calls
+        )
+        assert not kill_5173_attempted, \
+            "delete_adw should NOT attempt to kill processes on port 5173 (main frontend port)"
+
+    def test_delete_adw_kills_non_colliding_ports(self):
+        """Test that delete_adw DOES kill processes on non-colliding ports.
+
+        When the ADW's ports don't match the main server ports, killing
+        should proceed normally.
+        """
+        import asyncio
+        from unittest.mock import patch, MagicMock
+
+        mock_db = MagicMock()
+        mock_db.execute_query.return_value = []
+        mock_db.execute_update.return_value = 1
+
+        # Mock worktree_ops to return non-colliding ports
+        mock_ports = MagicMock()
+        mock_ports.get_ports_for_adw.return_value = (8505, 9205)  # No collision
+        mock_ports.get_worktree_path.return_value = "/nonexistent/path"
+        mock_ports.remove_worktree.return_value = (True, None)
+
+        subprocess_calls = []
+
+        def mock_subprocess_run(cmd, **kwargs):
+            subprocess_calls.append(cmd)
+            result = MagicMock()
+            result.stdout = "12345"  # Simulate a process found
+            result.returncode = 0
+            return result
+
+        from adw_triggers.trigger_websocket import delete_adw
+
+        with patch('adw_triggers.trigger_websocket.DB_AVAILABLE', True):
+            with patch('adw_triggers.trigger_websocket.get_db_manager', return_value=mock_db):
+                with patch('adw_triggers.trigger_websocket.worktree_ops', mock_ports):
+                    with patch('adw_triggers.trigger_websocket.subprocess.run', mock_subprocess_run):
+                        with patch('adw_triggers.trigger_websocket.os.path.exists', return_value=False):
+                            with patch('adw_triggers.trigger_websocket.find_adw_directory', return_value=None):
+                                with patch('adw_triggers.trigger_websocket.os.kill') as mock_kill:
+                                    with patch('adw_triggers.trigger_websocket.WEBSOCKET_PORT', 8500):
+                                        with patch.dict('os.environ', {'FRONTEND_PORT': '5173'}):
+                                            with patch('adw_triggers.trigger_websocket.manager') as mock_manager:
+                                                mock_manager.broadcast = MagicMock()
+                                                result = asyncio.get_event_loop().run_until_complete(
+                                                    delete_adw("abcd1234")
+                                                )
+
+        # Check that we DID try to kill processes on non-colliding ports
+        kill_8505_attempted = any(
+            "lsof" in str(cmd) and ":8505" in str(cmd)
+            for cmd in subprocess_calls
+        )
+        assert kill_8505_attempted, \
+            "delete_adw SHOULD attempt to kill processes on non-colliding port 8505"

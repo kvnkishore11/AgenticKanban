@@ -2659,33 +2659,46 @@ async def delete_adw(adw_id: str):
             # Get ports for this ADW
             ws_port, frontend_port = worktree_ops.get_ports_for_adw(adw_id)
 
-            # Kill processes on WebSocket port
-            kill_result = subprocess.run(
-                ["lsof", "-ti", f":{ws_port}"],
-                capture_output=True, text=True
-            )
-            if kill_result.stdout.strip():
-                pids = kill_result.stdout.strip().split('\n')
-                for pid in pids:
-                    try:
-                        os.kill(int(pid), signal.SIGTERM)
-                        logger.info(f"Killed process {pid} on port {ws_port}")
-                    except (ProcessLookupError, ValueError):
-                        pass
+            # CRITICAL: Never kill the main server's port!
+            # The main server runs on WEBSOCKET_PORT (default 8500).
+            # If an ADW's port hash collides with the main server port,
+            # we must skip killing to avoid crashing the server.
+            main_server_port = WEBSOCKET_PORT
+            main_frontend_port = int(os.getenv("FRONTEND_PORT", "5173"))
 
-            # Kill processes on frontend port
-            kill_result = subprocess.run(
-                ["lsof", "-ti", f":{frontend_port}"],
-                capture_output=True, text=True
-            )
-            if kill_result.stdout.strip():
-                pids = kill_result.stdout.strip().split('\n')
-                for pid in pids:
-                    try:
-                        os.kill(int(pid), signal.SIGTERM)
-                        logger.info(f"Killed process {pid} on port {frontend_port}")
-                    except (ProcessLookupError, ValueError):
-                        pass
+            # Kill processes on WebSocket port (only if not main server)
+            if ws_port != main_server_port:
+                kill_result = subprocess.run(
+                    ["lsof", "-ti", f":{ws_port}"],
+                    capture_output=True, text=True
+                )
+                if kill_result.stdout.strip():
+                    pids = kill_result.stdout.strip().split('\n')
+                    for pid in pids:
+                        try:
+                            os.kill(int(pid), signal.SIGTERM)
+                            logger.info(f"Killed process {pid} on port {ws_port}")
+                        except (ProcessLookupError, ValueError):
+                            pass
+            else:
+                logger.warning(f"Skipping port {ws_port} kill - matches main server port")
+
+            # Kill processes on frontend port (only if not main frontend)
+            if frontend_port != main_frontend_port:
+                kill_result = subprocess.run(
+                    ["lsof", "-ti", f":{frontend_port}"],
+                    capture_output=True, text=True
+                )
+                if kill_result.stdout.strip():
+                    pids = kill_result.stdout.strip().split('\n')
+                    for pid in pids:
+                        try:
+                            os.kill(int(pid), signal.SIGTERM)
+                            logger.info(f"Killed process {pid} on port {frontend_port}")
+                        except (ProcessLookupError, ValueError):
+                            pass
+            else:
+                logger.warning(f"Skipping port {frontend_port} kill - matches main frontend port")
 
             deletion_results["processes_killed"] = True
         except Exception as e:
