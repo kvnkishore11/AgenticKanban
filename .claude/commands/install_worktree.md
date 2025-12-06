@@ -1,11 +1,9 @@
 # Install Worktree
 
-This command sets up an isolated worktree environment with custom port configuration.
+This command sets up an isolated worktree environment. Ports are assigned automatically at runtime by the `wt` script.
 
 ## Parameters
 - Worktree path: {0}
-- WebSocket port: {1}
-- Frontend port: {2}
 
 ## Read
 - .env.sample (from parent repo)
@@ -20,13 +18,14 @@ This command sets up an isolated worktree environment with custom port configura
    ```
 
 2. **Create port configuration file**
-   Create `.ports.env` with:
+   Create `.ports.env` with fallback values only:
    ```
-   WEBSOCKET_PORT={1}
-   FRONTEND_PORT={2}
-   ADW_PORT={1}
-   VITE_ADW_PORT={1}
-   VITE_BACKEND_URL=http://localhost:{1}
+   # Ports are assigned automatically by wt script at runtime
+   # These are fallbacks for manual/legacy startup only
+   WEBSOCKET_PORT=8500
+   FRONTEND_PORT=5173
+   ADW_PORT=8500
+   # VITE_BACKEND_URL is auto-detected from hostname at runtime
    ```
 
 3. **Copy and update .env files**

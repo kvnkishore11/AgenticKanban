@@ -50,17 +50,11 @@ except Exception as e:
     # Continue without database - backward compatibility with JSON-only mode
 
 # Configure CORS to allow requests from frontend
+# Supports both traditional localhost ports and Caddy hostname routing (*.localhost)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Vite dev server default
-        f"http://localhost:{os.getenv('FRONTEND_PORT', '9204')}",  # Frontend port from env
-        "http://localhost:3000",  # Alternative frontend port
-        "http://localhost:9205",  # Additional frontend port for testing
-        "http://localhost:9201",  # Additional frontend port
-        "http://localhost:9202",  # Additional frontend port
-        "http://localhost:9203",  # Additional frontend port
-    ],
+    # Use regex to match all *.localhost hostnames (Caddy routing)
+    allow_origin_regex=r"https?://([\w-]+\.)?localhost(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

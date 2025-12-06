@@ -11,20 +11,21 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Load ports from .ports.env
-if [ -f "$PROJECT_ROOT/.ports.env" ]; then
-    echo -e "${BLUE}Loading port configuration from .ports.env...${NC}"
-    export $(grep -v '^#' "$PROJECT_ROOT/.ports.env" | xargs)
+# Use environment variable first (from wt script), fallback to .ports.env
+if [ -z "$FRONTEND_PORT" ]; then
+    if [ -f "$PROJECT_ROOT/.ports.env" ]; then
+        echo -e "${BLUE}Loading port configuration from .ports.env...${NC}"
+        export $(grep -v '^#' "$PROJECT_ROOT/.ports.env" | xargs)
+    else
+        echo -e "${YELLOW}Warning: No FRONTEND_PORT set and no .ports.env found${NC}"
+        FRONTEND_PORT=5173
+    fi
 else
-    echo -e "${RED}Error: .ports.env file not found!${NC}"
-    exit 1
+    echo -e "${BLUE}Using FRONTEND_PORT from environment: $FRONTEND_PORT${NC}"
 fi
 
-# Check if FRONTEND_PORT is set
-if [ -z "$FRONTEND_PORT" ]; then
-    echo -e "${RED}Error: FRONTEND_PORT not defined in .ports.env${NC}"
-    exit 1
-fi
+# Ensure FRONTEND_PORT is set (final fallback)
+FRONTEND_PORT=${FRONTEND_PORT:-5173}
 
 echo -e "${BLUE}Starting Frontend Server on port $FRONTEND_PORT...${NC}"
 

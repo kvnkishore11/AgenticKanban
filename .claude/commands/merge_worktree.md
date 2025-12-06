@@ -27,7 +27,13 @@ This command is designed to work with or without an associated issue number, mak
 
 ## Run
 
-Execute the merge worktree Python script:
+Before merging, stop any running processes for this worktree:
+
+```bash
+wt stop {adw_id}
+```
+
+Then execute the merge worktree Python script:
 
 ```bash
 cd adws

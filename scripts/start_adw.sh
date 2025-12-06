@@ -11,24 +11,22 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Load ports from .ports.env
-if [ -f "$PROJECT_ROOT/.ports.env" ]; then
-    echo -e "${BLUE}Loading port configuration from .ports.env...${NC}"
-    export $(grep -v '^#' "$PROJECT_ROOT/.ports.env" | xargs)
+# Use environment variable first (from wt script), fallback to .ports.env
+if [ -z "$ADW_PORT" ] && [ -z "$WEBSOCKET_PORT" ]; then
+    if [ -f "$PROJECT_ROOT/.ports.env" ]; then
+        echo -e "${BLUE}Loading port configuration from .ports.env...${NC}"
+        export $(grep -v '^#' "$PROJECT_ROOT/.ports.env" | xargs)
+    else
+        echo -e "${YELLOW}Warning: No ADW_PORT set and no .ports.env found${NC}"
+        ADW_PORT=8500
+    fi
 else
-    echo -e "${RED}Error: .ports.env file not found!${NC}"
-    exit 1
+    echo -e "${BLUE}Using ADW_PORT from environment: ${ADW_PORT:-$WEBSOCKET_PORT}${NC}"
 fi
 
-# Check if ADW_PORT is set, fallback to WEBSOCKET_PORT if not
-if [ -z "$ADW_PORT" ]; then
-    if [ -z "$WEBSOCKET_PORT" ]; then
-        echo -e "${RED}Error: Neither ADW_PORT nor WEBSOCKET_PORT defined in .ports.env${NC}"
-        exit 1
-    fi
-    echo -e "${YELLOW}ADW_PORT not defined, using WEBSOCKET_PORT ($WEBSOCKET_PORT)${NC}"
-    ADW_PORT=$WEBSOCKET_PORT
-fi
+# Ensure ADW_PORT is set (fallback chain: ADW_PORT -> WEBSOCKET_PORT -> default)
+ADW_PORT=${ADW_PORT:-$WEBSOCKET_PORT}
+ADW_PORT=${ADW_PORT:-8500}
 
 echo -e "${BLUE}Starting ADW WebSocket Trigger Server on port $ADW_PORT...${NC}"
 

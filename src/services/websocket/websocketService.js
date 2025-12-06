@@ -5,6 +5,7 @@
 
 import { isWorkflowComplete } from '../../utils/workflowValidation.js';
 import { SDLC_STAGES } from '../../constants/workItems.js';
+import { API_HOST, API_PORT, isCaddyRouted, getWebSocketUrl } from '../../config/api.js';
 
 class WebSocketService {
   constructor() {
@@ -88,28 +89,23 @@ class WebSocketService {
       connection_blocked: []
     };
 
-    // Configuration - extract from environment variables
-    const backendUrl = import.meta.env.VITE_BACKEND_URL;
-    const adwPort = import.meta.env.VITE_ADW_PORT;
-
-    if (!backendUrl) {
-      throw new Error('VITE_BACKEND_URL environment variable is required');
-    }
-
-    const url = new URL(backendUrl);
-
-    // Use VITE_ADW_PORT if provided, otherwise fallback to VITE_BACKEND_URL port
-    const port = adwPort ? parseInt(adwPort) : parseInt(url.port);
+    // Configuration - use centralized API config with auto-detection
+    // Priority: 1) env vars, 2) hostname-based Caddy routing, 3) fallback defaults
+    const protocol = typeof window !== 'undefined' && window.location
+      ? (window.location.protocol === 'https:' ? 'wss' : 'ws')
+      : 'ws';
 
     this.config = {
-      host: url.hostname,
-      port: port, // Dynamic WebSocket server port
-      protocol: 'ws',
+      host: API_HOST,
+      port: API_PORT,
+      protocol,
       autoReconnect: true,
-      maxReconnectAttempts: 20, // Updated to match instance variable
+      maxReconnectAttempts: 20,
       heartbeat: true,
       messageQueueEnabled: true,
-      maxQueueSize: 100
+      maxQueueSize: 100,
+      // Track if using Caddy routing for URL construction
+      useCaddyRouting: isCaddyRouted()
     };
 
     // Set up browser visibility API integration
@@ -184,10 +180,17 @@ class WebSocketService {
 
   /**
    * Get WebSocket URL based on configuration
+   * Uses Caddy routing (ws.<adw_id>.localhost) when available
    */
   getWebSocketUrl() {
+    // Use Caddy routing if available
+    if (this.config.useCaddyRouting) {
+      const wsUrl = getWebSocketUrl();
+      return `${wsUrl}/ws/trigger`;
+    }
+
+    // Fallback to traditional port-based routing
     const { protocol, host, port } = this.config;
-    // Connect to main WebSocket endpoint for real-time agent state streaming
     return `${protocol}://${host}:${port}/ws/trigger`;
   }
 
